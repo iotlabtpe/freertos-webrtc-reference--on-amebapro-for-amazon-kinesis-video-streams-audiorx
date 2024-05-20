@@ -1,0 +1,3 @@
+[submodule "libraries/ambpro2_sdk"]
+	path = libraries/ambpro2_sdk
+	url = https://github.com/ambiot/ambpro2_sdk.git
