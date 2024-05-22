@@ -230,29 +230,21 @@ list(
 	${prj_root}/src/test_model/nn_utils/class_name.c
 )
 
+if(NOT DEFINED WEBRTC_APPLICATION_DEMO)
+	message(STATUS "Build WebRTC Application project")
+	include(${repo_root}/project/webrtc_master_demo.cmake)
+	list(
+		APPEND app_sources
+		${webrtc_master_demo_src}
+	)
 
-if(DEFINED EXAMPLE AND EXAMPLE)
-    message(STATUS "EXAMPLE = ${EXAMPLE}")
-    if(EXISTS ${sdk_root}/component/example/${EXAMPLE})
-		if(EXISTS ${sdk_root}/component/example/${EXAMPLE}/${EXAMPLE}.cmake)
-			message(STATUS "Found ${EXAMPLE} include project")
-			include(${sdk_root}/component/example/${EXAMPLE}/${EXAMPLE}.cmake)
-		else()
-			message(WARNING "Found ${EXAMPLE} include project but ${EXAMPLE}.cmake not exist")
-		endif()
-    else()
-        message(WARNING "${EXAMPLE} Not Found")
-    endif()
-    if(NOT DEBUG)
-        set(EXAMPLE OFF CACHE STRING INTERNAL FORCE)
-    endif()
-elseif(DEFINED VIDEO_EXAMPLE AND VIDEO_EXAMPLE)
-    message(STATUS "Build VIDEO_EXAMPLE project")
-    include(${prj_root}/src/mmfv2_video_example/video_example_media_framework.cmake)
-    if(NOT DEBUG)
-        set(VIDEO_EXAMPLE OFF CACHE STRING INTERNAL FORCE)
-    endif()
+	list(
+		APPEND app_inc_path
+		${webrtc_master_demo_include}
+	)
 else()
+	message(STATUS "Build other project")
+	message(FATAL_ERROR "No other project supported")
 endif()
 
 add_library(outsrc ${out_sources})
