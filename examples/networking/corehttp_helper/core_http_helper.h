@@ -89,7 +89,7 @@ struct NetworkContext
 
 typedef struct NetworkingCorehttpContext
 {
-    NetworkingCorehttpCredentials_t corehttpCredentials;
+    NetworkingCorehttpCredentials_t credentials;
     SigV4Credentials_t sigv4Credential;
 
     /* The transport layer interface used by the HTTP Client library. */

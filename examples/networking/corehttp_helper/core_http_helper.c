@@ -229,8 +229,8 @@ NetworkingCorehttpResult_t genrerateAuthorizationHeader( NetworkingCorehttpCanon
         
         /* Initializing sigv4Params with Http parameters required for the HTTP request. */
         sigv4Params.pHttpParameters = &sigv4HttpParams;
-        sigv4Params.pRegion = networkingCorehttpContext.corehttpCredentials.pRegion;
-        sigv4Params.regionLen = networkingCorehttpContext.corehttpCredentials.regionLength;
+        sigv4Params.pRegion = networkingCorehttpContext.credentials.pRegion;
+        sigv4Params.regionLen = networkingCorehttpContext.credentials.regionLength;
         sigv4Params.pCredentials = &networkingCorehttpContext.sigv4Credential;
         sigv4Params.pDateIso8601 = pDate;
 
@@ -241,6 +241,7 @@ NetworkingCorehttpResult_t genrerateAuthorizationHeader( NetworkingCorehttpCanon
         
         if( sigv4Status != SigV4Success )
         {
+            LogError( ( "" ) );
             ret = NETWORKING_COREHTTP_RESULT_FAIL_SIGV4_GENERATE_AUTH;
         }
     }
@@ -287,8 +288,8 @@ static void getHeaderStartLocFromHttpRequest( HTTPRequestHeaders_t * pxRequestHe
 }
 
 static NetworkingCorehttpResult_t connectToServer( NetworkContext_t * pxNetworkContext,
-                                                        const char * pcServer,
-                                                        NetworkCredentials_t * pxNetworkCredentials )
+                                                   const char * pcServer,
+                                                   NetworkCredentials_t * pxNetworkCredentials )
 {
     NetworkingCorehttpResult_t ret = NETWORKING_COREHTTP_RESULT_OK;
     TlsTransportStatus_t xNetworkStatus;
@@ -341,6 +342,7 @@ NetworkingCorehttpResult_t getIso8601CurrentTime( char **ppDate, size_t * pDateL
 
         if( timeLength <= 0 )
         {
+            LogError( ( "Fail to get time, timeLength=0x%x", timeLength ) );
             ret = NETWORKING_COREHTTP_RESULT_TIME_BUFFER_TOO_SMALL;
         }
     }
@@ -367,13 +369,21 @@ HttpResult_t Http_Init( void * pCredential )
 
     if( ret == NETWORKING_COREHTTP_RESULT_OK && !first )
     {
-        memcpy( &networkingCorehttpContext.corehttpCredentials, pCredential, sizeof(NetworkingCorehttpCredentials_t) );
+        memcpy( &networkingCorehttpContext.credentials, pNetworkingCorehttpCredentials, sizeof(NetworkingCorehttpCredentials_t) );
         networkingCorehttpContext.sigv4Credential.pAccessKeyId = pNetworkingCorehttpCredentials->pAccessKeyId;
         networkingCorehttpContext.sigv4Credential.accessKeyIdLen = pNetworkingCorehttpCredentials->accessKeyIdLength;
         networkingCorehttpContext.sigv4Credential.pSecretAccessKey = pNetworkingCorehttpCredentials->pSecretAccessKey;
         networkingCorehttpContext.sigv4Credential.secretAccessKeyLen = pNetworkingCorehttpCredentials->secretAccessKeyLength;
 
-        if( networkingCorehttpContext.corehttpCredentials.userAgentLength > NETWORKING_COREHTTP_USER_AGENT_NAME_MAX_LENGTH )
+        LogInfo( ( "Input Credentials: root CA: 0x%x, CA size: 0x%x",
+                   pNetworkingCorehttpCredentials->pRootCa,
+                   pNetworkingCorehttpCredentials->rootCaSize ) );
+
+        LogInfo( ( "Credentials: root CA: 0x%x, CA size: 0x%x",
+                   networkingCorehttpContext.credentials.pRootCa,
+                   networkingCorehttpContext.credentials.rootCaSize ) );
+
+        if( networkingCorehttpContext.credentials.userAgentLength > NETWORKING_COREHTTP_USER_AGENT_NAME_MAX_LENGTH )
         {
             ret = NETWORKING_COREHTTP_RESULT_USER_AGENT_NAME_TOO_LONG;
         }
@@ -420,6 +430,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
     size_t xHeadersLen;
     NetworkingCorehttpCanonicalRequest_t canonicalRequest;
     HTTPResponse_t corehttpResponse;
+    NetworkCredentials_t credentials;
     
     if( pRequest == NULL || pResponse == NULL )
     {
@@ -445,9 +456,13 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
 
     if( ret == NETWORKING_COREHTTP_RESULT_OK )
     {
+        memset( &credentials, 0, sizeof( NetworkCredentials_t ) );
+
+        credentials.pRootCa = networkingCorehttpContext.credentials.pRootCa;
+        credentials.rootCaSize = networkingCorehttpContext.credentials.rootCaSize;
         ret = connectToServer( &networkingCorehttpContext.xNetworkContext,
                                networkingCorehttpContext.hostName,
-                               NULL );
+                               &credentials );
     }
 
     if( ret == NETWORKING_COREHTTP_RESULT_OK )
@@ -497,8 +512,8 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
         xHttpStatus = HTTPClient_AddHeader( &xRequestHeaders,
                                             NETWORKING_COREHTTP_STRING_USER_AGENT,
                                             strlen( NETWORKING_COREHTTP_STRING_USER_AGENT ),
-                                            networkingCorehttpContext.corehttpCredentials.pUserAgent,
-                                            networkingCorehttpContext.corehttpCredentials.userAgentLength );
+                                            networkingCorehttpContext.credentials.pUserAgent,
+                                            networkingCorehttpContext.credentials.userAgentLength );
 
         if( xHttpStatus != HTTPSuccess )
         {

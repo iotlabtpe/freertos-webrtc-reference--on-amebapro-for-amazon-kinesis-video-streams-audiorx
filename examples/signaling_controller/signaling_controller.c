@@ -130,7 +130,7 @@ static WebsocketResult_t handleWssMessage( char *pMessage, size_t messageLength,
         return ret;
     }
 
-    static SignalingControllerResult_t HttpLibwebsockets_PerformRequest( SignalingControllerContext_t *pCtx, HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_t *pResponse )
+    static SignalingControllerResult_t SignalingController_HttpPerform( SignalingControllerContext_t *pCtx, HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_t *pResponse )
     {
         SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
         HttpResult_t retHttp;
@@ -178,6 +178,10 @@ static WebsocketResult_t handleWssMessage( char *pMessage, size_t messageLength,
         coreHttpCred.pRootCa = pCtx->credential.pCaCertPem;
         coreHttpCred.rootCaSize = pCtx->credential.caCertPemSize;
 
+        LogInfo( ( "Signaling Control is initializing HTTP: root CA: 0x%x, CA size: 0x%x",
+                   pCtx->credential.pCaCertPem,
+                   pCtx->credential.caCertPemSize ) );
+
         retHttp = Http_Init( &coreHttpCred );
 
         if( retHttp != HTTP_RESULT_OK )
@@ -188,7 +192,7 @@ static WebsocketResult_t handleWssMessage( char *pMessage, size_t messageLength,
         return ret;
     }
 
-    static SignalingControllerResult_t HttpLibwebsockets_PerformRequest( SignalingControllerContext_t *pCtx, HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_t *pResponse )
+    static SignalingControllerResult_t SignalingController_HttpPerform( SignalingControllerContext_t *pCtx, HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_t *pResponse )
     {
         SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
         HttpResult_t retHttp;
@@ -371,7 +375,7 @@ static SignalingControllerResult_t describeSignalingChannel( SignalingController
         response.pBuffer = responseBuffer;
         response.bufferLength = MAX_JSON_PARAMETER_STRING_LEN;
 
-        ret = HttpLibwebsockets_PerformRequest( pCtx, &request, 0, &response );
+        ret = SignalingController_HttpPerform( pCtx, &request, 0, &response );
     }
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
@@ -475,7 +479,7 @@ static SignalingControllerResult_t getSignalingChannelEndpoints( SignalingContro
         response.pBuffer = responseBuffer;
         response.bufferLength = MAX_JSON_PARAMETER_STRING_LEN;
 
-        ret = HttpLibwebsockets_PerformRequest( pCtx, &request, 0, &response );
+        ret = SignalingController_HttpPerform( pCtx, &request, 0, &response );
     }
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
@@ -580,7 +584,7 @@ static SignalingControllerResult_t getIceServerList( SignalingControllerContext_
         response.pBuffer = responseBuffer;
         response.bufferLength = MAX_JSON_PARAMETER_STRING_LEN;
 
-        ret = HttpLibwebsockets_PerformRequest( pCtx, &request, 0, &response );
+        ret = SignalingController_HttpPerform( pCtx, &request, 0, &response );
     }
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
@@ -766,6 +770,9 @@ SignalingControllerResult_t SignalingController_Init( SignalingControllerContext
         pCtx->credential.secretAccessKeyLength = pCred->secretAccessKeyLength;
 
         pCtx->credential.pCaCertPath = pCred->pCaCertPath;
+
+        pCtx->credential.pCaCertPem = pCred->pCaCertPem;
+        pCtx->credential.caCertPemSize = pCred->caCertPemSize;
 
         pCtx->receiveMessageCallback = receiveMessageCallback;
         pCtx->pReceiveMessageCallbackContext = pReceiveMessageCallbackContext;

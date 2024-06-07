@@ -38,6 +38,8 @@
 /* FreeRTOS includes. */
 #include "FreeRTOS.h"
 
+#include "mbedtls/config.h"
+
 #ifdef MBEDTLS_PSA_CRYPTO_C
     /* MbedTLS PSA Includes */
     #include "psa/crypto.h"
@@ -246,7 +248,7 @@ static void sslContextInit( SSLContext_t * pSslContext )
     mbedtls_x509_crt_init( &( pSslContext->clientCert ) );
     mbedtls_ssl_init( &( pSslContext->context ) );
     #ifdef MBEDTLS_DEBUG_C
-        mbedtls_debug_set_threshold( LIBRARY_LOG_LEVEL + 1U );
+        mbedtls_debug_set_threshold( 2 );
         mbedtls_ssl_conf_dbg( &( pSslContext->config ),
                               mbedtls_string_printf,
                               NULL );
@@ -277,6 +279,7 @@ static int32_t setRootCa( SSLContext_t * pSslContext,
     configASSERT( pSslContext != NULL );
     configASSERT( pRootCa != NULL );
 
+    LogInfo( ( "Before mbedtls_x509_crt_parse." ) );
     /* Parse the server root CA certificate into the SSL context. */
     mbedtlsError = mbedtls_x509_crt_parse( &( pSslContext->rootCa ),
                                            pRootCa,
@@ -290,6 +293,7 @@ static int32_t setRootCa( SSLContext_t * pSslContext,
     }
     else
     {
+        LogInfo( ( "Before mbedtls_ssl_conf_ca_chain." ) );
         mbedtls_ssl_conf_ca_chain( &( pSslContext->config ),
                                    &( pSslContext->rootCa ),
                                    NULL );
@@ -361,7 +365,7 @@ static int32_t setPrivateKey( SSLContext_t * pSslContext,
 static int32_t setCredentials( SSLContext_t * pSslContext,
                                const NetworkCredentials_t * pNetworkCredentials )
 {
-    int32_t mbedtlsError = -1;
+    int32_t mbedtlsError = 0;
 
     configASSERT( pSslContext != NULL );
     configASSERT( pNetworkCredentials != NULL );
@@ -378,6 +382,7 @@ static int32_t setCredentials( SSLContext_t * pSslContext,
     mbedtls_ssl_conf_cert_profile( &( pSslContext->config ),
                                    &( pSslContext->certProfile ) );
 
+    LogInfo( ( "Before setRootCa." ) );
     mbedtlsError = setRootCa( pSslContext,
                               pNetworkCredentials->pRootCa,
                               pNetworkCredentials->rootCaSize );
@@ -387,6 +392,7 @@ static int32_t setCredentials( SSLContext_t * pSslContext,
     {
         if( mbedtlsError == 0 )
         {
+            LogInfo( ( "Before setClientCertificate." ) );
             mbedtlsError = setClientCertificate( pSslContext,
                                                  pNetworkCredentials->pClientCert,
                                                  pNetworkCredentials->clientCertSize );
@@ -394,6 +400,7 @@ static int32_t setCredentials( SSLContext_t * pSslContext,
 
         if( mbedtlsError == 0 )
         {
+            LogInfo( ( "Before setPrivateKey." ) );
             mbedtlsError = setPrivateKey( pSslContext,
                                           pNetworkCredentials->pPrivateKey,
                                           pNetworkCredentials->privateKeySize );
@@ -401,6 +408,7 @@ static int32_t setCredentials( SSLContext_t * pSslContext,
 
         if( mbedtlsError == 0 )
         {
+            LogInfo( ( "Before mbedtls_ssl_conf_own_cert." ) );
             mbedtlsError = mbedtls_ssl_conf_own_cert( &( pSslContext->config ),
                                                       &( pSslContext->clientCert ),
                                                       &( pSslContext->privKey ) );
@@ -439,6 +447,7 @@ static void setOptionalConfigurations( SSLContext_t * pSslContext,
     /* Enable SNI if requested. */
     if( pNetworkCredentials->disableSni == pdFALSE )
     {
+        printf("Set host name %s\n", pHostName);
         mbedtlsError = mbedtls_ssl_set_hostname( &( pSslContext->context ),
                                                  pHostName );
 
@@ -451,22 +460,22 @@ static void setOptionalConfigurations( SSLContext_t * pSslContext,
     }
 
     /* Set Maximum Fragment Length if enabled. */
-    #ifdef MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
+    // #ifdef MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
 
-        /* Enable the max fragment extension. 4096 bytes is currently the largest fragment size permitted.
-         * See RFC 8449 https://tools.ietf.org/html/rfc8449 for more information.
-         *
-         * Smaller values can be found in "mbedtls/include/ssl.h".
-         */
-        mbedtlsError = mbedtls_ssl_conf_max_frag_len( &( pSslContext->config ), MBEDTLS_SSL_MAX_FRAG_LEN_4096 );
+    //     /* Enable the max fragment extension. 4096 bytes is currently the largest fragment size permitted.
+    //      * See RFC 8449 https://tools.ietf.org/html/rfc8449 for more information.
+    //      *
+    //      * Smaller values can be found in "mbedtls/include/ssl.h".
+    //      */
+    //     mbedtlsError = mbedtls_ssl_conf_max_frag_len( &( pSslContext->config ), MBEDTLS_SSL_MAX_FRAG_LEN_4096 );
 
-        if( mbedtlsError != 0 )
-        {
-            LogError( ( "Failed to maximum fragment length extension: mbedTLSError= %s : %s.",
-                        mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
-                        mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
-        }
-    #endif /* ifdef MBEDTLS_SSL_MAX_FRAGMENT_LENGTH */
+    //     if( mbedtlsError != 0 )
+    //     {
+    //         LogError( ( "Failed to maximum fragment length extension: mbedTLSError= %s : %s.",
+    //                     mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
+    //                     mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
+    //     }
+    // #endif /* ifdef MBEDTLS_SSL_MAX_FRAGMENT_LENGTH */
 }
 /*-----------------------------------------------------------*/
 
@@ -505,6 +514,7 @@ static TlsTransportStatus_t tlsSetup( NetworkContext_t * pNetworkContext,
 
     if( returnStatus == TLS_TRANSPORT_SUCCESS )
     {
+        LogInfo( ( "Before setCredentials." ) );
         mbedtlsError = setCredentials( &( pTlsTransportParams->sslContext ),
                                        pNetworkCredentials );
 
@@ -515,6 +525,7 @@ static TlsTransportStatus_t tlsSetup( NetworkContext_t * pNetworkContext,
         else
         {
             /* Optionally set SNI and ALPN protocols. */
+            LogInfo( ( "Before setOptionalConfigurations." ) );
             setOptionalConfigurations( &( pTlsTransportParams->sslContext ),
                                        pHostName,
                                        pNetworkCredentials );

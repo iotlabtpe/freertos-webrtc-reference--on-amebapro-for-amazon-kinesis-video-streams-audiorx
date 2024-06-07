@@ -49,7 +49,8 @@
 /* configASSERT() using stuff in task.h */
 #include "task.h"
 
-struct xSOCKET {
+struct xSOCKET
+{
     int xFd;
 };
 
@@ -66,75 +67,74 @@ struct xSOCKET {
  *
  * @return Non-zero value on error, 0 on success.
  */
-BaseType_t TCP_Sockets_Connect( Socket_t * pTcpSocket,
-                                const char * pHostName,
-                                uint16_t port,
-                                uint32_t receiveTimeoutMs,
-                                uint32_t sendTimeoutMs )
+BaseType_t TCP_Sockets_Connect(Socket_t *pTcpSocket,
+                               const char *pHostName,
+                               uint16_t port,
+                               uint32_t receiveTimeoutMs,
+                               uint32_t sendTimeoutMs)
 {
     /* We don't support timeouts */
-    ( void ) receiveTimeoutMs;
-    ( void ) sendTimeoutMs;
+    (void)receiveTimeoutMs;
+    (void)sendTimeoutMs;
 
     int xFd = -1;
     BaseType_t xRet = TCP_SOCKETS_ERRNO_NONE;
     struct addrinfo xHints, *pxAddrList, *pxCur;
     char xPortStr[6];
 
-    memset( &xHints, 0, sizeof( xHints ) );
+    memset(&xHints, 0, sizeof(xHints));
     xHints.ai_family = AF_UNSPEC;
     xHints.ai_socktype = SOCK_STREAM;
     xHints.ai_protocol = IPPROTO_TCP;
-    snprintf( xPortStr, sizeof( xPortStr ), "%d", port );
-    if( getaddrinfo( pHostName, xPortStr, &xHints, &pxAddrList ) != 0 )
+    snprintf(xPortStr, sizeof(xPortStr), "%d", port);
+    if (getaddrinfo(pHostName, xPortStr, &xHints, &pxAddrList) != 0)
     {
-        LogError( ( "Failed to connect to server: DNS resolution failed: Hostname=%s.",
-                    pHostName ) );
-	return TCP_SOCKETS_ERRNO_ERROR;
+        LogError(("Failed to connect to server: DNS resolution failed: Hostname=%s.",
+                  pHostName));
+        return TCP_SOCKETS_ERRNO_ERROR;
     }
 
     /* Try the sockaddrs until a connection succeeds */
     xRet = TCP_SOCKETS_ERRNO_ERROR;
-    for( pxCur = pxAddrList; pxCur != NULL; pxCur = pxCur->ai_next )
+    for (pxCur = pxAddrList; pxCur != NULL; pxCur = pxCur->ai_next)
     {
-	xFd = socket(pxCur->ai_family, pxCur->ai_socktype,
-			 pxCur->ai_protocol);
-	if ( xFd < 0 )
-	{
-	    LogError( ( "Failed to create new socket." ) );
-	    xRet = TCP_SOCKETS_ERRNO_ENOMEM;
-	    continue;
-	}
-	
-        if( connect( xFd, pxCur->ai_addr, pxCur->ai_addrlen ) == 0 )
+        xFd = socket(pxCur->ai_family, pxCur->ai_socktype,
+                     pxCur->ai_protocol);
+        if (xFd < 0)
+        {
+            LogError(("Failed to create new socket."));
+            xRet = TCP_SOCKETS_ERRNO_ENOMEM;
+            continue;
+        }
+
+        if (connect(xFd, pxCur->ai_addr, pxCur->ai_addrlen) == 0)
         {
             xRet = TCP_SOCKETS_ERRNO_NONE;
-	    LogInfo( ( "Established TCP connection with %s.", pHostName ) );
+            LogInfo(("Established TCP connection with %s.", pHostName));
             break;
         }
 
-        close( xFd );
+        close(xFd);
         xRet = TCP_SOCKETS_ERRNO_ERROR;
     }
 
-    freeaddrinfo( pxAddrList );
+    freeaddrinfo(pxAddrList);
 
-    if ( xRet == TCP_SOCKETS_ERRNO_NONE )
+    if (xRet == TCP_SOCKETS_ERRNO_NONE)
     {
-	*pTcpSocket = pvPortMalloc( sizeof( *pTcpSocket ) );
-	if ( *pTcpSocket == NULL )
-	{
-	    LogError( ( "Failed to allow new socket context." ) );
-	    ( void ) close( xFd );
-	    xRet = TCP_SOCKETS_ERRNO_ENOMEM;
-	}
-	else
-	{
-	    (*pTcpSocket)->xFd = xFd;
-	}
+        *pTcpSocket = pvPortMalloc(sizeof(*pTcpSocket));
+        if (*pTcpSocket == NULL)
+        {
+            LogError(("Failed to allow new socket context."));
+            (void)close(xFd);
+            xRet = TCP_SOCKETS_ERRNO_ENOMEM;
+        }
+        else
+        {
+            (*pTcpSocket)->xFd = xFd;
+        }
     }
 
-    
     return xRet;
 }
 
@@ -143,11 +143,11 @@ BaseType_t TCP_Sockets_Connect( Socket_t * pTcpSocket,
  *
  * @param[in] tcpSocket The socket descriptor.
  */
-void TCP_Sockets_Disconnect( Socket_t tcpSocket )
+void TCP_Sockets_Disconnect(Socket_t tcpSocket)
 {
-    ( void ) shutdown( tcpSocket->xFd, SHUT_RDWR );
-    ( void ) close( tcpSocket->xFd );
-    vPortFree( tcpSocket );
+    (void)shutdown(tcpSocket->xFd, SHUT_RDWR);
+    (void)close(tcpSocket->xFd);
+    vPortFree(tcpSocket);
 }
 
 /**
@@ -163,33 +163,33 @@ void TCP_Sockets_Disconnect( Socket_t tcpSocket )
  * * On success, the number of bytes actually sent is returned.
  * * If an error occurred, a negative value is returned. @ref SocketsErrors
  */
-int32_t TCP_Sockets_Send( Socket_t xSocket,
-                          const void * pvBuffer,
-                          size_t xBufferLength )
+int32_t TCP_Sockets_Send(Socket_t xSocket,
+                         const void *pvBuffer,
+                         size_t xBufferLength)
 {
     int xWriteRet;
     int xReturnStatus;
 
-    configASSERT( xSocket != NULL );
-    configASSERT( pvBuffer != NULL );
+    configASSERT(xSocket != NULL);
+    configASSERT(pvBuffer != NULL);
 
-    xWriteRet = write( xSocket->xFd, pvBuffer, xBufferLength );
-    if ( xWriteRet >= 0 )
+    xWriteRet = write(xSocket->xFd, pvBuffer, xBufferLength);
+    if (xWriteRet >= 0)
     {
-	xReturnStatus = xWriteRet;
+        xReturnStatus = xWriteRet;
     }
     else
     {
-	switch ( errno )
-	{
-	    case EPIPE:
-	    case ECONNRESET:
-	        xReturnStatus = TCP_SOCKETS_ERRNO_ENOTCONN;
-	        break;
-	    default:
-	        xReturnStatus = TCP_SOCKETS_ERRNO_ERROR;
-	        break;
-	}
+        switch (errno)
+        {
+        case EPIPE:
+        case ECONNRESET:
+            xReturnStatus = TCP_SOCKETS_ERRNO_ENOTCONN;
+            break;
+        default:
+            xReturnStatus = TCP_SOCKETS_ERRNO_ERROR;
+            break;
+        }
     }
     return xReturnStatus;
 }
@@ -211,33 +211,33 @@ int32_t TCP_Sockets_Send( Socket_t xSocket,
  *   is set using @ref SOCKETS_SO_RCVTIMEO).
  * * If an error occurred, a negative value is returned. @ref SocketsErrors
  */
-int32_t TCP_Sockets_Recv( Socket_t xSocket,
-                          void * pvBuffer,
-                          size_t xBufferLength )
+int32_t TCP_Sockets_Recv(Socket_t xSocket,
+                         void *pvBuffer,
+                         size_t xBufferLength)
 {
     int xReadRet;
     int xReturnStatus;
 
-    configASSERT( xSocket != NULL );
-    configASSERT( pvBuffer != NULL );
+    configASSERT(xSocket != NULL);
+    configASSERT(pvBuffer != NULL);
 
-    xReadRet = read( xSocket->xFd, pvBuffer, xBufferLength );
-    if ( xReadRet >= 0 )
+    xReadRet = read(xSocket->xFd, pvBuffer, xBufferLength);
+    if (xReadRet >= 0)
     {
-	xReturnStatus = xReadRet;
+        xReturnStatus = xReadRet;
     }
     else
     {
-	switch ( errno )
-	{
-	    case EPIPE:
-	    case ECONNRESET:
-	        xReturnStatus = TCP_SOCKETS_ERRNO_ENOTCONN;
-	        break;
-	    default:
-	        xReturnStatus = TCP_SOCKETS_ERRNO_ERROR;
-	        break;
-	}
+        switch (errno)
+        {
+        case EPIPE:
+        case ECONNRESET:
+            xReturnStatus = TCP_SOCKETS_ERRNO_ENOTCONN;
+            break;
+        default:
+            xReturnStatus = TCP_SOCKETS_ERRNO_ERROR;
+            break;
+        }
     }
     return xReturnStatus;
 }

@@ -6,11 +6,28 @@
 #include "demo_config.h"
 #include "demo_data_types.h"
 #include "signaling_controller.h"
+#include "wifi_conf.h"
+#include "lwip_netconf.h"
 
 DemoContext_t demoContext;
 
 static void webrtc_master_task( void *pParameter );
 
+#define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect 
+static void wifi_common_init(void)
+{
+	uint32_t wifi_wait_count = 0;
+
+	while (!((wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS) && (*(u32 *)LwIP_GetIP(0) != IP_ADDR_INVALID))) {
+		vTaskDelay(10);
+		wifi_wait_count+=10;
+		if( wifi_wait_count >= wifi_wait_time_ms )
+        {
+			LogInfo( ("\r\nuse ATW0, ATW1, ATWC to make wifi connection\r\n") );
+			LogInfo( ("wait for wifi connection...\r\n") );
+		}
+	}
+}
 
 
 int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext )
@@ -78,7 +95,7 @@ int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void 
 
 void app_example(void)
 {
-    if( xTaskCreate( webrtc_master_task, ( (const char *)"webrtc_master_task" ), 4096, NULL, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
+    if( xTaskCreate( webrtc_master_task, ( (const char *)"webrtc_master_task" ), 20480, NULL, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
     {
 		LogError( ("xTaskCreate(webrtc_master_task) failed") );
 	}
@@ -93,6 +110,8 @@ void webrtc_master_task( void *pParameter )
     (void) pParameter;
 
     LogDebug( ( "Start webrtc_master_demo_app_main." ) );
+
+    wifi_common_init();
 
     memset( &demoContext, 0, sizeof( DemoContext_t ) );
 
