@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "logging.h"
 #include "demo_config.h"
@@ -29,6 +30,19 @@ static void wifi_common_init(void)
 	}
 }
 
+static uint8_t IsUpdatedCurrentTime(void)
+{
+    uint8_t ret = 0;
+    struct timespec nowTime;
+
+    clock_gettime(CLOCK_REALTIME, &nowTime);
+    if( nowTime.tv_sec > 0 )
+    {
+        ret = 1;
+    }
+
+    return ret;
+}
 
 int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext )
 {
@@ -112,6 +126,12 @@ void webrtc_master_task( void *pParameter )
     LogDebug( ( "Start webrtc_master_demo_app_main." ) );
 
     wifi_common_init();
+	sntp_init();
+	while( IsUpdatedCurrentTime() )
+    {
+		vTaskDelay(200 / portTICK_PERIOD_MS);
+		printf("waiting get epoch timer\r\n");
+	}
 
     memset( &demoContext, 0, sizeof( DemoContext_t ) );
 

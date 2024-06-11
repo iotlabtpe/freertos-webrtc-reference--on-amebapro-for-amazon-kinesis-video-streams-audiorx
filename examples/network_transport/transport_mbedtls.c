@@ -248,7 +248,7 @@ static void sslContextInit( SSLContext_t * pSslContext )
     mbedtls_x509_crt_init( &( pSslContext->clientCert ) );
     mbedtls_ssl_init( &( pSslContext->context ) );
     #ifdef MBEDTLS_DEBUG_C
-        mbedtls_debug_set_threshold( 2 );
+        mbedtls_debug_set_threshold( 1 );
         mbedtls_ssl_conf_dbg( &( pSslContext->config ),
                               mbedtls_string_printf,
                               NULL );

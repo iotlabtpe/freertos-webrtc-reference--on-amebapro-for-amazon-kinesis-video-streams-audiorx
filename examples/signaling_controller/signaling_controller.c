@@ -186,6 +186,7 @@ static WebsocketResult_t handleWssMessage( char *pMessage, size_t messageLength,
 
         if( retHttp != HTTP_RESULT_OK )
         {
+            LogError( ("Http_Init fails with return 0x%x", retHttp) );
             ret = SIGNALING_CONTROLLER_RESULT_HTTP_INIT_FAIL;
         }
 
@@ -201,6 +202,7 @@ static WebsocketResult_t handleWssMessage( char *pMessage, size_t messageLength,
 
         if( retHttp != HTTP_RESULT_OK )
         {
+            LogError( ("Http_Send fails with return 0x%x", retHttp) );
             ret = SIGNALING_CONTROLLER_RESULT_HTTP_PERFORM_REQUEST_FAIL;
         }
 
@@ -275,11 +277,13 @@ static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerCo
             }
             else if( pIceServerList->iceServer[i].userNameLength >= SIGNALING_CONTROLLER_ICE_SERVER_MAX_USER_NAME_LENGTH )
             {
+                LogError( ("The length of user name of ice server is too long to store, length=%d", pIceServerList->iceServer[i].userNameLength) );
                 ret = SIGNALING_CONTROLLER_RESULT_INVALID_ICE_SERVER_USERNAME;
                 break;
             }
             else if( pIceServerList->iceServer[i].passwordLength >= SIGNALING_CONTROLLER_ICE_SERVER_MAX_PASSWORD_LENGTH )
             {
+                LogError( ("The length of password of ice server is too long to store, length=%d", pIceServerList->iceServer[i].passwordLength) );
                 ret = SIGNALING_CONTROLLER_RESULT_INVALID_ICE_SERVER_PASSWORD;
                 break;
             }
@@ -302,6 +306,7 @@ static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerCo
                 }
                 else if( pIceServerList->iceServer[i].urisLength[j] >= SIGNALING_CONTROLLER_ICE_SERVER_MAX_URI_LENGTH )
                 {
+                    LogError( ("The length of URI of ice server is too long to store, length=%d", pIceServerList->iceServer[i].urisLength[j]) );
                     ret = SIGNALING_CONTROLLER_RESULT_INVALID_ICE_SERVER_URI;
                     break;
                 }
@@ -360,6 +365,7 @@ static SignalingControllerResult_t describeSignalingChannel( SignalingController
 
     if( retSignal != SIGNALING_RESULT_OK )
     {
+        LogError( ("Fail to construct describe signaling channel request, return=0x%x", retSignal) );
         ret = SIGNALING_CONTROLLER_RESULT_CONSTRUCT_DESCRIBE_SIGNALING_CHANNEL_FAIL;
     }
 
@@ -380,10 +386,11 @@ static SignalingControllerResult_t describeSignalingChannel( SignalingController
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        retSignal = Signaling_parseDescribeSignalingChannelResponse(&pCtx->signalingContext, responseBuffer, response.bufferLength, &describeSignalingChannelResponse);
+        retSignal = Signaling_parseDescribeSignalingChannelResponse(&pCtx->signalingContext, response.pBuffer, response.bufferLength, &describeSignalingChannelResponse);
 
         if( retSignal != SIGNALING_RESULT_OK )
         {
+            LogError( ("Fail to parse describe signaling channel response, return=0x%x", retSignal) );
             ret = SIGNALING_CONTROLLER_RESULT_PARSE_DESCRIBE_SIGNALING_CHANNEL_FAIL;
         }
     }
@@ -392,6 +399,7 @@ static SignalingControllerResult_t describeSignalingChannel( SignalingController
     {
         if( describeSignalingChannelResponse.pChannelStatus == NULL || strncmp( describeSignalingChannelResponse.pChannelStatus, "ACTIVE", describeSignalingChannelResponse.channelStatusLength ) != 0 )
         {
+            LogError( ("No active channel status found.") );
             ret = SIGNALING_CONTROLLER_RESULT_INACTIVE_SIGNALING_CHANNEL;
         }
     }
@@ -402,6 +410,7 @@ static SignalingControllerResult_t describeSignalingChannel( SignalingController
         if( describeSignalingChannelResponse.channelArnLength > SIGNALING_AWS_MAX_ARN_LEN )
         {
             /* Return ARN is longer than expectation. Drop it. */
+            LogError( ("No active channel status found.") );
             ret = SIGNALING_CONTROLLER_RESULT_INVALID_SIGNALING_CHANNEL_ARN;
         }
         else
@@ -417,6 +426,7 @@ static SignalingControllerResult_t describeSignalingChannel( SignalingController
         if( describeSignalingChannelResponse.channelNameLength > SIGNALING_AWS_MAX_CHANNEL_NAME_LEN )
         {
             /* Return channel name is longer than expectation. Drop it. */
+            LogError( ("The channel name is too long to store, length=%d.", describeSignalingChannelResponse.channelNameLength) );
             ret = SIGNALING_CONTROLLER_RESULT_INVALID_SIGNALING_CHANNEL_NAME;
         }
         else
@@ -464,6 +474,7 @@ static SignalingControllerResult_t getSignalingChannelEndpoints( SignalingContro
 
     if( retSignal != SIGNALING_RESULT_OK )
     {
+        LogError( ("Fail to construct get signaling channel endpoint request, return=0x%x", retSignal) );
         ret = SIGNALING_CONTROLLER_RESULT_CONSTRUCT_GET_SIGNALING_CHANNEL_ENDPOINTS_FAIL;
     }
 
@@ -484,10 +495,11 @@ static SignalingControllerResult_t getSignalingChannelEndpoints( SignalingContro
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        retSignal = Signaling_parseGetSignalingChannelEndpointResponse(&pCtx->signalingContext, responseBuffer, response.bufferLength, &getSignalingChannelEndpointResponse);
+        retSignal = Signaling_parseGetSignalingChannelEndpointResponse(&pCtx->signalingContext, response.pBuffer, response.bufferLength, &getSignalingChannelEndpointResponse);
 
         if( retSignal != SIGNALING_RESULT_OK )
         {
+            LogError( ("Fail to parse get signaling channel endpoint response, return=0x%x", retSignal) );
             ret = SIGNALING_CONTROLLER_RESULT_PARSE_GET_SIGNALING_CHANNEL_ENDPOINTS_FAIL;
         }
     }
@@ -497,6 +509,7 @@ static SignalingControllerResult_t getSignalingChannelEndpoints( SignalingContro
     {
         if( getSignalingChannelEndpointResponse.pEndpointHttps == NULL || getSignalingChannelEndpointResponse.endpointHttpsLength > SIGNALING_AWS_MAX_ARN_LEN )
         {
+            LogError( ("No valid HTTPS endpoint found in response") );
             ret = SIGNALING_CONTROLLER_RESULT_INVALID_HTTP_ENDPOINT;
         }
         else
@@ -511,6 +524,7 @@ static SignalingControllerResult_t getSignalingChannelEndpoints( SignalingContro
     {
         if( getSignalingChannelEndpointResponse.pEndpointWebsocketSecure == NULL || getSignalingChannelEndpointResponse.endpointWebsocketSecureLength > SIGNALING_AWS_MAX_ARN_LEN )
         {
+            LogError( ("No valid websocket endpoint found in response") );
             ret = SIGNALING_CONTROLLER_RESULT_INVALID_WEBSOCKET_SECURE_ENDPOINT;
         }
         else
@@ -525,6 +539,7 @@ static SignalingControllerResult_t getSignalingChannelEndpoints( SignalingContro
     {
         if( getSignalingChannelEndpointResponse.endpointWebrtcLength > SIGNALING_AWS_MAX_ARN_LEN )
         {
+            LogError( ("Length of webRTC endpoint name is too long to store, length=%d", getSignalingChannelEndpointResponse.endpointWebrtcLength) );
             ret = SIGNALING_CONTROLLER_RESULT_INVALID_WEBRTC_ENDPOINT;
         }
         else
@@ -569,6 +584,7 @@ static SignalingControllerResult_t getIceServerList( SignalingControllerContext_
 
     if( retSignal != SIGNALING_RESULT_OK )
     {
+        LogError( ("Fail to construct get ICE server config request, return=0x%x", retSignal) );
         ret = SIGNALING_CONTROLLER_RESULT_CONSTRUCT_GET_SIGNALING_SERVER_LIST_FAIL;
     }
 
@@ -589,10 +605,11 @@ static SignalingControllerResult_t getIceServerList( SignalingControllerContext_
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        retSignal = Signaling_parseGetIceServerConfigResponse(&pCtx->signalingContext, responseBuffer, response.bufferLength, &getIceServerConfigResponse);
+        retSignal = Signaling_parseGetIceServerConfigResponse(&pCtx->signalingContext, response.pBuffer, response.bufferLength, &getIceServerConfigResponse);
 
         if( retSignal != SIGNALING_RESULT_OK )
         {
+            LogError( ("Fail to parse get ICE server config response, return=0x%x", retSignal) );
             ret = SIGNALING_CONTROLLER_RESULT_PARSE_GET_SIGNALING_SERVER_LIST_FAIL;
         }
     }
@@ -637,6 +654,7 @@ static SignalingControllerResult_t connectWssEndpoint( SignalingControllerContex
 
     if( retSignal != SIGNALING_RESULT_OK )
     {
+        LogError( ("Fail to construct connect WSS endpoint request, return=0x%x", retSignal) );
         ret = SIGNALING_CONTROLLER_RESULT_CONSTRUCT_GET_SIGNALING_CHANNEL_ENDPOINTS_FAIL;
     }
 
@@ -646,6 +664,8 @@ static SignalingControllerResult_t connectWssEndpoint( SignalingControllerContex
         serverInfo.urlLength = signalRequest.urlLength;
         serverInfo.port = 443;
         // ret = WebsocketLibwebsockets_Connect( &serverInfo );
+        LogError( ("Fail to connect with WSS endpoint") );
+        ret = SIGNALING_CONTROLLER_RESULT_CONSTRUCT_GET_SIGNALING_CHANNEL_ENDPOINTS_FAIL;
     }
 
     return ret;
@@ -878,12 +898,12 @@ SignalingControllerResult_t SignalingController_ConnectServers( SignalingControl
     }
 
     /* Connect websocket secure endpoint. */
-    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
-    {
-        gettimeofday( &pCtx->metrics.connectWssServerStartTime, NULL );
-        ret = connectWssEndpoint( pCtx );
-        gettimeofday( &pCtx->metrics.connectWssServerEndTime, NULL );
-    }
+    // if( ret == SIGNALING_CONTROLLER_RESULT_OK )
+    // {
+    //     gettimeofday( &pCtx->metrics.connectWssServerStartTime, NULL );
+    //     ret = connectWssEndpoint( pCtx );
+    //     gettimeofday( &pCtx->metrics.connectWssServerEndTime, NULL );
+    // }
 
     /* Print metric. */
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )

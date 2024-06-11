@@ -1,7 +1,14 @@
+#include <time.h>
+
 #include "FreeRTOS_POSIX/time.h"
 #include "logging.h"
 #include "core_http_helper.h"
 #include "core_http_client.h"
+
+#include "mbedtls/ssl.h"
+#include "mbedtls/sha256.h"
+#include "mbedtls/md.h"
+#include "mbedtls/version.h"
 
 #define NETWORKING_COREHTTP_SEND_TIMEOUT_MS ( 1000 )
 #define NETWORKING_COREHTTP_RECV_TIMEOUT_MS ( 1000 )
@@ -10,6 +17,9 @@
 #define NETWORKING_COREHTTP_STRING_HOST "host"
 #define NETWORKING_COREHTTP_STRING_USER_AGENT "user-agent"
 #define NETWORKING_COREHTTP_STRING_AUTHORIZATION "Authorization"
+#define NETWORKING_COREHTTP_STRING_CONTENT_TYPE "content-type"
+#define NETWORKING_COREHTTP_STRING_CONTENT_TYPE_VALUE "application/json"
+#define NETWORKING_COREHTTP_STRING_CONTENT_LENGTH "content-length"
 
 static int32_t sha256Init( void * hashContext );
 static int32_t sha256Update( void * hashContext,
@@ -22,6 +32,11 @@ static int32_t sha256Final( void * hashContext,
 NetworkingCorehttpContext_t networkingCorehttpContext;
 
 /**
+ *  @brief mbedTLS Hash Context passed to SigV4 cryptointerface for generating the hash digest.
+ */
+static mbedtls_sha256_context xHashContext = { 0 };
+
+/**
  * @brief CryptoInterface provided to SigV4 library for generating the hash digest.
  */
 static SigV4CryptoInterface_t cryptoInterface =
@@ -29,7 +44,7 @@ static SigV4CryptoInterface_t cryptoInterface =
     .hashInit      = sha256Init,
     .hashUpdate    = sha256Update,
     .hashFinal     = sha256Final,
-    .pHashContext  = NULL,
+    .pHashContext  = &xHashContext,
     .hashBlockLen  = 64,
     .hashDigestLen = 32,
 };
@@ -48,47 +63,28 @@ static SigV4Parameters_t sigv4Params =
 
 static int32_t sha256Init( void * hashContext )
 {
-    int32_t ret = 0;
-    // const EVP_MD *md = EVP_sha256();
-    // ret = EVP_DigestInit( hashContext, md );
-    // if( ret != 1 )
-    // {
-    //     LogError( ( "Fail to init EVP_sha256" ) );
-    // }
+    mbedtls_sha256_init( ( mbedtls_sha256_context * ) hashContext );
+    mbedtls_sha256_starts( hashContext, 0 );
 
-    return ret == 1? 0:-1;
+    return 0;
 }
 
 static int32_t sha256Update( void * hashContext,
                              const uint8_t * pInput,
                              size_t inputLen )
 {
-    int32_t ret = 0;
-    // ret = EVP_DigestUpdate( hashContext, pInput, inputLen );
-    // if( ret != 1 )
-    // {
-    //     LogError( ( "Fail to update EVP_sha256" ) );
-    // }
-
-    return ret == 1? 0:-1;
+    mbedtls_sha256_update( hashContext, pInput, inputLen );
 }
 
 static int32_t sha256Final( void * hashContext,
                             uint8_t * pOutput,
                             size_t outputLen )
 {
-    int32_t ret = 0;
-    // unsigned int outLength = outputLen;
+    configASSERT( outputLen >= 32 );
 
-    // ( void ) outputLen;
+    ( void ) outputLen;
 
-    // ret = EVP_DigestFinal( hashContext, pOutput, &outLength );
-    // if( ret != 1 )
-    // {
-    //     LogError( ( "Fail to finalize EVP_sha256" ) );
-    // }
-
-    return ret == 1? 0:-1;
+    mbedtls_sha256_finish( hashContext, pOutput );
 }
 
 NetworkingCorehttpResult_t getUrlHost( char *pUrl, size_t urlLength, char **ppStart, size_t *pHostLength )
@@ -241,7 +237,7 @@ NetworkingCorehttpResult_t genrerateAuthorizationHeader( NetworkingCorehttpCanon
         
         if( sigv4Status != SigV4Success )
         {
-            LogError( ( "" ) );
+            LogError( ( "Fail to generate HTTP authorization with return 0x%x", sigv4Status ) );
             ret = NETWORKING_COREHTTP_RESULT_FAIL_SIGV4_GENERATE_AUTH;
         }
     }
@@ -327,7 +323,8 @@ NetworkingCorehttpResult_t getIso8601CurrentTime( char **ppDate, size_t * pDateL
 {
     NetworkingCorehttpResult_t ret = NETWORKING_COREHTTP_RESULT_OK;
     static char iso8601TimeBuf[ NETWORKING_COREHTTP_TIME_LENGTH ] = { 0 };
-    time_t now;
+    struct timespec nowTime;
+    time_t timeT;
     size_t timeLength = 0;
 
     if( ppDate == NULL || pDateLength == NULL )
@@ -337,8 +334,10 @@ NetworkingCorehttpResult_t getIso8601CurrentTime( char **ppDate, size_t * pDateL
 
     if( ret == NETWORKING_COREHTTP_RESULT_OK )
     {
-        time( &now );
-        timeLength = strftime(iso8601TimeBuf, NETWORKING_COREHTTP_TIME_LENGTH, "%Y%m%dT%H%M%SZ", gmtime(&now));
+        clock_gettime(CLOCK_REALTIME, &nowTime);
+        timeT = nowTime.tv_sec;
+
+        timeLength = strftime(iso8601TimeBuf, NETWORKING_COREHTTP_TIME_LENGTH, "%Y%m%dT%H%M%SZ", gmtime(&timeT));
 
         if( timeLength <= 0 )
         {
@@ -351,6 +350,7 @@ NetworkingCorehttpResult_t getIso8601CurrentTime( char **ppDate, size_t * pDateL
     {
         *ppDate = iso8601TimeBuf;
         *pDateLength = timeLength;
+        iso8601TimeBuf[ timeLength ] = '\0';
     }
 
     return ret;
@@ -374,14 +374,6 @@ HttpResult_t Http_Init( void * pCredential )
         networkingCorehttpContext.sigv4Credential.accessKeyIdLen = pNetworkingCorehttpCredentials->accessKeyIdLength;
         networkingCorehttpContext.sigv4Credential.pSecretAccessKey = pNetworkingCorehttpCredentials->pSecretAccessKey;
         networkingCorehttpContext.sigv4Credential.secretAccessKeyLen = pNetworkingCorehttpCredentials->secretAccessKeyLength;
-
-        LogInfo( ( "Input Credentials: root CA: 0x%x, CA size: 0x%x",
-                   pNetworkingCorehttpCredentials->pRootCa,
-                   pNetworkingCorehttpCredentials->rootCaSize ) );
-
-        LogInfo( ( "Credentials: root CA: 0x%x, CA size: 0x%x",
-                   networkingCorehttpContext.credentials.pRootCa,
-                   networkingCorehttpContext.credentials.rootCaSize ) );
 
         if( networkingCorehttpContext.credentials.userAgentLength > NETWORKING_COREHTTP_USER_AGENT_NAME_MAX_LENGTH )
         {
@@ -424,6 +416,8 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
     size_t pathLength;
     char *pHost;
     size_t hostLength;
+    char contentLengthBuffer[ 11 ]; /* It needs 10 bytes for 32 bit integer, +1 for NULL terminator. */
+    size_t contentLengthLength;
     /* Pointer to start of key-value pair buffer in request buffer. This is
      * used for Sigv4 signing */
     char * pcHeaderStart;
@@ -461,7 +455,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
         credentials.pRootCa = networkingCorehttpContext.credentials.pRootCa;
         credentials.rootCaSize = networkingCorehttpContext.credentials.rootCaSize;
         ret = connectToServer( &networkingCorehttpContext.xNetworkContext,
-                               networkingCorehttpContext.hostName,
+                               ( char * ) networkingCorehttpContext.hostName,
                                &credentials );
     }
 
@@ -478,7 +472,8 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
         xRequestInfo.pathLen = pathLength;
         xRequestInfo.pHost = pHost;
         xRequestInfo.hostLen = hostLength;
-        xRequestInfo.reqFlags = 0;
+        xRequestInfo.reqFlags = HTTP_REQUEST_NO_USER_AGENT_FLAG;
+        /* Note that host would be added to the header field by HTTPClient_InitializeRequestHeaders. */
 
         /* Initialize request headers. */
         xHttpStatus = HTTPClient_InitializeRequestHeaders( &xRequestHeaders, &xRequestInfo );
@@ -488,22 +483,6 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
             LogError( ( "Failed to initialize request headers: Error=%s.",
                         HTTPClient_strerror( xHttpStatus ) ) );
             ret = NETWORKING_COREHTTP_RESULT_FAIL_HTTP_INIT_REQUEST_HEADER;
-        }
-    }
-
-    if( ret == NETWORKING_COREHTTP_RESULT_OK )
-    {
-        xHttpStatus = HTTPClient_AddHeader( &xRequestHeaders,
-                                            NETWORKING_COREHTTP_STRING_HOST,
-                                            strlen( NETWORKING_COREHTTP_STRING_HOST ),
-                                            pHost,
-                                            hostLength );
-
-        if( xHttpStatus != HTTPSuccess )
-        {
-            LogError( ( "Failed to add host header to request headers: Error=%s.",
-                        HTTPClient_strerror( xHttpStatus ) ) );
-            ret = NETWORKING_COREHTTP_RESULT_FAIL_HTTP_ADD_HEADER_HOST;
         }
     }
 
@@ -583,10 +562,46 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
 
     if( ret == NETWORKING_COREHTTP_RESULT_OK )
     {
+        contentLengthLength = snprintf( contentLengthBuffer, sizeof( contentLengthBuffer ), "%lu", pRequest->bodyLength );
+        xHttpStatus = HTTPClient_AddHeader( &xRequestHeaders,
+                                            NETWORKING_COREHTTP_STRING_CONTENT_LENGTH,
+                                            strlen( NETWORKING_COREHTTP_STRING_CONTENT_LENGTH ),
+                                            contentLengthBuffer,
+                                            contentLengthLength );
+
+        if( xHttpStatus != HTTPSuccess )
+        {
+            LogError( ( "Failed to add content type header to request headers: Error=%s.",
+                        HTTPClient_strerror( xHttpStatus ) ) );
+            ret = NETWORKING_COREHTTP_RESULT_FAIL_HTTP_ADD_HEADER_CONTENT_TYPE;
+        }
+    }
+
+    if( ret == NETWORKING_COREHTTP_RESULT_OK )
+    {
+        xHttpStatus = HTTPClient_AddHeader( &xRequestHeaders,
+                                            NETWORKING_COREHTTP_STRING_CONTENT_TYPE,
+                                            strlen( NETWORKING_COREHTTP_STRING_CONTENT_TYPE ),
+                                            NETWORKING_COREHTTP_STRING_CONTENT_TYPE_VALUE,
+                                            strlen( NETWORKING_COREHTTP_STRING_CONTENT_TYPE_VALUE ) );
+
+        if( xHttpStatus != HTTPSuccess )
+        {
+            LogError( ( "Failed to add content type header to request headers: Error=%s.",
+                        HTTPClient_strerror( xHttpStatus ) ) );
+            ret = NETWORKING_COREHTTP_RESULT_FAIL_HTTP_ADD_HEADER_CONTENT_TYPE;
+        }
+    }
+
+    if( ret == NETWORKING_COREHTTP_RESULT_OK )
+    {
         memset( &corehttpResponse, 0, sizeof( HTTPResponse_t ) );
         corehttpResponse.pBuffer = (uint8_t *) pResponse->pBuffer;
         corehttpResponse.bufferLen = pResponse->bufferLength;
         corehttpResponse.pHeaderParsingCallback = NULL;
+
+        LogDebug( ( "Sending HTTP header: %.*s", ( int ) xRequestHeaders.headersLen, xRequestHeaders.pBuffer ) );
+        LogDebug( ( "Sending HTTP body: %.*s", ( int ) pRequest->bodyLength, pRequest->pBody ) );
 
         /* Send the request to AWS IoT Credentials Provider to obtain temporary credentials
          * so that the demo application can access configured S3 bucket thereafter. */
@@ -595,7 +610,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
                                        (uint8_t *) pRequest->pBody,
                                        pRequest->bodyLength,
                                        &corehttpResponse,
-                                       0 );
+                                       HTTP_SEND_DISABLE_CONTENT_LENGTH_FLAG );
 
         if( xHttpStatus != HTTPSuccess )
         {
@@ -603,6 +618,14 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
                         (int) pRequest->urlLength, pRequest->pUrl,
                         HTTPClient_strerror( xHttpStatus ) ) );
             ret = NETWORKING_COREHTTP_RESULT_FAIL_HTTP_SEND;
+        }
+        else
+        {
+            LogDebug( ( "Receiving HTTP body(%d): %.*s", corehttpResponse.bodyLen, ( int ) corehttpResponse.bodyLen, corehttpResponse.pBody ) );
+
+            /* Return the body part for signaling controller. */
+            pResponse->bufferLength = corehttpResponse.bodyLen;
+            pResponse->pBuffer = corehttpResponse.pBody;
         }
     }
 

@@ -77,7 +77,8 @@ set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/network_transport/tcp_sockets_wrapper/include"
      "${REPO_ROOT_DIRECTORY}/examples/networking"
      "${REPO_ROOT_DIRECTORY}/examples/networking/corehttp_helper"
-     "${REPO_ROOT_DIRECTORY}/examples/logging" )
+     "${REPO_ROOT_DIRECTORY}/examples/logging"
+     "${REPO_ROOT_DIRECTORY}/examples/sigv4" )
 
 # Include dependencies
 # Include coreHTTP
