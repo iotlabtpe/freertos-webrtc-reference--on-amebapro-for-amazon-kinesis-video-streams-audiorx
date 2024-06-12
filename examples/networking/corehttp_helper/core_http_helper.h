@@ -16,9 +16,7 @@ extern "C" {
 #include "http.h"
 
 #define NETWORKING_COREHTTP_DEFAULT_REGION "us-west-2"
-#define NETWORKING_COREHTTP_KVS_SERVICE_NAME "kinesisvideo"
 
-#define NETWORKING_COREHTTP_TIME_LENGTH ( 17 ) /* length of ISO8601 format (e.g. 20111008T070709Z) with NULL terminator */
 #define NETWORKING_COREHTTP_USER_AGENT_NAME_MAX_LENGTH ( 128 )
 #define NETWORKING_COREHTTP_HOST_NAME_MAX_LENGTH ( 256 )
 #define NETWORKING_COREHTTP_BUFFER_LENGTH ( 10000 )
@@ -38,26 +36,10 @@ typedef enum NetworkingCorehttpResult
     NETWORKING_COREHTTP_RESULT_FAIL_HTTP_ADD_HEADER_AUTH,
     NETWORKING_COREHTTP_RESULT_FAIL_HTTP_SEND,
     NETWORKING_COREHTTP_RESULT_FAIL_SIGV4_GENERATE_AUTH,
-    NETWORKING_COREHTTP_RESULT_SCHEMA_DELIMITER_NOT_FOUND,
-    NETWORKING_COREHTTP_RESULT_EXCEED_URL_LENGTH,
-    NETWORKING_COREHTTP_RESULT_TIME_BUFFER_TOO_SMALL,
+    NETWORKING_COREHTTP_RESULT_FAIL_GET_DATE,
+    NETWORKING_COREHTTP_RESULT_NO_HOST_IN_URL,
+    NETWORKING_COREHTTP_RESULT_NO_PATH_IN_URL,
 } NetworkingCorehttpResult_t;
-
-
-/* Refer to https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html
- * to create a struct that needed for generating authorzation header. */
-typedef struct NetworkingCorehttpCanonicalRequest
-{
-    char *pVerb;
-    char *pPath; // For canonical URI
-    size_t pathLength;
-    char *pCanonicalQueryString; // Canonical query string
-    size_t canonicalQueryStringLength;
-    char *pCanonicalHeaders; // Canonical headers
-    size_t canonicalHeadersLength;
-    char *pPayload; // Un-hashed payload
-    size_t payloadLength;
-} NetworkingCorehttpCanonicalRequest_t;
 
 typedef struct NetworkingCorehttpCredentials
 {
@@ -100,7 +82,7 @@ typedef struct NetworkingCorehttpContext
     TlsTransportParams_t xTlsTransportParams;
     NetworkCredentials_t xNetworkCredientials;
 
-    uint8_t hostName[ NETWORKING_COREHTTP_HOST_NAME_MAX_LENGTH ];
+    char hostName[ NETWORKING_COREHTTP_HOST_NAME_MAX_LENGTH ];
 
     uint8_t requestBuffer[ NETWORKING_COREHTTP_BUFFER_LENGTH ];
     char sigv4AuthBuffer[ NETWORKING_COREHTTP_SIGV4_METADATA_BUFFER_LENGTH ];

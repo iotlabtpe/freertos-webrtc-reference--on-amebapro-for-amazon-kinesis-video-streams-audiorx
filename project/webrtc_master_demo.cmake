@@ -68,7 +68,9 @@ file(
   "${REPO_ROOT_DIRECTORY}/examples/signaling_controller/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/network_transport/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/network_transport/tcp_sockets_wrapper/ports/lwip/*.c"
-  "${REPO_ROOT_DIRECTORY}/examples/networking/corehttp_helper/*.c" )
+  "${REPO_ROOT_DIRECTORY}/examples/networking/corehttp_helper/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/networking/networking_utils/*.c" )
+#   "${REPO_ROOT_DIRECTORY}/examples/networking/wslay_helper/*.c" )
 
 set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/master/"
@@ -77,6 +79,7 @@ set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/network_transport/tcp_sockets_wrapper/include"
      "${REPO_ROOT_DIRECTORY}/examples/networking"
      "${REPO_ROOT_DIRECTORY}/examples/networking/corehttp_helper"
+     "${REPO_ROOT_DIRECTORY}/examples/networking/networking_utils"
      "${REPO_ROOT_DIRECTORY}/examples/logging"
      "${REPO_ROOT_DIRECTORY}/examples/sigv4" )
 
@@ -92,6 +95,16 @@ include( ${REPO_ROOT_DIRECTORY}/libraries/coreJSON/jsonFilePaths.cmake )
 
 # Include signaling
 include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-signaling/signalingFilePaths.cmake )
+
+# Include wslay
+file(
+  GLOB
+  WSLAY_SOURCE_FILES
+  "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/*.c" )
+
+set( WSLAY_INCLUDE_DIRS
+     "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/"
+     "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay" )
 
 ## Include SDP
 # include( ${REPO_ROOT_DIRECTORY}/CMake/sdp.cmake )
