@@ -17,6 +17,7 @@ extern "C" {
 
 #define SIGNALING_CONTROLLER_USING_LIBWEBSOCKETS ( 0 )
 #define SIGNALING_CONTROLLER_USING_COREHTTP ( 1 )
+#define SIGNALING_CONTROLLER_USING_WSLAY ( 1 )
 
 /* Refer to https://docs.aws.amazon.com/IAM/latest/APIReference/API_AccessKey.html,
    length of access key ID should be limited to 128. There is no other definition of

@@ -69,8 +69,8 @@ file(
   "${REPO_ROOT_DIRECTORY}/examples/network_transport/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/network_transport/tcp_sockets_wrapper/ports/lwip/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/networking/corehttp_helper/*.c"
-  "${REPO_ROOT_DIRECTORY}/examples/networking/networking_utils/*.c" )
-#   "${REPO_ROOT_DIRECTORY}/examples/networking/wslay_helper/*.c" )
+  "${REPO_ROOT_DIRECTORY}/examples/networking/networking_utils/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/networking/wslay_helper/*.c" )
 
 set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/master/"
@@ -79,6 +79,7 @@ set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/network_transport/tcp_sockets_wrapper/include"
      "${REPO_ROOT_DIRECTORY}/examples/networking"
      "${REPO_ROOT_DIRECTORY}/examples/networking/corehttp_helper"
+     "${REPO_ROOT_DIRECTORY}/examples/networking/wslay_helper"
      "${REPO_ROOT_DIRECTORY}/examples/networking/networking_utils"
      "${REPO_ROOT_DIRECTORY}/examples/logging"
      "${REPO_ROOT_DIRECTORY}/examples/sigv4" )
@@ -102,8 +103,11 @@ file(
   WSLAY_SOURCE_FILES
   "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/*.c" )
 
+configure_file(${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay/wslayver.h.in
+               ${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay/wslayver.h @ONLY)
 set( WSLAY_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/"
+     "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes"
      "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay" )
 
 ## Include SDP
@@ -138,7 +142,8 @@ set( webrtc_master_demo_src
      ${HTTP_SOURCES}
      ${SIGV4_SOURCES}
      ${SIGNALING_SOURCES}
-     ${JSON_SOURCES} )
+     ${JSON_SOURCES}
+     ${WSLAY_SOURCE_FILES} )
     #  ${WEBRTC_APPLICATION_SIGNALING_CONTROLLER_SOURCE_FILES}
     #  ${WEBRTC_APPLICATION_NETWORKING_LIBWEBSOCKETS_SOURCE_FILES}
     #  ${WEBRTC_APPLICATION_UTILS_SOURCE_FILES}
@@ -150,7 +155,8 @@ set( webrtc_master_demo_include
      ${HTTP_INCLUDE_PUBLIC_DIRS}
      ${SIGV4_INCLUDE_PUBLIC_DIRS}
      ${SIGNALING_INCLUDE_PUBLIC_DIRS}
-     ${JSON_INCLUDE_PUBLIC_DIRS} )
+     ${JSON_INCLUDE_PUBLIC_DIRS}
+     ${WSLAY_INCLUDE_DIRS} )
     #  ${WEBRTC_APPLICATION_NETWORKING_LIBWEBSOCKETS_INCLUDE_DIRS}
     #  ${WEBRTC_APPLICATION_SIGNALING_CONTROLLER_INCLUDE_DIRS}
     #  ${WEBRTC_APPLICATION_UTILS_INCLUDE_DIRS}

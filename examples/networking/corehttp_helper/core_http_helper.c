@@ -4,7 +4,6 @@
 #include "logging.h"
 #include "core_http_helper.h"
 #include "core_http_client.h"
-#include "networking_utils.h"
 
 #include "mbedtls/ssl.h"
 #include "mbedtls/sha256.h"
@@ -93,6 +92,8 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
     NetworkingUtilsCanonicalRequest_t canonicalRequest;
     HTTPResponse_t corehttpResponse;
     NetworkCredentials_t credentials;
+    char *pSig;
+    size_t sigLength;
     
     if( pRequest == NULL || pResponse == NULL )
     {
@@ -237,7 +238,8 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
         networkingCorehttpContext.sigv4AuthBufferLength = NETWORKING_COREHTTP_SIGV4_METADATA_BUFFER_LENGTH;
         retUtils = NetworkingUtils_GenrerateAuthorizationHeader( &canonicalRequest, &networkingCorehttpContext.sigv4Credential,
                                                                  networkingCorehttpContext.credentials.pRegion, networkingCorehttpContext.credentials.regionLength, dateBuffer,
-                                                                 networkingCorehttpContext.sigv4AuthBuffer, &networkingCorehttpContext.sigv4AuthBufferLength );
+                                                                 networkingCorehttpContext.sigv4AuthBuffer, &networkingCorehttpContext.sigv4AuthBufferLength,
+                                                                 &pSig, &sigLength );
 
         if( retUtils != NETWORKING_UTILS_RESULT_OK )
         {

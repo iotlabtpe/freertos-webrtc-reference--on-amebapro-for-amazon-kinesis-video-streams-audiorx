@@ -184,16 +184,14 @@ NetworkingUtilsResult_t NetworkingUtils_GetPathFromUrl( char *pUrl, size_t urlLe
 
 NetworkingUtilsResult_t NetworkingUtils_GenrerateAuthorizationHeader( NetworkingUtilsCanonicalRequest_t *pCanonicalRequest, SigV4Credentials_t *pSigv4Credential,
                                                                       const char *pAwsRegion, size_t awsRegionLength, const char *pDate, 
-                                                                      char *pOutput, size_t *pOutputLength )
+                                                                      char *pOutput, size_t *pOutputLength,
+                                                                      char **ppOutSignature, size_t *pOutSignatureLength )
 {
     NetworkingUtilsResult_t ret = NETWORKING_UTILS_RESULT_OK;
     SigV4HttpParameters_t sigv4HttpParams;
     SigV4Status_t sigv4Status = SigV4Success;
-    /* Store Signature used in AWS HTTP requests generated using SigV4 library. */
-    char * pcSignature = NULL;
-    size_t xSignatureLen = 0;
     
-    if( pCanonicalRequest == NULL || pDate == NULL || pOutput == NULL || pOutputLength == NULL || pAwsRegion == NULL )
+    if( pCanonicalRequest == NULL || pAwsRegion == NULL || pDate == NULL || pOutput == NULL || pOutputLength == NULL || ppOutSignature == NULL || pOutSignatureLength == NULL )
     {
         ret = NETWORKING_UTILS_RESULT_BAD_PARAMETER;
     }
@@ -231,7 +229,7 @@ NetworkingUtilsResult_t NetworkingUtils_GenrerateAuthorizationHeader( Networking
 
         /* Reset buffer length then generate authorization. */
         sigv4Status = SigV4_GenerateHTTPAuthorization( &sigv4Params, pOutput, pOutputLength,
-                                                       &pcSignature, &xSignatureLen );
+                                                       ppOutSignature, pOutSignatureLength );
         
         if( sigv4Status != SigV4Success )
         {

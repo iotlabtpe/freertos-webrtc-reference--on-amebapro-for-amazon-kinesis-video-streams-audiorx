@@ -12,6 +12,9 @@ extern "C" {
 #include "core_http_client.h"
 #include "sigv4.h"
 
+#define NETWORKING_UTILS_TIME_BUFFER_LENGTH ( 17 ) /* length of ISO8601 format (e.g. 20111008T070709Z) with NULL terminator */
+#define NETWORKING_UTILS_KVS_SERVICE_NAME "kinesisvideo"
+
 typedef enum NetworkingUtilsResult
 {
     NETWORKING_UTILS_RESULT_OK = 0,
@@ -45,14 +48,17 @@ typedef struct NetworkingUtilsCanonicalRequest
     size_t payloadLength;
 } NetworkingUtilsCanonicalRequest_t;
 
-#define NETWORKING_UTILS_TIME_BUFFER_LENGTH ( 17 ) /* length of ISO8601 format (e.g. 20111008T070709Z) with NULL terminator */
-#define NETWORKING_UTILS_KVS_SERVICE_NAME "kinesisvideo"
+struct NetworkContext
+{
+    TlsTransportParams_t * pParams;
+};
 
 NetworkingUtilsResult_t NetworkingUtils_GetUrlHost( char *pUrl, size_t urlLength, char **ppStart, size_t *pHostLength );
 NetworkingUtilsResult_t NetworkingUtils_GetPathFromUrl( char *pUrl, size_t urlLength, char **ppPath, size_t *pPathLength );
 NetworkingUtilsResult_t NetworkingUtils_GenrerateAuthorizationHeader( NetworkingUtilsCanonicalRequest_t *pCanonicalRequest, SigV4Credentials_t *pSigv4Credential,
                                                                       const char *pAwsRegion, size_t awsRegionLength, const char *pDate, 
-                                                                      char *pOutput, size_t *pOutputLength );
+                                                                      char *pOutput, size_t *pOutputLength,
+                                                                      char **ppOutSignature, size_t *pOutSignatureLength );
 void NetworkingUtils_GetHeaderStartLocFromHttpRequest( HTTPRequestHeaders_t * pxRequestHeaders,
                                                        char ** pcStartHeaderLoc,
                                                        size_t * pxHeadersDataLen );

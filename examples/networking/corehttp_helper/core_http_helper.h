@@ -8,12 +8,14 @@ extern "C" {
 #endif
 
 #include <stdio.h>
+#include "http.h"
+
 #include "sigv4.h"
+#include "networking_utils.h"
 
 /* Transport interface implementation include header for TLS. */
 #include "transport_mbedtls.h"
 
-#include "http.h"
 
 #define NETWORKING_COREHTTP_DEFAULT_REGION "us-west-2"
 
@@ -64,11 +66,6 @@ typedef struct NetworkingCorehttpCredentials
     const uint8_t * pRootCa;
     size_t rootCaSize;
 } NetworkingCorehttpCredentials_t;
-
-struct NetworkContext
-{
-    TlsTransportParams_t * pParams;
-};
 
 typedef struct NetworkingCorehttpContext
 {

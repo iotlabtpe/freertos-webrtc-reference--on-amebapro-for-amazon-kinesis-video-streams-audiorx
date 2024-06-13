@@ -13,6 +13,9 @@
 #endif /* defined( SIGNALING_CONTROLLER_USING_LIBWEBSOCKETS ) && SIGNALING_CONTROLLER_USING_LIBWEBSOCKETS */
 // #include "base64.h"
 
+#if( defined( SIGNALING_CONTROLLER_USING_WSLAY ) && SIGNALING_CONTROLLER_USING_WSLAY )
+    #include "wslay_helper.h"
+#endif /* defined( SIGNALING_CONTROLLER_USING_WSLAY ) && SIGNALING_CONTROLLER_USING_WSLAY */
 #define SIGNALING_CONTROLLER_MESSAGE_QUEUE_NAME "/WebrtcApplicationSignalingController"
 
 #define MAX_URI_CHAR_LEN ( 10000 )
@@ -104,7 +107,7 @@ static WebsocketResult_t handleWssMessage( char *pMessage, size_t messageLength,
         return ret;
     }
 
-    static SignalingControllerResult_t WebsocketLibwebsockets_Init( SignalingControllerContext_t *pCtx )
+    static SignalingControllerResult_t SignalingController_WebsocketInit( SignalingControllerContext_t *pCtx )
     {
         SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
         WebsocketResult_t retWebsocket;
@@ -145,7 +148,7 @@ static WebsocketResult_t handleWssMessage( char *pMessage, size_t messageLength,
         return ret;
     }
 
-    static SignalingControllerResult_t WebsocketLibwebsockets_Connect( WebsocketServerInfo_t *pServerInfo )
+    static SignalingControllerResult_t SignalingController_WebsocketConnect( WebsocketServerInfo_t *pServerInfo )
     {
         SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
         WebsocketResult_t retWebsocket;
@@ -178,9 +181,9 @@ static WebsocketResult_t handleWssMessage( char *pMessage, size_t messageLength,
         coreHttpCred.pRootCa = pCtx->credential.pCaCertPem;
         coreHttpCred.rootCaSize = pCtx->credential.caCertPemSize;
 
-        LogInfo( ( "Signaling Control is initializing HTTP: root CA: 0x%x, CA size: 0x%x",
-                   pCtx->credential.pCaCertPem,
-                   pCtx->credential.caCertPemSize ) );
+        LogInfo( ( "Signaling Control is initializing HTTP: root CA(%d): %s",
+                   pCtx->credential.caCertPemSize,
+                   pCtx->credential.pCaCertPem ) );
 
         retHttp = Http_Init( &coreHttpCred );
 
@@ -209,6 +212,54 @@ static WebsocketResult_t handleWssMessage( char *pMessage, size_t messageLength,
         return ret;
     }
 #endif /* defined( SIGNALING_CONTROLLER_USING_LIBWEBSOCKETS ) && SIGNALING_CONTROLLER_USING_LIBWEBSOCKETS */
+
+#if( defined( SIGNALING_CONTROLLER_USING_WSLAY ) && SIGNALING_CONTROLLER_USING_WSLAY )
+    static SignalingControllerResult_t SignalingController_WebsocketInit( SignalingControllerContext_t *pCtx )
+    {
+        SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
+        WebsocketResult_t retWebsocket;
+        NetworkingWslayCredentials_t credential;
+
+        credential.pUserAgent = pCtx->credential.pUserAgentName;
+        credential.userAgentLength = pCtx->credential.userAgentNameLength;
+        credential.pRegion = pCtx->credential.pRegion;
+        credential.regionLength = pCtx->credential.regionLength;
+        credential.pAccessKeyId = pCtx->credential.pAccessKeyId;
+        credential.accessKeyIdLength = pCtx->credential.accessKeyIdLength;
+        credential.pSecretAccessKey = pCtx->credential.pSecretAccessKey;
+        credential.secretAccessKeyLength = pCtx->credential.secretAccessKeyLength;
+        credential.pCaCertPath = pCtx->credential.pCaCertPath;
+        credential.pRootCa = pCtx->credential.pCaCertPem;
+        credential.rootCaSize = pCtx->credential.caCertPemSize;
+
+        retWebsocket = Websocket_Init( &credential, handleWssMessage, pCtx );
+
+        if( retWebsocket != HTTP_RESULT_OK )
+        {
+            LogError( ("Fail to initialize websocket library, return=0x%x", retWebsocket) );
+            ret = SIGNALING_CONTROLLER_RESULT_WEBSOCKET_INIT_FAIL;
+        }
+
+        return ret;
+    }
+
+    static SignalingControllerResult_t SignalingController_WebsocketConnect( WebsocketServerInfo_t *pServerInfo )
+    {
+        SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
+        WebsocketResult_t retWebsocket;
+
+        retWebsocket = Websocket_Connect( pServerInfo );
+
+        if( retWebsocket != WEBSOCKET_RESULT_OK )
+        {
+            LogError( ("Fail to connect url: %.*s:%u, return=0x%x",
+                        (int) pServerInfo->urlLength, pServerInfo->pUrl, pServerInfo->port, retWebsocket) );
+            ret = SIGNALING_CONTROLLER_RESULT_WSS_CONNECT_FAIL;
+        }
+
+        return ret;
+    }
+#endif /* defined( SIGNALING_CONTROLLER_USING_WSLAY ) && SIGNALING_CONTROLLER_USING_WSLAY */
 
 static void printMetrics( SignalingControllerContext_t * pCtx )
 {
@@ -663,9 +714,13 @@ static SignalingControllerResult_t connectWssEndpoint( SignalingControllerContex
         serverInfo.pUrl = signalRequest.pUrl;
         serverInfo.urlLength = signalRequest.urlLength;
         serverInfo.port = 443;
-        // ret = WebsocketLibwebsockets_Connect( &serverInfo );
-        LogError( ("Fail to connect with WSS endpoint") );
-        ret = SIGNALING_CONTROLLER_RESULT_CONSTRUCT_GET_SIGNALING_CHANNEL_ENDPOINTS_FAIL;
+        ret = SignalingController_WebsocketConnect( &serverInfo );
+
+        if( ret != SIGNALING_CONTROLLER_RESULT_OK )
+        {
+            LogError( ("Fail to connect with WSS endpoint") );
+            ret = SIGNALING_CONTROLLER_RESULT_CONSTRUCT_GET_SIGNALING_CHANNEL_ENDPOINTS_FAIL;
+        }
     }
 
     return ret;
@@ -822,7 +877,7 @@ SignalingControllerResult_t SignalingController_Init( SignalingControllerContext
     /* Initializa Websocket. */
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        // ret = WebsocketLibwebsockets_Init( pCtx );
+        ret = SignalingController_WebsocketInit( pCtx );
     }
 
     /* Initializa Message Queue. */
@@ -898,12 +953,12 @@ SignalingControllerResult_t SignalingController_ConnectServers( SignalingControl
     }
 
     /* Connect websocket secure endpoint. */
-    // if( ret == SIGNALING_CONTROLLER_RESULT_OK )
-    // {
-    //     gettimeofday( &pCtx->metrics.connectWssServerStartTime, NULL );
-    //     ret = connectWssEndpoint( pCtx );
-    //     gettimeofday( &pCtx->metrics.connectWssServerEndTime, NULL );
-    // }
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
+    {
+        gettimeofday( &pCtx->metrics.connectWssServerStartTime, NULL );
+        ret = connectWssEndpoint( pCtx );
+        gettimeofday( &pCtx->metrics.connectWssServerEndTime, NULL );
+    }
 
     /* Print metric. */
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
