@@ -122,4 +122,14 @@ int32_t TCP_Sockets_Recv( Socket_t xSocket,
                           void * pvBuffer,
                           size_t xBufferLength );
 
+/**
+ * @brief Get socket descriptor from Socket_t structure.
+ *
+ * @param[in] xSocket The handle of the socket
+ *
+ * @return
+ * * Return socket descriptor with value >= 0. Otherwise, it returns -1.
+ */
+int32_t TCP_Sockets_GetSocketFd( Socket_t xSocket );
+
 #endif /* ifndef TCP_SOCKETS_WRAPPER_H */

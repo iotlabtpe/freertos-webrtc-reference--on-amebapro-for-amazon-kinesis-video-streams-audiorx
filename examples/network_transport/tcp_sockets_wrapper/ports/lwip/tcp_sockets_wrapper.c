@@ -73,10 +73,6 @@ BaseType_t TCP_Sockets_Connect(Socket_t *pTcpSocket,
                                uint32_t receiveTimeoutMs,
                                uint32_t sendTimeoutMs)
 {
-    /* We don't support timeouts */
-    (void)receiveTimeoutMs;
-    (void)sendTimeoutMs;
-
     int xFd = -1;
     BaseType_t xRet = TCP_SOCKETS_ERRNO_NONE;
     struct addrinfo xHints, *pxAddrList, *pxCur;
@@ -133,6 +129,12 @@ BaseType_t TCP_Sockets_Connect(Socket_t *pTcpSocket,
         {
             (*pTcpSocket)->xFd = xFd;
         }
+    }
+
+    if (xRet == TCP_SOCKETS_ERRNO_NONE)
+    {
+        setsockopt( xFd, SOL_SOCKET, SO_RCVTIMEO, &receiveTimeoutMs, sizeof( receiveTimeoutMs ) );
+        setsockopt( xFd, SOL_SOCKET, SO_SNDTIMEO, &sendTimeoutMs, sizeof( sendTimeoutMs ) );
     }
 
     return xRet;
@@ -230,6 +232,10 @@ int32_t TCP_Sockets_Recv(Socket_t xSocket,
     {
         switch (errno)
         {
+        case EWOULDBLOCK:
+        case EINTR:
+            xReturnStatus = 0;
+            break;
         case EPIPE:
         case ECONNRESET:
             xReturnStatus = TCP_SOCKETS_ERRNO_ENOTCONN;
@@ -240,4 +246,16 @@ int32_t TCP_Sockets_Recv(Socket_t xSocket,
         }
     }
     return xReturnStatus;
+}
+
+int32_t TCP_Sockets_GetSocketFd( Socket_t xSocket )
+{
+    int32_t ret = -1;
+
+    if( xSocket != NULL )
+    {
+        ret = xSocket->xFd;
+    }
+
+    return xSocket->xFd;
 }

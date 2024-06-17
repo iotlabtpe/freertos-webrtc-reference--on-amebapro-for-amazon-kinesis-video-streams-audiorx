@@ -27,9 +27,9 @@ typedef WebsocketResult_t (*WebsocketMessageCallback_t)( char *pMessage, size_t 
 
 WebsocketResult_t Websocket_Init( void * pCredential, WebsocketMessageCallback_t rxCallback, void *pRxCallbackContext );
 WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo );
-// WebsocketResult_t Websocket_Send( char *pMessage, size_t messageLength );
-// WebsocketResult_t Websocket_Recv();
-// WebsocketResult_t Websocket_Signal();
+WebsocketResult_t Websocket_Send( char *pMessage, size_t messageLength );
+WebsocketResult_t Websocket_Recv();
+WebsocketResult_t Websocket_Signal();
 
 #ifdef __cplusplus
 }

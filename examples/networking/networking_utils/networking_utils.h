@@ -68,6 +68,7 @@ NetworkingUtilsResult_t NetworkingUtils_ConnectToServer( NetworkContext_t * pxNe
                                         NetworkCredentials_t * pxNetworkCredentials,
                                         uint32_t sendTimeoutMs,
                                         uint32_t recvTimeoutMs );
+void NetworkingUtils_CloseConnection( NetworkContext_t * pxNetworkContext );
 NetworkingUtilsResult_t NetworkingUtils_GetIso8601CurrentTime( char *pDate, size_t dateBufferLength );
 
 #ifdef __cplusplus

@@ -318,6 +318,11 @@ NetworkingUtilsResult_t NetworkingUtils_ConnectToServer( NetworkContext_t * pxNe
     return ret;
 }
 
+void NetworkingUtils_CloseConnection( NetworkContext_t * pxNetworkContext )
+{
+    TLS_FreeRTOS_Disconnect( pxNetworkContext );
+}
+
 NetworkingUtilsResult_t NetworkingUtils_GetIso8601CurrentTime( char *pDate, size_t dateBufferLength )
 {
     NetworkingUtilsResult_t ret = NETWORKING_UTILS_RESULT_OK;

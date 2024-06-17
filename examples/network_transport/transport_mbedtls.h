@@ -180,6 +180,14 @@ int32_t TLS_FreeRTOS_send( NetworkContext_t * pNetworkContext,
                            const void * pBuffer,
                            size_t bytesToSend );
 
+/**
+ * @brief Get the socket FD for this network context.
+ *
+ * @param[in] pNetworkContext The network context.
+ *
+ * @return The socket descriptor if value >= 0. It returns -1 when failure.
+ */
+int32_t TLS_FreeRTOS_GetSocketFd( NetworkContext_t * pNetworkContext );
 
 #ifdef MBEDTLS_DEBUG_C
 

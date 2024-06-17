@@ -972,35 +972,36 @@ SignalingControllerResult_t SignalingController_ConnectServers( SignalingControl
 SignalingControllerResult_t SignalingController_ProcessLoop( SignalingControllerContext_t * pCtx )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
-    // WebsocketResult_t websocketRet;
+    WebsocketResult_t websocketRet;
     // MessageQueueResult_t messageQueueRet;
-    // SignalingControllerEventMessage_t eventMsg;
-    // size_t eventMsgLength;
+    SignalingControllerEventMessage_t eventMsg;
+    size_t eventMsgLength;
 
-    // for( ;; )
-    // {
-    //     websocketRet = Websocket_Recv();
+    for( ;; )
+    {
+        websocketRet = Websocket_Recv();
 
-    //     if( websocketRet != WEBSOCKET_RESULT_OK )
-    //     {
-    //         ret = SIGNALING_CONTROLLER_RESULT_WSS_RECV_FAIL;
-    //         break;
-    //     }
+        if( websocketRet != WEBSOCKET_RESULT_OK )
+        {
+            LogError( ("Websocket_Recv fail, return 0x%x", websocketRet) );
+            ret = SIGNALING_CONTROLLER_RESULT_WSS_RECV_FAIL;
+            break;
+        }
 
-    //     messageQueueRet = MessageQueue_IsEmpty( &pCtx->sendMessageQueue );
-    //     if( messageQueueRet == MESSAGE_QUEUE_RESULT_MQ_HAVE_MESSAGE )
-    //     {
-    //         /* Handle event. */
-    //         eventMsgLength = sizeof( SignalingControllerEventMessage_t );
-    //         messageQueueRet = MessageQueue_Recv( &pCtx->sendMessageQueue, &eventMsg, &eventMsgLength );
-    //         if( messageQueueRet == MESSAGE_QUEUE_RESULT_OK )
-    //         {
-    //             /* Received message, process it. */
-    //             LogDebug( ( "EventMsg: event: %d, pOnCompleteCallbackContext: %p", eventMsg.event, eventMsg.pOnCompleteCallbackContext ) );
-    //             ret = handleEvent( pCtx, &eventMsg );
-    //         }
-    //     }
-    // }
+        // messageQueueRet = MessageQueue_IsEmpty( &pCtx->sendMessageQueue );
+        // if( messageQueueRet == MESSAGE_QUEUE_RESULT_MQ_HAVE_MESSAGE )
+        // {
+        //     /* Handle event. */
+        //     eventMsgLength = sizeof( SignalingControllerEventMessage_t );
+        //     messageQueueRet = MessageQueue_Recv( &pCtx->sendMessageQueue, &eventMsg, &eventMsgLength );
+        //     if( messageQueueRet == MESSAGE_QUEUE_RESULT_OK )
+        //     {
+        //         /* Received message, process it. */
+        //         LogDebug( ( "EventMsg: event: %d, pOnCompleteCallbackContext: %p", eventMsg.event, eventMsg.pOnCompleteCallbackContext ) );
+        //         ret = handleEvent( pCtx, &eventMsg );
+        //     }
+        // }
+    }
 
     return ret;
 }

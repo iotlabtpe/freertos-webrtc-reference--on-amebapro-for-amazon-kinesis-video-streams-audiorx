@@ -26,6 +26,7 @@ static void wifi_common_init(void)
         {
 			LogInfo( ("\r\nuse ATW0, ATW1, ATWC to make wifi connection\r\n") );
 			LogInfo( ("wait for wifi connection...\r\n") );
+            wifi_wait_count = 0;
 		}
 	}
 }
@@ -129,7 +130,7 @@ void webrtc_master_task( void *pParameter )
 	sntp_init();
 	while( IsUpdatedCurrentTime() )
     {
-		vTaskDelay(200 / portTICK_PERIOD_MS);
+		vTaskDelay( pdMS_TO_TICKS( 200 ) );
 		printf("waiting get epoch timer\r\n");
 	}
 
@@ -178,14 +179,19 @@ void webrtc_master_task( void *pParameter )
     //     pthread_create( &threadIceController, NULL, executeIceController, &demoContext.iceControllerContext );
     // }
 
-    // if( ret == 0 )
-    // {
-    //     /* This should never return unless exception happens. */
-    //     signalingControllerReturn = SignalingController_ProcessLoop( &demoContext.signalingControllerContext );
-    //     if( signalingControllerReturn != SIGNALING_CONTROLLER_RESULT_OK )
-    //     {
-    //         LogError( ( "Fail to keep processing signaling controller." ) );
-    //         ret = -1;
-    //     }
-    // }
+    if( ret == 0 )
+    {
+        /* This should never return unless exception happens. */
+        signalingControllerReturn = SignalingController_ProcessLoop( &demoContext.signalingControllerContext );
+        if( signalingControllerReturn != SIGNALING_CONTROLLER_RESULT_OK )
+        {
+            LogError( ( "Fail to keep processing signaling controller." ) );
+            ret = -1;
+        }
+    }
+
+    for( ;; )
+    {
+		vTaskDelay( pdMS_TO_TICKS( 200 ) );
+    }
 }

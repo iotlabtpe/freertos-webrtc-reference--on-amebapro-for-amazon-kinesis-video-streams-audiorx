@@ -946,3 +946,15 @@ int32_t TLS_FreeRTOS_send( NetworkContext_t * pNetworkContext,
     return tlsStatus;
 }
 /*-----------------------------------------------------------*/
+
+int32_t TLS_FreeRTOS_GetSocketFd( NetworkContext_t * pNetworkContext )
+{
+    int32_t ret = -1;
+
+    if( pNetworkContext != NULL && pNetworkContext->pParams != NULL )
+    {
+        ret = TCP_Sockets_GetSocketFd( pNetworkContext->pParams->tcpSocket );
+    }
+
+    return ret;
+}

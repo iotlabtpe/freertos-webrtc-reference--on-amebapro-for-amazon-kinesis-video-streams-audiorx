@@ -334,5 +334,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
         }
     }
 
+    NetworkingUtils_CloseConnection( &networkingCorehttpContext.xNetworkContext );
+
     return ret;
 }

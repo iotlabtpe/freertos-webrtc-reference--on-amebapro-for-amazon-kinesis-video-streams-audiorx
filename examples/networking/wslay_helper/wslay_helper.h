@@ -14,6 +14,12 @@ extern "C" {
 #include "transport_mbedtls.h"
 #include "networking_utils.h"
 
+#include "lwip/sockets.h"
+#include "wslay/wslay.h"
+
+/* FreeRTOS includes. */
+#include "task.h"
+
 #define NETWORKING_WEBSOCKET_BUFFER_LENGTH ( 10000 )
 #define NETWORKING_META_BUFFER_LENGTH ( 4096 )
 
@@ -30,6 +36,12 @@ typedef enum NetworkingWslayResult
     NETWORKING_WSLAY_RESULT_FAIL_HTTP_PARSE_RESPONSE,
     NETWORKING_WSLAY_RESULT_FAIL_BASE64_ENCODE,
     NETWORKING_WSLAY_RESULT_FAIL_VERIFY_ACCEPT_KEY,
+    NETWORKING_WSLAY_RESULT_FAIL_SELECT,
+    NETWORKING_WSLAY_RESULT_FAIL_RECV,
+    NETWORKING_WSLAY_RESULT_FAIL_QUEUE,
+    NETWORKING_WSLAY_RESULT_FAIL_CREATE_SOCKET,
+    NETWORKING_WSLAY_RESULT_FAIL_BIND_SOCKET,
+    NETWORKING_WSLAY_RESULT_FAIL_FCNTL,
     NETWORKING_WSLAY_RESULT_USER_AGENT_NAME_LENGTH_TOO_LONG,
     NETWORKING_WSLAY_RESULT_NO_HOST_IN_URL,
     NETWORKING_WSLAY_RESULT_NO_PATH_IN_URL,
@@ -103,6 +115,12 @@ typedef struct NetworkingWslayContext
     size_t metaBufferLength;
     char sigv4AuthBuffer[ NETWORKING_META_BUFFER_LENGTH ];
     size_t sigv4AuthBufferLength;
+
+    wslay_event_context_ptr wslayContext;
+
+    TickType_t lastPingTick;
+    int socketWakeUp;
+    struct sockaddr_in socketWakeUpAddr;
 } NetworkingWslayContext_t;
 
 #ifdef __cplusplus
