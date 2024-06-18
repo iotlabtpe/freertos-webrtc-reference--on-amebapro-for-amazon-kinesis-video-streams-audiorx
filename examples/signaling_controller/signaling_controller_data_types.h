@@ -13,7 +13,7 @@ extern "C" {
 #include <time.h>
 #include "signaling_api.h"
 // #include "networkingLibwebsockets.h"
-// #include "message_queue.h"
+#include "message_queue.h"
 
 #define SIGNALING_CONTROLLER_USING_LIBWEBSOCKETS ( 0 )
 #define SIGNALING_CONTROLLER_USING_COREHTTP ( 1 )
@@ -202,7 +202,7 @@ typedef struct SignalingControllerContext
     char constructedSignalingBuffer[ SIGNALING_CONTROLLER_MAX_CONTENT_LENGTH ];
     size_t constructedSignalingBufferLength;
 
-    // MessageQueueHandler_t sendMessageQueue;
+    MessageQueueHandler_t sendMessageQueue;
 } SignalingControllerContext_t;
 
 #ifdef __cplusplus

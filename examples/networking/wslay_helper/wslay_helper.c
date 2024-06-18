@@ -876,7 +876,7 @@ static void ParsingConnectResponseHeader( void * pContext,
     }
 }
 
-static WebsocketResult_t InitializeWslayContext()
+static WebsocketResult_t InitializeWslayContext( void )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     struct wslay_event_callbacks callbacks = {
@@ -895,7 +895,7 @@ static WebsocketResult_t InitializeWslayContext()
     return ret;
 }
 
-static WebsocketResult_t InitializeWakeUpSocket()
+static WebsocketResult_t InitializeWakeUpSocket( void )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     uint32_t socketTimeoutMs = 1U;
@@ -931,7 +931,7 @@ static WebsocketResult_t InitializeWakeUpSocket()
     return ret;
 }
 
-static WebsocketResult_t ReadWebsocketMessage()
+static WebsocketResult_t ReadWebsocketMessage( void )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     int retWslay;
@@ -959,7 +959,7 @@ static WebsocketResult_t SendWebsocketMessage( struct wslay_event_msg *pArg )
     {
         // send the message out immediately.
         prev = wslay_event_get_queued_msg_count( networkingWslayContext.wslayContext );
-        retWslay = wslay_event_queue_msg( networkingWslayContext.wslayContext, pArg);
+        retWslay = wslay_event_queue_msg( networkingWslayContext.wslayContext, pArg );
         if( retWslay != 0 )
         {
             LogError( ("Fail to enqueue new message.") );
@@ -981,6 +981,11 @@ static WebsocketResult_t SendWebsocketMessage( struct wslay_event_msg *pArg )
             LogDebug( ("Monitor wslay send queue (%u, %u, %u)", prev, mid, last) );
         }
     }
+    else
+    {
+        LogError( ("Get write enable fail.") );
+        ret = NETWORKING_WSLAY_RESULT_FAIL_WRITE_ENABLE;
+    }
 
     return ret;
 }
@@ -997,7 +1002,7 @@ static WebsocketResult_t SendWebsocketText( uint8_t *pMessage, size_t messageLen
     return SendWebsocketMessage( &arg );
 }
 
-static void SendWebsocketPing()
+static void SendWebsocketPing( void )
 {
     struct wslay_event_msg arg;
 
@@ -1008,7 +1013,7 @@ static void SendWebsocketPing()
     ( void ) SendWebsocketMessage( &arg );
 }
 
-static void ClearWakeUpSocketEvents()
+static void ClearWakeUpSocketEvents( void )
 {
     char tempBuffer[ 32 ];
     struct sockaddr addr;
@@ -1016,16 +1021,20 @@ static void ClearWakeUpSocketEvents()
     int recvLength;
 
     while( ( recvLength = recvfrom( networkingWslayContext.socketWakeUp, tempBuffer, sizeof( tempBuffer ), 0,
-                                    (struct sockaddr *) &addr, (socklen_t*)&addrLength ) ) > 0 );
+                                    (struct sockaddr *) &addr, (socklen_t*)&addrLength ) ) > 0 )
+    {
+        LogDebug( ("Clear %d byte on wake up socket", recvLength) );
+    }
 }
 
-static void TriggerWakeUpSocket()
+static void TriggerWakeUpSocket( void )
 {
     char ch = 'a';
     int writtenLength;
 
     writtenLength = sendto( networkingWslayContext.socketWakeUp, &ch, 1, 0,
                             (struct sockaddr *) &networkingWslayContext.socketWakeUpAddr, sizeof( networkingWslayContext.socketWakeUpAddr ) );
+    LogDebug( ("Sent %d byte to wake up running websocket thread", writtenLength) );
     if( writtenLength < 0 )
     {
         LogError( ("Fail to trigger wake up socket.") );
@@ -1360,7 +1369,7 @@ WebsocketResult_t Websocket_Send( char *pMessage, size_t messageLength )
     return ret;
 }
 
-WebsocketResult_t Websocket_Recv()
+WebsocketResult_t Websocket_Recv( void )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     int fd = 0, maxFd = 0;
@@ -1411,7 +1420,7 @@ WebsocketResult_t Websocket_Recv()
     return ret;
 }
 
-WebsocketResult_t Websocket_Signal()
+WebsocketResult_t Websocket_Signal( void )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
 

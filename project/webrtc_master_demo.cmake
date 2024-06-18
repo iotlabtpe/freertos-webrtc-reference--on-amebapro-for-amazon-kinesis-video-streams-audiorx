@@ -70,7 +70,11 @@ file(
   "${REPO_ROOT_DIRECTORY}/examples/network_transport/tcp_sockets_wrapper/ports/lwip/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/networking/corehttp_helper/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/networking/networking_utils/*.c"
-  "${REPO_ROOT_DIRECTORY}/examples/networking/wslay_helper/*.c" )
+  "${REPO_ROOT_DIRECTORY}/examples/networking/wslay_helper/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/message_queue/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/base64/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/sdp_controller/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/string_utils/*.c" )
 
 set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/master/"
@@ -82,7 +86,11 @@ set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/networking/wslay_helper"
      "${REPO_ROOT_DIRECTORY}/examples/networking/networking_utils"
      "${REPO_ROOT_DIRECTORY}/examples/logging"
-     "${REPO_ROOT_DIRECTORY}/examples/sigv4" )
+     "${REPO_ROOT_DIRECTORY}/examples/sigv4"
+     "${REPO_ROOT_DIRECTORY}/examples/message_queue"
+     "${REPO_ROOT_DIRECTORY}/examples/base64"
+     "${REPO_ROOT_DIRECTORY}/examples/sdp_controller"
+     "${REPO_ROOT_DIRECTORY}/examples/string_utils" )
 
 # Include dependencies
 # Include coreHTTP
@@ -110,8 +118,8 @@ set( WSLAY_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes"
      "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay" )
 
-## Include SDP
-# include( ${REPO_ROOT_DIRECTORY}/CMake/sdp.cmake )
+# Include SDP
+include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-sdp/sdpFilePaths.cmake )
 
 ## Include STUN
 # include( ${REPO_ROOT_DIRECTORY}/CMake/stun.cmake )
@@ -143,7 +151,8 @@ set( webrtc_master_demo_src
      ${SIGV4_SOURCES}
      ${SIGNALING_SOURCES}
      ${JSON_SOURCES}
-     ${WSLAY_SOURCE_FILES} )
+     ${WSLAY_SOURCE_FILES}
+     ${SDP_SOURCES} )
     #  ${WEBRTC_APPLICATION_SIGNALING_CONTROLLER_SOURCE_FILES}
     #  ${WEBRTC_APPLICATION_NETWORKING_LIBWEBSOCKETS_SOURCE_FILES}
     #  ${WEBRTC_APPLICATION_UTILS_SOURCE_FILES}
@@ -156,7 +165,8 @@ set( webrtc_master_demo_include
      ${SIGV4_INCLUDE_PUBLIC_DIRS}
      ${SIGNALING_INCLUDE_PUBLIC_DIRS}
      ${JSON_INCLUDE_PUBLIC_DIRS}
-     ${WSLAY_INCLUDE_DIRS} )
+     ${WSLAY_INCLUDE_DIRS} 
+     ${SDP_INCLUDE_PUBLIC_DIRS} )
     #  ${WEBRTC_APPLICATION_NETWORKING_LIBWEBSOCKETS_INCLUDE_DIRS}
     #  ${WEBRTC_APPLICATION_SIGNALING_CONTROLLER_INCLUDE_DIRS}
     #  ${WEBRTC_APPLICATION_UTILS_INCLUDE_DIRS}

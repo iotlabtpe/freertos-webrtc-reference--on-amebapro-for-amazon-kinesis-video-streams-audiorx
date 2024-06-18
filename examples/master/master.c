@@ -10,11 +10,22 @@
 #include "wifi_conf.h"
 #include "lwip_netconf.h"
 
-DemoContext_t demoContext;
+#define IS_USERNAME_FOUND_BIT ( 1 << 0 )
+#define IS_PASSWORD_FOUND_BIT ( 1 << 1 )
+#define SET_REMOTE_INFO_USERNAME_FOUND( isFoundBit ) ( isFoundBit |= IS_USERNAME_FOUND_BIT )
+#define SET_REMOTE_INFO_PASSWORD_FOUND( isFoundBit ) ( isFoundBit |= IS_PASSWORD_FOUND_BIT )
+#define IS_REMOTE_INFO_ALL_FOUND( isFoundBit ) ( isFoundBit & IS_USERNAME_FOUND_BIT && isFoundBit & IS_PASSWORD_FOUND_BIT )
+
+#define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect 
 
 static void webrtc_master_task( void *pParameter );
 
-#define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect 
+extern uint8_t prepareSdpAnswer( DemoSessionInformation_t *pSessionInDescriptionOffer, DemoSessionInformation_t *pSessionInDescriptionAnswer );
+extern uint8_t serializeSdpMessage( DemoSessionInformation_t *pSessionInDescriptionAnswer, DemoContext_t *pDemoContext );
+extern uint8_t addressSdpOffer( const char *pEventSdpOffer, size_t eventSdpOfferlength, DemoContext_t *pDemoContext );
+
+DemoContext_t demoContext;
+
 static void wifi_common_init(void)
 {
 	uint32_t wifi_wait_count = 0;
@@ -45,72 +56,212 @@ static uint8_t IsUpdatedCurrentTime(void)
     return ret;
 }
 
+static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteClientIdLength, DemoContext_t *pDemoContext )
+{
+    uint8_t skipProcess = 0;
+    SignalingControllerResult_t signalingControllerReturn;
+    SignalingControllerEventMessage_t eventMessage = {
+        .event = SIGNALING_CONTROLLER_EVENT_SEND_WSS_MESSAGE,
+        .onCompleteCallback = NULL,
+        .pOnCompleteCallbackContext = NULL,
+    };
+
+    /* Prepare SDP answer and send it back to remote peer. */
+    skipProcess = prepareSdpAnswer( &pDemoContext->sessionInformationSdpOffer, &pDemoContext->sessionInformationSdpAnswer );
+
+    if( !skipProcess )
+    {
+        skipProcess = serializeSdpMessage( &pDemoContext->sessionInformationSdpAnswer, pDemoContext );
+    }
+
+    if( !skipProcess )
+    {
+        eventMessage.eventContent.correlationIdLength = 0U;
+        memset( eventMessage.eventContent.correlationId, 0, SIGNALING_CONTROLLER_CORRELATION_ID_MAX_LENGTH );
+        eventMessage.eventContent.messageType = SIGNALING_TYPE_MESSAGE_SDP_ANSWER;
+        eventMessage.eventContent.pDecodeMessage = pDemoContext->sessionInformationSdpAnswer.sdpBuffer;
+        eventMessage.eventContent.decodeMessageLength = pDemoContext->sessionInformationSdpAnswer.sdpBufferLength;
+        memcpy( eventMessage.eventContent.remoteClientId, pRemoteClientId, remoteClientIdLength );
+        eventMessage.eventContent.remoteClientIdLength = remoteClientIdLength;
+        
+        signalingControllerReturn = SignalingController_SendMessage( &demoContext.signalingControllerContext, &eventMessage );
+        if( signalingControllerReturn != SIGNALING_CONTROLLER_RESULT_OK )
+        {
+            skipProcess = 1;
+            LogError( ( "Send signaling message fail, result: %d", signalingControllerReturn ) );
+        }
+    }
+
+    return skipProcess;
+}
+
+static uint8_t searchUserNamePassWord( SdpControllerAttributes_t *pAttributes, size_t attributesCount,
+                                       const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength )
+{
+    uint8_t isFound = 0;
+    size_t i;
+
+    for( i=0 ; i<attributesCount ; i++ )
+    {
+        if( pAttributes[i].attributeNameLength == strlen( "ice-ufrag" ) &&
+            strncmp( pAttributes[i].pAttributeName, "ice-ufrag", pAttributes[i].attributeNameLength ) == 0 )
+        {
+            /* Found user name. */
+            SET_REMOTE_INFO_USERNAME_FOUND( isFound );
+            *ppRemoteUserName = pAttributes[i].pAttributeValue;
+            *pRemoteUserNameLength = pAttributes[i].attributeValueLength;
+        }
+        else if( pAttributes[i].attributeNameLength == strlen( "ice-pwd" ) &&
+                 strncmp( pAttributes[i].pAttributeName, "ice-pwd", pAttributes[i].attributeNameLength ) == 0 )
+        {
+            /* Found password. */
+            SET_REMOTE_INFO_PASSWORD_FOUND( isFound );
+            *ppRemotePassword = pAttributes[i].pAttributeValue;
+            *pRemotePasswordLength = pAttributes[i].attributeValueLength;
+        }
+        else
+        {
+            continue;
+        }
+
+        if( IS_REMOTE_INFO_ALL_FOUND( isFound ) )
+        {
+            break;
+        }
+    }
+
+    return isFound;
+}
+
+static uint8_t getRemoteInfo( DemoSessionInformation_t *pSessionInformation, const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength )
+{
+    uint8_t skipProcess = 0;
+    SdpControllerSdpDescription_t *pSessionDescription = &pSessionInformation->sdpDescription;
+    size_t i;
+    uint8_t isFound;
+
+    /* Assuming that the username & password in a single session description is same. */
+    /* Search session attributes first. */
+    isFound = searchUserNamePassWord( pSessionDescription->attributes, pSessionDescription->sessionAttributesCount,
+                                      ppRemoteUserName, pRemoteUserNameLength,
+                                      ppRemotePassword, pRemotePasswordLength );
+
+    if( !IS_REMOTE_INFO_ALL_FOUND( isFound ) )
+    {
+        /* Search media attributes if not found in session attributes. */
+        for( i=0 ; i<pSessionDescription->mediaCount ; i++ )
+        {
+            isFound = 0;
+            isFound = searchUserNamePassWord( pSessionDescription->mediaDescriptions[i].attributes, pSessionDescription->mediaDescriptions[i].mediaAttributesCount,
+                                              ppRemoteUserName, pRemoteUserNameLength,
+                                              ppRemotePassword, pRemotePasswordLength );
+            if( IS_REMOTE_INFO_ALL_FOUND( isFound ) )
+            {
+                break;
+            }
+        }
+    }
+
+    if( !IS_REMOTE_INFO_ALL_FOUND( isFound ) )
+    {
+        /* Can't find user name & pass word, drop this remote description. */
+        LogWarn( ( "No remote username & password found in session description, drop this message" ) );
+        skipProcess = 1;
+    }
+
+    return skipProcess;
+}
+
+// static uint8_t setRemoteDescription( IceControllerContext_t *pIceControllerCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength )
+// {
+//     uint8_t skipProcess = 0;
+//     const char *pRemoteUserName;
+//     size_t remoteUserNameLength;
+//     const char *pRemotePassword;
+//     size_t remotePasswordLength;
+//     IceControllerResult_t iceControllerResult;
+
+//     skipProcess = getRemoteInfo( pSessionInformation, &pRemoteUserName, &remoteUserNameLength, &pRemotePassword, &remotePasswordLength );
+
+//     if( skipProcess == 0 )
+//     {
+//         iceControllerResult = IceController_SetRemoteDescription( pIceControllerCtx, pRemoteClientId, remoteClientIdLength, pRemoteUserName, remoteUserNameLength, pRemotePassword, remotePasswordLength );
+//         if( iceControllerResult != 0 )
+//         {
+//             LogError( ( "Fail to set remote description, result: %d", iceControllerResult ) );
+//             skipProcess = 1;
+//         }
+//     }
+
+//     return skipProcess;
+// }
+
 int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext )
 {
-    // uint8_t skipProcess = 0;
+    uint8_t skipProcess = 0;
     // IceControllerResult_t iceControllerResult;
     // IceControllerCandidate_t candidate;
 
-    // ( void ) pUserContext;
+    ( void ) pUserContext;
 
-    // LogInfo( ( "Received Message from websocket server!" ) );
-    // LogDebug( ( "Message Type: %x", pEvent->messageType ) );
-    // LogDebug( ( "Sender ID: %.*s", ( int ) pEvent->remoteClientIdLength, pEvent->pRemoteClientId ) );
-    // LogDebug( ( "Correlation ID: %.*s", ( int ) pEvent->correlationIdLength, pEvent->pCorrelationId ) );
-    // LogDebug( ( "Message Length: %ld, Message:", pEvent->decodeMessageLength ) );
-    // LogDebug( ( "%.*s", ( int ) pEvent->decodeMessageLength, pEvent->pDecodeMessage ) );
+    LogInfo( ( "Received Message from websocket server!" ) );
+    LogDebug( ( "Message Type: %x", pEvent->messageType ) );
+    LogDebug( ( "Sender ID: %.*s", ( int ) pEvent->remoteClientIdLength, pEvent->pRemoteClientId ) );
+    LogDebug( ( "Correlation ID: %.*s", ( int ) pEvent->correlationIdLength, pEvent->pCorrelationId ) );
+    LogDebug( ( "Message Length: %u, Message:", pEvent->decodeMessageLength ) );
+    LogDebug( ( "%.*s", ( int ) pEvent->decodeMessageLength, pEvent->pDecodeMessage ) );
 
-    // switch( pEvent->messageType )
-    // {
-    //     case SIGNALING_TYPE_MESSAGE_SDP_OFFER:
-    //         skipProcess = addressSdpOffer( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &demoContext );
+    switch( pEvent->messageType )
+    {
+        case SIGNALING_TYPE_MESSAGE_SDP_OFFER:
+            skipProcess = addressSdpOffer( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &demoContext );
 
-    //         if( !skipProcess )
-    //         {
-    //             skipProcess = respondWithSdpAnswer( pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &demoContext );
-    //         }
+            if( !skipProcess )
+            {
+                skipProcess = respondWithSdpAnswer( pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &demoContext );
+            }
 
-    //         if( !skipProcess )
-    //         {
-    //             skipProcess = setRemoteDescription( &demoContext.iceControllerContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
-    //         }
-    //         break;
-    //     case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:
-    //         break;
-    //     case SIGNALING_TYPE_MESSAGE_ICE_CANDIDATE:
-    //         iceControllerResult = IceController_DeserializeIceCandidate( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &candidate );
-    //         if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
-    //         {
-    //             LogWarn( ( "IceController_DeserializeIceCandidate fail, result: %d, dropping ICE candidate.", iceControllerResult ) );
-    //             skipProcess = 1;
-    //         }
+            // if( !skipProcess )
+            // {
+            //     skipProcess = setRemoteDescription( &demoContext.iceControllerContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
+            // }
+            break;
+        case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:
+            break;
+        case SIGNALING_TYPE_MESSAGE_ICE_CANDIDATE:
+            // iceControllerResult = IceController_DeserializeIceCandidate( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &candidate );
+            // if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
+            // {
+            //     LogWarn( ( "IceController_DeserializeIceCandidate fail, result: %d, dropping ICE candidate.", iceControllerResult ) );
+            //     skipProcess = 1;
+            // }
 
-    //         if( !skipProcess )
-    //         {
-    //             iceControllerResult = IceController_SendRemoteCandidateRequest( &demoContext.iceControllerContext, pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &candidate );
-    //             if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
-    //             {
-    //                 LogWarn( ( "IceController_SendRemoteCandidateRequest fail, result: %d, dropping ICE candidate.", iceControllerResult ) );
-    //                 skipProcess = 1;
-    //             }
-    //         }
-    //         break;
-    //     case SIGNALING_TYPE_MESSAGE_GO_AWAY:
-    //         break;
-    //     case SIGNALING_TYPE_MESSAGE_RECONNECT_ICE_SERVER:
-    //         break;
-    //     case SIGNALING_TYPE_MESSAGE_STATUS_RESPONSE:
-    //         break;
-    //     default:
-    //         break;
-    // }
+            // if( !skipProcess )
+            // {
+            //     iceControllerResult = IceController_SendRemoteCandidateRequest( &demoContext.iceControllerContext, pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &candidate );
+            //     if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
+            //     {
+            //         LogWarn( ( "IceController_SendRemoteCandidateRequest fail, result: %d, dropping ICE candidate.", iceControllerResult ) );
+            //         skipProcess = 1;
+            //     }
+            // }
+            break;
+        case SIGNALING_TYPE_MESSAGE_GO_AWAY:
+            break;
+        case SIGNALING_TYPE_MESSAGE_RECONNECT_ICE_SERVER:
+            break;
+        case SIGNALING_TYPE_MESSAGE_STATUS_RESPONSE:
+            break;
+        default:
+            break;
+    }
 
     return 0;
 }
 
 void app_example(void)
 {
-    if( xTaskCreate( webrtc_master_task, ( (const char *)"webrtc_master_task" ), 20480, NULL, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
+    if( xTaskCreate( webrtc_master_task, ( (const char *)"webrtc_master_task" ), 30000, NULL, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
     {
 		LogError( ("xTaskCreate(webrtc_master_task) failed") );
 	}
@@ -126,6 +277,7 @@ void webrtc_master_task( void *pParameter )
 
     LogDebug( ( "Start webrtc_master_demo_app_main." ) );
 
+    sys_backtrace_enable();
     wifi_common_init();
 	sntp_init();
 	while( IsUpdatedCurrentTime() )
