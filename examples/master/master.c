@@ -19,12 +19,35 @@
 #define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect 
 
 static void webrtc_master_task( void *pParameter );
+static void wifi_common_init(void);
+static uint8_t IsUpdatedCurrentTime(void);
 
 extern uint8_t prepareSdpAnswer( DemoSessionInformation_t *pSessionInDescriptionOffer, DemoSessionInformation_t *pSessionInDescriptionAnswer );
 extern uint8_t serializeSdpMessage( DemoSessionInformation_t *pSessionInDescriptionAnswer, DemoContext_t *pDemoContext );
 extern uint8_t addressSdpOffer( const char *pEventSdpOffer, size_t eventSdpOfferlength, DemoContext_t *pDemoContext );
 
 DemoContext_t demoContext;
+
+static void platform_init(void)
+{
+    /* mbedtls init */
+	crypto_init();
+	platform_set_malloc_free(calloc, free);
+
+    /* Show backtrace if exception. */
+    sys_backtrace_enable();
+
+    /* Block until network ready. */
+    wifi_common_init();
+    
+    /* Block until get time via SNTP. */
+    sntp_init();
+    while( IsUpdatedCurrentTime() )
+    {
+        vTaskDelay( pdMS_TO_TICKS( 200 ) );
+        LogInfo( ("waiting get epoch timer") );
+    }
+}
 
 static void wifi_common_init(void)
 {
@@ -45,10 +68,12 @@ static void wifi_common_init(void)
 static uint8_t IsUpdatedCurrentTime(void)
 {
     uint8_t ret = 0;
-    struct timespec nowTime;
+	long sec;
+	long usec;
+	unsigned int tick;
 
-    clock_gettime(CLOCK_REALTIME, &nowTime);
-    if( nowTime.tv_sec > 0 )
+    sntp_get_lasttime( &sec, &usec, &tick );
+    if( sec > 10000000000000000ULL )
     {
         ret = 1;
     }
@@ -277,14 +302,7 @@ void webrtc_master_task( void *pParameter )
 
     LogDebug( ( "Start webrtc_master_demo_app_main." ) );
 
-    sys_backtrace_enable();
-    wifi_common_init();
-	sntp_init();
-	while( IsUpdatedCurrentTime() )
-    {
-		vTaskDelay( pdMS_TO_TICKS( 200 ) );
-		printf("waiting get epoch timer\r\n");
-	}
+    platform_init();
 
     memset( &demoContext, 0, sizeof( DemoContext_t ) );
 
