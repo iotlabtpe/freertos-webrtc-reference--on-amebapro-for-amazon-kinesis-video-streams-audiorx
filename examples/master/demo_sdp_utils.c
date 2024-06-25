@@ -585,7 +585,7 @@ static uint8_t populateMediaAttributes( char **ppBuffer, size_t *pBufferLength, 
 uint8_t prepareSdpAnswer( DemoSessionInformation_t *pSessionInDescriptionOffer, DemoSessionInformation_t *pSessionInDescriptionAnswer )
 {
     uint8_t skipProcess = 0;
-    size_t remainLength = DEMO_SDP_BUFFER_MAX_LENGTH, offset=0;
+    size_t remainLength = DEMO_SDP_BUFFER_MAX_LENGTH;
     char *pSdpBuffer = &pSessionInDescriptionAnswer->sdpBuffer[0];
     
     if( pSessionInDescriptionOffer == NULL || pSessionInDescriptionAnswer == NULL )
@@ -648,9 +648,9 @@ uint8_t serializeSdpMessage( DemoSessionInformation_t *pSessionInDescriptionAnsw
         }
         else
         {
-            LogDebug( ( "Serialized SDP answer (%lu):\n%.*s", pSessionInDescriptionAnswer->sdpBufferLength,
-                                                              ( int ) pSessionInDescriptionAnswer->sdpBufferLength,
-                                                              pSessionInDescriptionAnswer->sdpBuffer ) );
+            LogDebug( ( "Serialized SDP answer (%u):\n%.*s", pSessionInDescriptionAnswer->sdpBufferLength,
+                                                             ( int ) pSessionInDescriptionAnswer->sdpBufferLength,
+                                                             pSessionInDescriptionAnswer->sdpBuffer ) );
         }
     }
 

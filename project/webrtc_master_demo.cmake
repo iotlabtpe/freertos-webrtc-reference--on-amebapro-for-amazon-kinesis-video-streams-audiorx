@@ -74,7 +74,9 @@ file(
   "${REPO_ROOT_DIRECTORY}/examples/message_queue/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/base64/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/sdp_controller/*.c"
-  "${REPO_ROOT_DIRECTORY}/examples/string_utils/*.c" )
+  "${REPO_ROOT_DIRECTORY}/examples/string_utils/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/ice_controller/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/timer_controller/*.c" )
 
 set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/master/"
@@ -90,7 +92,9 @@ set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/message_queue"
      "${REPO_ROOT_DIRECTORY}/examples/base64"
      "${REPO_ROOT_DIRECTORY}/examples/sdp_controller"
-     "${REPO_ROOT_DIRECTORY}/examples/string_utils" )
+     "${REPO_ROOT_DIRECTORY}/examples/string_utils"
+     "${REPO_ROOT_DIRECTORY}/examples/ice_controller"
+     "${REPO_ROOT_DIRECTORY}/examples/timer_controller" )
 
 # Include dependencies
 # Include coreHTTP
@@ -111,6 +115,9 @@ file(
   WSLAY_SOURCE_FILES
   "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/*.c" )
 
+configure_file(${REPO_ROOT_DIRECTORY}/CMake/wslay/wslay_net.h.in
+               ${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/wslay_net.h @ONLY)
+
 configure_file(${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay/wslayver.h.in
                ${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay/wslayver.h @ONLY)
 set( WSLAY_INCLUDE_DIRS
@@ -121,23 +128,11 @@ set( WSLAY_INCLUDE_DIRS
 # Include SDP
 include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-sdp/sdpFilePaths.cmake )
 
-## Include STUN
-# include( ${REPO_ROOT_DIRECTORY}/CMake/stun.cmake )
+# Include STUN
+include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-stun/stunFilePaths.cmake )
 
-## Set STUN include directories
-# target_include_directories( WebRTCLinuxApplicationMaster PRIVATE
-#                             ${STUN_INCLUDE_PUBLIC_DIRS} )
-
-## Include ICE
-# include( ${REPO_ROOT_DIRECTORY}/CMake/ice.cmake )
-
-## Set ICE include directories
-# target_include_directories( WebRTCLinuxApplicationMaster PRIVATE
-#                             ${ICE_INCLUDE_PUBLIC_DIRS} )
-
-# link application with dependencies, note that rt is librt providing message queue's APIs
-# message(STATUS "linking websockets to WebRTCLinuxApplication")
-# target_link_libraries(WebRTCLinuxApplicationMaster websockets sigv4 signaling corejson sdp ice rt pthread)
+# Include ICE
+include( ${REPO_ROOT_DIRECTORY}/CMake/ice.cmake )
 
 list(
 	APPEND app_flags
@@ -152,12 +147,9 @@ set( webrtc_master_demo_src
      ${SIGNALING_SOURCES}
      ${JSON_SOURCES}
      ${WSLAY_SOURCE_FILES}
-     ${SDP_SOURCES} )
-    #  ${WEBRTC_APPLICATION_SIGNALING_CONTROLLER_SOURCE_FILES}
-    #  ${WEBRTC_APPLICATION_NETWORKING_LIBWEBSOCKETS_SOURCE_FILES}
-    #  ${WEBRTC_APPLICATION_UTILS_SOURCE_FILES}
-    #  ${WEBRTC_APPLICATION_SDP_CONTROLLER_SOURCE_FILES}
-    #  ${WEBRTC_APPLICATION_ICE_CONTROLLER_SOURCE_FILES} )
+     ${SDP_SOURCES}
+     ${STUN_SOURCES}
+     ${ICE_SOURCES} )
 
 set( webrtc_master_demo_include
      ${WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS}
@@ -166,14 +158,6 @@ set( webrtc_master_demo_include
      ${SIGNALING_INCLUDE_PUBLIC_DIRS}
      ${JSON_INCLUDE_PUBLIC_DIRS}
      ${WSLAY_INCLUDE_DIRS} 
-     ${SDP_INCLUDE_PUBLIC_DIRS} )
-    #  ${WEBRTC_APPLICATION_NETWORKING_LIBWEBSOCKETS_INCLUDE_DIRS}
-    #  ${WEBRTC_APPLICATION_SIGNALING_CONTROLLER_INCLUDE_DIRS}
-    #  ${WEBRTC_APPLICATION_UTILS_INCLUDE_DIRS}
-    #  ${WEBRTC_APPLICATION_SDP_CONTROLLER_INCLUDE_DIRS}
-    #  ${WEBRTC_APPLICATION_ICE_CONTROLLER_INCLUDE_DIRS}
-    #  ${SIGV4_INCLUDE_PUBLIC_DIRS}
-    #  ${LIBWEBSOCKETS_INCLUDE_DIRS}
-    #  ${JSON_INCLUDE_PUBLIC_DIRS}
-    #  ${SIGNALING_INCLUDE_PUBLIC_DIRS}
-    #  ${SDP_INCLUDE_PUBLIC_DIRS} )
+     ${SDP_INCLUDE_PUBLIC_DIRS}
+     ${STUN_INCLUDE_PUBLIC_DIRS}
+     ${ICE_INCLUDE_PUBLIC_DIRS} )

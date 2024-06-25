@@ -75,7 +75,8 @@ MessageQueueResult_t MessageQueue_Recv( MessageQueueHandler_t *pMessageQueueHand
 
     if( ret == MESSAGE_QUEUE_RESULT_OK )
     {
-        retRecv = xQueueReceive( pMessageQueueHandler->messageQueue, pMessage, 0 );
+        /* Infinite waiting. */
+        retRecv = xQueueReceive( pMessageQueueHandler->messageQueue, pMessage, portMAX_DELAY );
         if( retRecv != pdTRUE )
         {
             LogError( ( "mq_receive returns failed" ) );

@@ -6,7 +6,6 @@
 #include "logging.h"
 #include "demo_config.h"
 #include "demo_data_types.h"
-#include "signaling_controller.h"
 #include "wifi_conf.h"
 #include "lwip_netconf.h"
 
@@ -18,9 +17,20 @@
 
 #define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect 
 
-static void webrtc_master_task( void *pParameter );
+extern void IceControllerSocketListener_Task( void *pParameter );
+static void platform_init(void);
 static void wifi_common_init(void);
 static uint8_t IsUpdatedCurrentTime(void);
+static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteClientIdLength, DemoContext_t *pDemoContext );
+static uint8_t searchUserNamePassWord( SdpControllerAttributes_t *pAttributes, size_t attributesCount,
+                                       const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength );
+static uint8_t getRemoteInfo( DemoSessionInformation_t *pSessionInformation, const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength );
+static uint8_t setRemoteDescription( IceControllerContext_t *pIceControllerCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength );
+static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext );
+static int initializeApplication( DemoContext_t *pDemoContext );
+static int initializeIceController( DemoContext_t *pDemoContext );
+static void IceController_Task( void *pParameter );
+static void Master_Task( void *pParameter );
 
 extern uint8_t prepareSdpAnswer( DemoSessionInformation_t *pSessionInDescriptionOffer, DemoSessionInformation_t *pSessionInDescriptionAnswer );
 extern uint8_t serializeSdpMessage( DemoSessionInformation_t *pSessionInDescriptionAnswer, DemoContext_t *pDemoContext );
@@ -197,35 +207,99 @@ static uint8_t getRemoteInfo( DemoSessionInformation_t *pSessionInformation, con
     return skipProcess;
 }
 
-// static uint8_t setRemoteDescription( IceControllerContext_t *pIceControllerCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength )
-// {
-//     uint8_t skipProcess = 0;
-//     const char *pRemoteUserName;
-//     size_t remoteUserNameLength;
-//     const char *pRemotePassword;
-//     size_t remotePasswordLength;
-//     IceControllerResult_t iceControllerResult;
-
-//     skipProcess = getRemoteInfo( pSessionInformation, &pRemoteUserName, &remoteUserNameLength, &pRemotePassword, &remotePasswordLength );
-
-//     if( skipProcess == 0 )
-//     {
-//         iceControllerResult = IceController_SetRemoteDescription( pIceControllerCtx, pRemoteClientId, remoteClientIdLength, pRemoteUserName, remoteUserNameLength, pRemotePassword, remotePasswordLength );
-//         if( iceControllerResult != 0 )
-//         {
-//             LogError( ( "Fail to set remote description, result: %d", iceControllerResult ) );
-//             skipProcess = 1;
-//         }
-//     }
-
-//     return skipProcess;
-// }
-
-int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext )
+static uint8_t setRemoteDescription( IceControllerContext_t *pIceControllerCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength )
 {
     uint8_t skipProcess = 0;
-    // IceControllerResult_t iceControllerResult;
-    // IceControllerCandidate_t candidate;
+    const char *pRemoteUserName;
+    size_t remoteUserNameLength;
+    const char *pRemotePassword;
+    size_t remotePasswordLength;
+    IceControllerResult_t iceControllerResult;
+
+    skipProcess = getRemoteInfo( pSessionInformation, &pRemoteUserName, &remoteUserNameLength, &pRemotePassword, &remotePasswordLength );
+
+    if( skipProcess == 0 )
+    {
+        iceControllerResult = IceController_SetRemoteDescription( pIceControllerCtx, pRemoteClientId, remoteClientIdLength, pRemoteUserName, remoteUserNameLength, pRemotePassword, remotePasswordLength );
+        if( iceControllerResult != 0 )
+        {
+            LogError( ( "Fail to set remote description, result: %d", iceControllerResult ) );
+            skipProcess = 1;
+        }
+    }
+
+    return skipProcess;
+}
+
+static int initializeApplication( DemoContext_t *pDemoContext )
+{
+    int ret = 0;
+    SignalingControllerResult_t signalingControllerReturn;
+    SignalingControllerCredential_t signalingControllerCred;
+
+    if( pDemoContext == NULL )
+    {
+        LogError( ("Invalid input, demo context is NULL") );
+        ret = -1;
+    }
+
+    if( ret == 0 )
+    {
+        memset( pDemoContext, 0, sizeof( DemoContext_t ) );
+        
+        /* Initialize Signaling controller. */
+        memset( &signalingControllerCred, 0, sizeof(SignalingControllerCredential_t) );
+        signalingControllerCred.pRegion = AWS_REGION;
+        signalingControllerCred.regionLength = strlen( AWS_REGION );
+        signalingControllerCred.pChannelName = AWS_KVS_CHANNEL_NAME;
+        signalingControllerCred.channelNameLength = strlen( AWS_KVS_CHANNEL_NAME );
+        signalingControllerCred.pUserAgentName = AWS_KVS_AGENT_NAME;
+        signalingControllerCred.userAgentNameLength = strlen(AWS_KVS_AGENT_NAME);
+        signalingControllerCred.pAccessKeyId = AWS_ACCESS_KEY_ID;
+        signalingControllerCred.accessKeyIdLength = strlen(AWS_ACCESS_KEY_ID);
+        signalingControllerCred.pSecretAccessKey = AWS_SECRET_ACCESS_KEY;
+        signalingControllerCred.secretAccessKeyLength = strlen(AWS_SECRET_ACCESS_KEY);
+        signalingControllerCred.pCaCertPath = NULL;
+        signalingControllerCred.pCaCertPem = AWS_CA_CERT_PEM;
+        signalingControllerCred.caCertPemSize = sizeof( AWS_CA_CERT_PEM );
+
+        signalingControllerReturn = SignalingController_Init( &pDemoContext->signalingControllerContext, &signalingControllerCred, handleSignalingMessage, NULL );
+        if( signalingControllerReturn != SIGNALING_CONTROLLER_RESULT_OK )
+        {
+            LogError( ( "Fail to initialize signaling controller." ) );
+            ret = -1;
+        }
+    }
+
+    if( ret == 0 )
+    {
+        /* Initialize Ice controller. */
+        ret = initializeIceController( pDemoContext );
+    }
+
+    return ret;
+}
+
+static int initializeIceController( DemoContext_t *pDemoContext )
+{
+    int ret = 0;
+    IceControllerResult_t iceControllerReturn;
+
+    iceControllerReturn = IceController_Init( &pDemoContext->iceControllerContext, &pDemoContext->signalingControllerContext );
+    if( iceControllerReturn != ICE_CONTROLLER_RESULT_OK )
+    {
+        LogError( ( "Fail to initialize ice controller." ) );
+        ret = -1;
+    }
+
+    return ret;
+}
+
+static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext )
+{
+    uint8_t skipProcess = 0;
+    IceControllerResult_t iceControllerResult;
+    IceControllerCandidate_t candidate;
 
     ( void ) pUserContext;
 
@@ -246,30 +320,30 @@ int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void 
                 skipProcess = respondWithSdpAnswer( pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &demoContext );
             }
 
-            // if( !skipProcess )
-            // {
-            //     skipProcess = setRemoteDescription( &demoContext.iceControllerContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
-            // }
+            if( !skipProcess )
+            {
+                skipProcess = setRemoteDescription( &demoContext.iceControllerContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
+            }
             break;
         case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:
             break;
         case SIGNALING_TYPE_MESSAGE_ICE_CANDIDATE:
-            // iceControllerResult = IceController_DeserializeIceCandidate( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &candidate );
-            // if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
-            // {
-            //     LogWarn( ( "IceController_DeserializeIceCandidate fail, result: %d, dropping ICE candidate.", iceControllerResult ) );
-            //     skipProcess = 1;
-            // }
+            iceControllerResult = IceController_DeserializeIceCandidate( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &candidate );
+            if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
+            {
+                LogWarn( ( "IceController_DeserializeIceCandidate fail, result: %d, dropping ICE candidate.", iceControllerResult ) );
+                skipProcess = 1;
+            }
 
-            // if( !skipProcess )
-            // {
-            //     iceControllerResult = IceController_SendRemoteCandidateRequest( &demoContext.iceControllerContext, pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &candidate );
-            //     if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
-            //     {
-            //         LogWarn( ( "IceController_SendRemoteCandidateRequest fail, result: %d, dropping ICE candidate.", iceControllerResult ) );
-            //         skipProcess = 1;
-            //     }
-            // }
+            if( !skipProcess )
+            {
+                iceControllerResult = IceController_SendRemoteCandidateRequest( &demoContext.iceControllerContext, pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &candidate );
+                if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
+                {
+                    LogWarn( ( "IceController_SendRemoteCandidateRequest fail, result: %d, dropping ICE candidate.", iceControllerResult ) );
+                    skipProcess = 1;
+                }
+            }
             break;
         case SIGNALING_TYPE_MESSAGE_GO_AWAY:
             break;
@@ -284,19 +358,20 @@ int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void 
     return 0;
 }
 
-void app_example(void)
+static void IceController_Task( void *pParameter )
 {
-    if( xTaskCreate( webrtc_master_task, ( (const char *)"webrtc_master_task" ), 30000, NULL, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
+    IceControllerContext_t *pIceControllerContext = (IceControllerContext_t *) pParameter;
+    
+    for( ;; )
     {
-		LogError( ("xTaskCreate(webrtc_master_task) failed") );
-	}
+        (void) IceController_ProcessLoop( pIceControllerContext );
+    }
 }
 
-void webrtc_master_task( void *pParameter )
+static void Master_Task( void *pParameter )
 {
     int ret = 0;
     SignalingControllerResult_t signalingControllerReturn;
-    SignalingControllerCredential_t signalingControllerCred;
 
     (void) pParameter;
 
@@ -304,35 +379,25 @@ void webrtc_master_task( void *pParameter )
 
     platform_init();
 
-    memset( &demoContext, 0, sizeof( DemoContext_t ) );
+    ret = initializeApplication( &demoContext );
 
-    memset( &signalingControllerCred, 0, sizeof(SignalingControllerCredential_t) );
-    signalingControllerCred.pRegion = AWS_REGION;
-    signalingControllerCred.regionLength = strlen( AWS_REGION );
-    signalingControllerCred.pChannelName = AWS_KVS_CHANNEL_NAME;
-    signalingControllerCred.channelNameLength = strlen( AWS_KVS_CHANNEL_NAME );
-    signalingControllerCred.pUserAgentName = AWS_KVS_AGENT_NAME;
-    signalingControllerCred.userAgentNameLength = strlen(AWS_KVS_AGENT_NAME);
-    signalingControllerCred.pAccessKeyId = AWS_ACCESS_KEY_ID;
-    signalingControllerCred.accessKeyIdLength = strlen(AWS_ACCESS_KEY_ID);
-    signalingControllerCred.pSecretAccessKey = AWS_SECRET_ACCESS_KEY;
-    signalingControllerCred.secretAccessKeyLength = strlen(AWS_SECRET_ACCESS_KEY);
-    signalingControllerCred.pCaCertPath = NULL;
-    signalingControllerCred.pCaCertPem = AWS_CA_CERT_PEM;
-    signalingControllerCred.caCertPemSize = sizeof( AWS_CA_CERT_PEM );
-
-    signalingControllerReturn = SignalingController_Init( &demoContext.signalingControllerContext, &signalingControllerCred, handleSignalingMessage, NULL );
-    if( signalingControllerReturn != SIGNALING_CONTROLLER_RESULT_OK )
+    if( ret == 0 )
     {
-        LogError( ( "Fail to initialize signaling controller." ) );
-        ret = -1;
+        if( xTaskCreate( IceControllerSocketListener_Task, ( (const char *)"IcSockListenerTask" ), 1024, &demoContext.iceControllerContext, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
+        {
+            LogError( ("xTaskCreate(IceControllerSocketListener_Task) failed") );
+            ret = -1;
+        }
     }
 
-    // if( ret == 0 )
-    // {
-    //     /* Initialize Ice controller. */
-    //     ret = initializeIceController( &demoContext );
-    // }
+    if( ret == 0 )
+    {
+        if( xTaskCreate( IceController_Task, ( (const char *)"IcTask" ), 10240, &demoContext.iceControllerContext, tskIDLE_PRIORITY + 2, NULL ) != pdPASS )
+        {
+            LogError( ("xTaskCreate(IceController_Task) failed") );
+            ret = -1;
+        }
+    }
 
     if( ret == 0 )
     {
@@ -343,11 +408,6 @@ void webrtc_master_task( void *pParameter )
             ret = -1;
         }
     }
-
-    // if( ret == 0 )
-    // {
-    //     pthread_create( &threadIceController, NULL, executeIceController, &demoContext.iceControllerContext );
-    // }
 
     if( ret == 0 )
     {
@@ -363,5 +423,19 @@ void webrtc_master_task( void *pParameter )
     for( ;; )
     {
 		vTaskDelay( pdMS_TO_TICKS( 200 ) );
+    }
+}
+
+void app_example(void)
+{
+    int ret = 0;
+
+    if( ret == 0 )
+    {
+        if( xTaskCreate( Master_Task, ( (const char *)"MasterTask" ), 20480, NULL, tskIDLE_PRIORITY + 2, NULL ) != pdPASS )
+        {
+            LogError( ("xTaskCreate(Master_Task) failed") );
+            ret = -1;
+        }
     }
 }
