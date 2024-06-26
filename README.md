@@ -9,6 +9,8 @@ export PATH=libraries/ambpro2_sdk/tools/asdk-10.3.0/linux/newlib/bin:$PATH
 ```
 
 ## Build project
+1. Clone all submodules by `git submodule update --init --recursive`
+1. Open `libraries/ambpro2_sdk/component/lwip/api/lwipopts.h` and set `LWIP_IPV6` to `1`.
 1. Open linux terminal and enter the project location: project/realtek_amebapro2_webrtc_application/GCC-RELEASE.
 1. Create folder “build” and enter “build” folder.
 1. Run “cmake .. -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=../toolchain.cmake” to create the makefile.

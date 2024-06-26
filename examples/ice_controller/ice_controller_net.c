@@ -112,7 +112,7 @@ static IceControllerResult_t createSocketConnection( int *pSocketFd, IceIPAddres
         }
         else
         {
-            pIpAddress->ipAddress.port = ( uint16_t ) pIpAddress->ipAddress.family == STUN_ADDRESS_IPv4 ? ipv4Address.sin_port : 0U;
+            pIpAddress->ipAddress.port = ( uint16_t ) pIpAddress->ipAddress.family == STUN_ADDRESS_IPv4 ? ntohs( ipv4Address.sin_port ) : 0U;
         }
     }
 
@@ -510,11 +510,6 @@ void IceControllerNet_AddSrflxaCndidate( IceControllerContext_t *pCtx, IceContro
 
         if( ret == ICE_CONTROLLER_RESULT_OK )
         {
-            ret = IceControllerSocketListener_StartPolling( pCtx );
-        }
-
-        if( ret == ICE_CONTROLLER_RESULT_OK )
-        {
             pSocketContext->pLocalCandidate = pCandidate;
             pSocketContext->candidateType = ICE_CANDIDATE_TYPE_SERVER_REFLEXIVE;
             pSocketContext->pRemoteInfo = pRemoteInfo;
@@ -641,6 +636,7 @@ IceControllerResult_t IceControllerNet_HandleRxPacket( IceControllerContext_t *p
     uint8_t *pSentStunBuffer;
     uint32_t sentStunBufferLength;
     char ipBuffer[ INET_ADDRSTRLEN ];
+    char ipBuffer2[ INET_ADDRSTRLEN ];
 
     readBytes = recvfrom( pSocketContext->socketFd, receiveBuffer, RX_BUFFER_SIZE, 0, &srcAddress, &srcAddressLength );
     if( readBytes < 0 )
@@ -738,6 +734,9 @@ IceControllerResult_t IceControllerNet_HandleRxPacket( IceControllerContext_t *p
                         if( iceResult == ICE_RESULT_SEND_RESPONSE_FOR_NOMINATION )
                         {
                             LogInfo( ( "Sent nominating STUN bind response" ) );
+                            LogDebug( ( "Candidiate pair is nominated, local IP/port: %s/%u, remote IP/port: %s/%u",
+                                        IceControllerNet_LogIpAddressInfo( &pCandidatePair->pLocal->ipAddress, ipBuffer, sizeof( ipBuffer ) ), pCandidatePair->pLocal->ipAddress.ipAddress.port,
+                                        IceControllerNet_LogIpAddressInfo( &pCandidatePair->pRemote->ipAddress, ipBuffer2, sizeof( ipBuffer2 ) ), pCandidatePair->pRemote->ipAddress.ipAddress.port ) );
                             gettimeofday( &pCtx->metrics.sentNominationResponseTime, NULL );
                             if( TIMER_CONTROLLER_RESULT_SET == TimerController_IsTimerSet( &pCtx->connectivityCheckTimer ) )
                             {

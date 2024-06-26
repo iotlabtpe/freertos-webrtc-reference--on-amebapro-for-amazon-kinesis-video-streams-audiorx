@@ -1006,6 +1006,11 @@ IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
+        ret = IceControllerSocketListener_StartPolling( pCtx );
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
         retTimer = TimerController_IsTimerSet( &pCtx->connectivityCheckTimer );
         if( retTimer == TIMER_CONTROLLER_RESULT_NOT_SET )
         {
