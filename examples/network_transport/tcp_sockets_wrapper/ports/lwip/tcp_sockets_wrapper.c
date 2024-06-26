@@ -257,5 +257,5 @@ int32_t TCP_Sockets_GetSocketFd( Socket_t xSocket )
         ret = xSocket->xFd;
     }
 
-    return xSocket->xFd;
+    return ret;
 }

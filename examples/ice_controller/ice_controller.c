@@ -421,7 +421,7 @@ static IceControllerResult_t handleRequest( IceControllerContext_t *pCtx, Messag
                 ret = handleConnectivityCheckRequest( pCtx, &requestMsg );
                 break;
             case ICE_CONTROLLER_REQUEST_TYPE_DETECT_RX_PACKET:
-                while( ret == MESSAGE_QUEUE_RESULT_OK )
+                while( ret == ICE_CONTROLLER_RESULT_OK )
                 {
                     ret = IceControllerNet_HandleRxPacket( pCtx, requestMsg.requestContent.detectRxPacket.pSocketContext );
                 }

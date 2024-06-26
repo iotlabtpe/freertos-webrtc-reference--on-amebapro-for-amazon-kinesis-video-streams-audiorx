@@ -222,8 +222,6 @@ IceControllerResult_t IceControllerSocketListener_InitializeTask( void *pParamet
 void IceControllerSocketListener_Task( void *pParameter )
 {
     IceControllerContext_t *pCtx = (IceControllerContext_t*) pParameter;
-    TickType_t lastPollingTick;
-    const TickType_t pollingIntervalTicks = pdMS_TO_TICKS( 50 );
 
     /* Mutex can only be created in executing scheduler. */
     pCtx->socketListenerContext.socketListenerMutex = xSemaphoreCreateMutex();

@@ -3,11 +3,14 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "sys_api.h" // sys_backtrace_enable()
+#include "sntp/sntp.h" // SNTP series APIs
+#include "wifi_conf.h" // WiFi series APIs
+#include "lwip_netconf.h" // LwIP_GetIP()
+
 #include "logging.h"
 #include "demo_config.h"
 #include "demo_data_types.h"
-#include "wifi_conf.h"
-#include "lwip_netconf.h"
 
 #define IS_USERNAME_FOUND_BIT ( 1 << 0 )
 #define IS_PASSWORD_FOUND_BIT ( 1 << 1 )
@@ -38,6 +41,8 @@ extern uint8_t addressSdpOffer( const char *pEventSdpOffer, size_t eventSdpOffer
 
 DemoContext_t demoContext;
 
+extern int crypto_init(void);
+extern int platform_set_malloc_free( void * (*malloc_func)( size_t ), void (*free_func)( void * ) );
 static void platform_init(void)
 {
     /* mbedtls init */
@@ -78,8 +83,8 @@ static void wifi_common_init(void)
 static uint8_t IsUpdatedCurrentTime(void)
 {
     uint8_t ret = 0;
-	long sec;
-	long usec;
+	long long sec;
+	long long usec;
 	unsigned int tick;
 
     sntp_get_lasttime( &sec, &usec, &tick );

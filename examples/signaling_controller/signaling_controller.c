@@ -18,17 +18,16 @@
 #endif /* defined( SIGNALING_CONTROLLER_USING_WSLAY ) && SIGNALING_CONTROLLER_USING_WSLAY */
 #define SIGNALING_CONTROLLER_MESSAGE_QUEUE_NAME "/WebrtcApplicationSignalingController"
 
-#define MAX_URI_CHAR_LEN ( 10000 )
-#define MAX_JSON_PARAMETER_STRING_LEN ( 10 * 1024 )
 #define MAX_QUEUE_MSG_NUM ( 10 )
+#define WEBSOCKET_ENDPOINT_PORT ( 443U )
 
-static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerContext_t *pCtx, SignalingIceServerList_t *pIceServerList );
+static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerContext_t *pCtx, SignalingIceServer_t *pIceServerList, size_t iceServerListNum );
 
 static WebsocketResult_t handleWssMessage( char *pMessage, size_t messageLength, void *pUserContext )
 {
     WebsocketResult_t ret = WEBSOCKET_RESULT_OK;
     SignalingResult_t retSignal;
-    SignalingWssRecvMessage_t wssRecvMessage;
+    WssRecvMessage_t wssRecvMessage;
     SignalingControllerContext_t *pCtx = ( SignalingControllerContext_t * ) pUserContext;
     SignalingControllerReceiveEvent_t receiveEvent;
     Base64Result_t retBase64;
@@ -42,18 +41,11 @@ static WebsocketResult_t handleWssMessage( char *pMessage, size_t messageLength,
     if( ret == WEBSOCKET_RESULT_OK )
     {
         // Parse the response
-        retSignal = Signaling_parseWssRecvMessage( pMessage, (size_t) messageLength, &wssRecvMessage );
+        retSignal = Signaling_ParseWssRecvMessage( pMessage, (size_t) messageLength, &wssRecvMessage );
         if( retSignal != SIGNALING_RESULT_OK )
         {
             ret = NETWORKING_WSLAY_RESULT_UNKNOWN_MESSAGE;
         }
-    }
-
-    if( ret == WEBSOCKET_RESULT_OK &&
-        wssRecvMessage.iceServerList.iceServerNum > 0U &&
-        wssRecvMessage.messageType == SIGNALING_TYPE_MESSAGE_SDP_OFFER )
-    {
-        ret = updateIceServerConfigs( pCtx, &wssRecvMessage.iceServerList );
     }
 
     /* Decode base64 payload. */
@@ -317,7 +309,7 @@ static void printMetrics( SignalingControllerContext_t * pCtx )
     LogDebug( ( "Duration of Connect Websocket Server: %lld ms", duration_ms ) );
 }
 
-static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerContext_t *pCtx, SignalingIceServerList_t *pIceServerList )
+static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerContext_t *pCtx, SignalingIceServer_t *pIceServerList, size_t iceServerListNum )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     uint8_t i, j;
@@ -329,21 +321,21 @@ static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerCo
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        for( i=0 ; i<pIceServerList->iceServerNum ; i++ )
+        for( i=0 ; i<iceServerListNum ; i++ )
         {
             if( i >= SIGNALING_CONTROLLER_ICE_SERVER_MAX_ICE_CONFIG_COUNT )
             {
                 break;
             }
-            else if( pIceServerList->iceServer[i].userNameLength >= SIGNALING_CONTROLLER_ICE_SERVER_MAX_USER_NAME_LENGTH )
+            else if( pIceServerList[i].userNameLength >= SIGNALING_CONTROLLER_ICE_SERVER_MAX_USER_NAME_LENGTH )
             {
-                LogError( ("The length of user name of ice server is too long to store, length=%d", pIceServerList->iceServer[i].userNameLength) );
+                LogError( ("The length of user name of ice server is too long to store, length=%d", pIceServerList[i].userNameLength) );
                 ret = SIGNALING_CONTROLLER_RESULT_INVALID_ICE_SERVER_USERNAME;
                 break;
             }
-            else if( pIceServerList->iceServer[i].passwordLength >= SIGNALING_CONTROLLER_ICE_SERVER_MAX_PASSWORD_LENGTH )
+            else if( pIceServerList[i].passwordLength >= SIGNALING_CONTROLLER_ICE_SERVER_MAX_PASSWORD_LENGTH )
             {
-                LogError( ("The length of password of ice server is too long to store, length=%d", pIceServerList->iceServer[i].passwordLength) );
+                LogError( ("The length of password of ice server is too long to store, length=%d", pIceServerList[i].passwordLength) );
                 ret = SIGNALING_CONTROLLER_RESULT_INVALID_ICE_SERVER_PASSWORD;
                 break;
             }
@@ -352,21 +344,21 @@ static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerCo
                 /* Do nothing, coverity happy. */
             }
 
-            memcpy( pCtx->iceServerConfigs[i].userName, pIceServerList->iceServer[i].pUserName, pIceServerList->iceServer[i].userNameLength );
-            pCtx->iceServerConfigs[i].userNameLength = pIceServerList->iceServer[i].userNameLength;
-            memcpy( pCtx->iceServerConfigs[i].password, pIceServerList->iceServer[i].pPassword, pIceServerList->iceServer[i].passwordLength );
-            pCtx->iceServerConfigs[i].passwordLength = pIceServerList->iceServer[i].passwordLength;
-            pCtx->iceServerConfigs[i].ttlSeconds = pIceServerList->iceServer[i].messageTtlSeconds;
+            memcpy( pCtx->iceServerConfigs[i].userName, pIceServerList[i].pUserName, pIceServerList[i].userNameLength );
+            pCtx->iceServerConfigs[i].userNameLength = pIceServerList[i].userNameLength;
+            memcpy( pCtx->iceServerConfigs[i].password, pIceServerList[i].pPassword, pIceServerList[i].passwordLength );
+            pCtx->iceServerConfigs[i].passwordLength = pIceServerList[i].passwordLength;
+            pCtx->iceServerConfigs[i].ttlSeconds = pIceServerList[i].messageTtlSeconds;
 
-            for( j=0 ; j<pIceServerList->iceServer[i].urisNum ; j++ )
+            for( j=0 ; j<pIceServerList[i].urisNum ; j++ )
             {
                 if( j >= SIGNALING_CONTROLLER_ICE_SERVER_MAX_URIS_COUNT )
                 {
                     break;
                 }
-                else if( pIceServerList->iceServer[i].urisLength[j] >= SIGNALING_CONTROLLER_ICE_SERVER_MAX_URI_LENGTH )
+                else if( pIceServerList[i].urisLength[j] >= SIGNALING_CONTROLLER_ICE_SERVER_MAX_URI_LENGTH )
                 {
-                    LogError( ("The length of URI of ice server is too long to store, length=%d", pIceServerList->iceServer[i].urisLength[j]) );
+                    LogError( ("The length of URI of ice server is too long to store, length=%d", pIceServerList[i].urisLength[j]) );
                     ret = SIGNALING_CONTROLLER_RESULT_INVALID_ICE_SERVER_URI;
                     break;
                 }
@@ -375,8 +367,8 @@ static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerCo
                     /* Do nothing, coverity happy. */
                 }
 
-                memcpy( &pCtx->iceServerConfigs[i].uris[j], pIceServerList->iceServer[i].pUris[j], pIceServerList->iceServer[i].urisLength[j] );
-                pCtx->iceServerConfigs[i].urisLength[j] = pIceServerList->iceServer[i].urisLength[j];
+                memcpy( &pCtx->iceServerConfigs[i].uris[j], pIceServerList[i].pUris[j], pIceServerList[i].urisLength[j] );
+                pCtx->iceServerConfigs[i].urisLength[j] = pIceServerList[i].urisLength[j];
             }
 
             if( ret == SIGNALING_CONTROLLER_RESULT_OK )
@@ -402,26 +394,29 @@ static SignalingControllerResult_t describeSignalingChannel( SignalingController
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     SignalingResult_t retSignal;
+    SignalingAwsRegion_t awsRegion;
+    SignalingChannelName_t channelName;
     SignalingRequest_t signalRequest;
-    SignalingDescribeSignalingChannelRequest_t describeSignalingChannelRequest;
-    SignalingDescribeSignalingChannelResponse_t describeSignalingChannelResponse;
-    char url[MAX_URI_CHAR_LEN];
-    char paramsJson[MAX_JSON_PARAMETER_STRING_LEN];
     HttpRequest_t request;
     HttpResponse_t response;
-    char responseBuffer[MAX_JSON_PARAMETER_STRING_LEN];
+    SignalingChannelInfo_t channelInfo;
 
+    // Prepare AWS region
+    awsRegion.pAwsRegion = pCtx->credential.pRegion;
+    awsRegion.awsRegionLength = pCtx->credential.regionLength;
+    // Prepare channel name
+    channelName.pChannelName = pCtx->credential.pChannelName;
+    channelName.channelNameLength = pCtx->credential.channelNameLength;
     // Prepare URL buffer
-    signalRequest.pUrl = &url[0];
-    signalRequest.urlLength = MAX_URI_CHAR_LEN;
+    signalRequest.pUrl = pCtx->httpUrlBuffer;
+    signalRequest.urlLength = SIGNALING_CONTROLLER_MAX_HTTP_URI_LENGTH;
     // Prepare body buffer
-    signalRequest.pBody = &paramsJson[0];
-    signalRequest.bodyLength = MAX_JSON_PARAMETER_STRING_LEN;
-    // Create the API url
-    describeSignalingChannelRequest.pChannelName = pCtx->credential.pChannelName;
-    describeSignalingChannelRequest.channelNameLength = pCtx->credential.channelNameLength;
+    signalRequest.pBody = pCtx->httpBodyBuffer;
+    signalRequest.bodyLength = SIGNALING_CONTROLLER_MAX_HTTP_BODY_LENGTH;
 
-    retSignal = Signaling_constructDescribeSignalingChannelRequest(&pCtx->signalingContext, &describeSignalingChannelRequest, &signalRequest);
+    retSignal = Signaling_ConstructDescribeSignalingChannelRequest( &awsRegion,
+                                                                    &channelName,
+                                                                    &signalRequest );
 
     if( retSignal != SIGNALING_RESULT_OK )
     {
@@ -438,15 +433,15 @@ static SignalingControllerResult_t describeSignalingChannel( SignalingController
         request.bodyLength = signalRequest.bodyLength;
 
         memset( &response, 0, sizeof(HttpResponse_t) );
-        response.pBuffer = responseBuffer;
-        response.bufferLength = MAX_JSON_PARAMETER_STRING_LEN;
+        response.pBuffer = pCtx->httpResponserBuffer;
+        response.bufferLength = SIGNALING_CONTROLLER_MAX_HTTP_BODY_LENGTH;
 
         ret = SignalingController_HttpPerform( pCtx, &request, 0, &response );
     }
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        retSignal = Signaling_parseDescribeSignalingChannelResponse(&pCtx->signalingContext, response.pBuffer, response.bufferLength, &describeSignalingChannelResponse);
+        retSignal = Signaling_ParseDescribeSignalingChannelResponse( response.pBuffer, response.bufferLength, &channelInfo );
 
         if( retSignal != SIGNALING_RESULT_OK )
         {
@@ -457,17 +452,30 @@ static SignalingControllerResult_t describeSignalingChannel( SignalingController
     
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        if( describeSignalingChannelResponse.pChannelStatus == NULL || strncmp( describeSignalingChannelResponse.pChannelStatus, "ACTIVE", describeSignalingChannelResponse.channelStatusLength ) != 0 )
+        if( channelInfo.pChannelStatus == NULL || strncmp( channelInfo.pChannelStatus, "ACTIVE", channelInfo.channelStatusLength ) != 0 )
         {
             LogError( ("No active channel status found.") );
             ret = SIGNALING_CONTROLLER_RESULT_INACTIVE_SIGNALING_CHANNEL;
         }
     }
 
+// typedef struct SignalingChannelInfo
+// {
+//     SignalingChannelArn_t channelArn;
+//     SignalingChannelName_t channelName;
+//     const char * pChannelStatus;
+//     size_t channelStatusLength;
+//     SignalingTypeChannel_t channelType;
+//     const char * pVersion;
+//     size_t versionLength;
+//     const char * pCreationTime;
+//     size_t creationTimeLength;
+//     uint32_t messageTtlSeconds;
+// } SignalingChannelInfo_t;
     // Parse the response
-    if( ret == SIGNALING_CONTROLLER_RESULT_OK && describeSignalingChannelResponse.pChannelArn != NULL )
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK && channelInfo.channelArn.pChannelArn != NULL )
     {
-        if( describeSignalingChannelResponse.channelArnLength > SIGNALING_AWS_MAX_ARN_LEN )
+        if( channelInfo.channelArn.channelArnLength > SIGNALING_CONTROLLER_AWS_MAX_ARN_LENGTH )
         {
             /* Return ARN is longer than expectation. Drop it. */
             LogError( ("No active channel status found.") );
@@ -475,31 +483,31 @@ static SignalingControllerResult_t describeSignalingChannel( SignalingController
         }
         else
         {
-            strncpy( pCtx->channelInfo.signalingChannelARN, describeSignalingChannelResponse.pChannelArn, describeSignalingChannelResponse.channelArnLength );
-            pCtx->channelInfo.signalingChannelARN[describeSignalingChannelResponse.channelArnLength] = '\0';
-            pCtx->channelInfo.signalingChannelARNLength = describeSignalingChannelResponse.channelArnLength;
+            strncpy( pCtx->channelInfo.signalingChannelARN, channelInfo.channelArn.pChannelArn, channelInfo.channelArn.channelArnLength );
+            pCtx->channelInfo.signalingChannelARN[ channelInfo.channelArn.channelArnLength ] = '\0';
+            pCtx->channelInfo.signalingChannelARNLength = channelInfo.channelArn.channelArnLength;
         }
     }
     
-    if( ret == SIGNALING_CONTROLLER_RESULT_OK && describeSignalingChannelResponse.pChannelName != NULL )
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK && channelInfo.channelName.pChannelName != NULL )
     {
-        if( describeSignalingChannelResponse.channelNameLength > SIGNALING_AWS_MAX_CHANNEL_NAME_LEN )
+        if( channelInfo.channelName.channelNameLength > SIGNALING_CONTROLLER_AWS_MAX_CHANNEL_NAME_LENGTH )
         {
             /* Return channel name is longer than expectation. Drop it. */
-            LogError( ("The channel name is too long to store, length=%d.", describeSignalingChannelResponse.channelNameLength) );
+            LogError( ("The channel name is too long to store, length=%d.", channelInfo.channelName.channelNameLength) );
             ret = SIGNALING_CONTROLLER_RESULT_INVALID_SIGNALING_CHANNEL_NAME;
         }
         else
         {
-            strncpy( pCtx->channelInfo.signalingChannelName, describeSignalingChannelResponse.pChannelName, describeSignalingChannelResponse.channelNameLength );
-            pCtx->channelInfo.signalingChannelName[describeSignalingChannelResponse.channelNameLength] = '\0';
-            pCtx->channelInfo.signalingChannelNameLength = describeSignalingChannelResponse.channelNameLength;
+            strncpy( pCtx->channelInfo.signalingChannelName, channelInfo.channelName.pChannelName, channelInfo.channelName.channelNameLength );
+            pCtx->channelInfo.signalingChannelName[ channelInfo.channelName.channelNameLength ] = '\0';
+            pCtx->channelInfo.signalingChannelNameLength = channelInfo.channelName.channelNameLength;
         }
     }
     
-    if( ret == SIGNALING_CONTROLLER_RESULT_OK && describeSignalingChannelResponse.messageTtlSeconds != 0U )
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK && channelInfo.messageTtlSeconds != 0U )
     {
-        pCtx->channelInfo.signalingChannelTtlSeconds = describeSignalingChannelResponse.messageTtlSeconds;
+        pCtx->channelInfo.signalingChannelTtlSeconds = channelInfo.messageTtlSeconds;
     }
 
     return ret;
@@ -509,28 +517,26 @@ static SignalingControllerResult_t getSignalingChannelEndpoints( SignalingContro
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     SignalingResult_t retSignal;
+    SignalingAwsRegion_t awsRegion;
+    GetSignalingChannelEndpointRequestInfo_t endpointRequestInfo;
     SignalingRequest_t signalRequest;
-    SignalingGetSignalingChannelEndpointRequest_t getSignalingChannelEndpointRequest;
-    SignalingGetSignalingChannelEndpointResponse_t getSignalingChannelEndpointResponse;
-    char url[MAX_URI_CHAR_LEN];
-    char paramsJson[MAX_JSON_PARAMETER_STRING_LEN];
     HttpRequest_t request;
     HttpResponse_t response;
-    char responseBuffer[MAX_JSON_PARAMETER_STRING_LEN];
+    SignalingChannelEndpoints_t endpoints;
 
     // Prepare URL buffer
-    signalRequest.pUrl = &url[0];
-    signalRequest.urlLength = MAX_URI_CHAR_LEN;
+    signalRequest.pUrl = pCtx->httpUrlBuffer;
+    signalRequest.urlLength = SIGNALING_CONTROLLER_MAX_HTTP_URI_LENGTH;
     // Prepare body buffer
-    signalRequest.pBody = &paramsJson[0];
-    signalRequest.bodyLength = MAX_JSON_PARAMETER_STRING_LEN;
+    signalRequest.pBody = pCtx->httpBodyBuffer;
+    signalRequest.bodyLength = SIGNALING_CONTROLLER_MAX_HTTP_BODY_LENGTH;
     // Create the API url
-    getSignalingChannelEndpointRequest.pChannelArn = pCtx->channelInfo.signalingChannelARN;
-    getSignalingChannelEndpointRequest.channelArnLength = pCtx->channelInfo.signalingChannelARNLength;
-    getSignalingChannelEndpointRequest.protocolsBitsMap = SIGNALING_ENDPOINT_PROTOCOL_HTTPS | SIGNALING_ENDPOINT_PROTOCOL_WEBSOCKET_SECURE;
-    getSignalingChannelEndpointRequest.role = SIGNALING_ROLE_MASTER;
+    endpointRequestInfo.channelArn.pChannelArn = pCtx->channelInfo.signalingChannelARN;
+    endpointRequestInfo.channelArn.channelArnLength = pCtx->channelInfo.signalingChannelARNLength;
+    endpointRequestInfo.protocols = SIGNALING_PROTOCOL_WEBSOCKET_SECURE | SIGNALING_PROTOCOL_HTTPS;
+    endpointRequestInfo.role = SIGNALING_ROLE_MASTER;
 
-    retSignal = Signaling_constructGetSignalingChannelEndpointRequest(&pCtx->signalingContext, &getSignalingChannelEndpointRequest, &signalRequest);
+    retSignal = Signaling_ConstructGetSignalingChannelEndpointRequest( &awsRegion, &endpointRequestInfo, &signalRequest);
 
     if( retSignal != SIGNALING_RESULT_OK )
     {
@@ -547,15 +553,15 @@ static SignalingControllerResult_t getSignalingChannelEndpoints( SignalingContro
         request.bodyLength = signalRequest.bodyLength;
 
         memset( &response, 0, sizeof(HttpResponse_t) );
-        response.pBuffer = responseBuffer;
-        response.bufferLength = MAX_JSON_PARAMETER_STRING_LEN;
+        response.pBuffer = pCtx->httpResponserBuffer;
+        response.bufferLength = SIGNALING_CONTROLLER_MAX_HTTP_BODY_LENGTH;
 
         ret = SignalingController_HttpPerform( pCtx, &request, 0, &response );
     }
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        retSignal = Signaling_parseGetSignalingChannelEndpointResponse(&pCtx->signalingContext, response.pBuffer, response.bufferLength, &getSignalingChannelEndpointResponse);
+        retSignal = Signaling_ParseGetSignalingChannelEndpointResponse( response.pBuffer, response.bufferLength, &endpoints);
 
         if( retSignal != SIGNALING_RESULT_OK )
         {
@@ -567,46 +573,46 @@ static SignalingControllerResult_t getSignalingChannelEndpoints( SignalingContro
     // Parse the response
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        if( getSignalingChannelEndpointResponse.pEndpointHttps == NULL || getSignalingChannelEndpointResponse.endpointHttpsLength > SIGNALING_AWS_MAX_ARN_LEN )
+        if( endpoints.httpsEndpoint.pEndpoint == NULL || endpoints.httpsEndpoint.endpointLength > SIGNALING_CONTROLLER_AWS_MAX_ARN_LENGTH )
         {
             LogError( ("No valid HTTPS endpoint found in response") );
             ret = SIGNALING_CONTROLLER_RESULT_INVALID_HTTP_ENDPOINT;
         }
         else
         {
-            strncpy( pCtx->channelInfo.endpointHttps, getSignalingChannelEndpointResponse.pEndpointHttps, getSignalingChannelEndpointResponse.endpointHttpsLength );
-            pCtx->channelInfo.endpointHttps[getSignalingChannelEndpointResponse.endpointHttpsLength] = '\0';
-            pCtx->channelInfo.endpointHttpsLength = getSignalingChannelEndpointResponse.endpointHttpsLength;
+            strncpy( pCtx->channelInfo.endpointHttps, endpoints.httpsEndpoint.pEndpoint, endpoints.httpsEndpoint.endpointLength );
+            pCtx->channelInfo.endpointHttps[ endpoints.httpsEndpoint.endpointLength ] = '\0';
+            pCtx->channelInfo.endpointHttpsLength = endpoints.httpsEndpoint.endpointLength;
         }
     }
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        if( getSignalingChannelEndpointResponse.pEndpointWebsocketSecure == NULL || getSignalingChannelEndpointResponse.endpointWebsocketSecureLength > SIGNALING_AWS_MAX_ARN_LEN )
+        if( endpoints.wssEndpoint.pEndpoint == NULL || endpoints.wssEndpoint.endpointLength > SIGNALING_CONTROLLER_AWS_MAX_ARN_LENGTH )
         {
             LogError( ("No valid websocket endpoint found in response") );
             ret = SIGNALING_CONTROLLER_RESULT_INVALID_WEBSOCKET_SECURE_ENDPOINT;
         }
         else
         {
-            strncpy( pCtx->channelInfo.endpointWebsocketSecure, getSignalingChannelEndpointResponse.pEndpointWebsocketSecure, getSignalingChannelEndpointResponse.endpointWebsocketSecureLength );
-            pCtx->channelInfo.endpointWebsocketSecure[getSignalingChannelEndpointResponse.endpointWebsocketSecureLength] = '\0';
-            pCtx->channelInfo.endpointWebsocketSecureLength = getSignalingChannelEndpointResponse.endpointWebsocketSecureLength;
+            strncpy( pCtx->channelInfo.endpointWebsocketSecure, endpoints.wssEndpoint.pEndpoint, endpoints.wssEndpoint.endpointLength );
+            pCtx->channelInfo.endpointWebsocketSecure[ endpoints.wssEndpoint.endpointLength ] = '\0';
+            pCtx->channelInfo.endpointWebsocketSecureLength = endpoints.wssEndpoint.endpointLength;
         }
     }
 
-    if( ret == SIGNALING_CONTROLLER_RESULT_OK && getSignalingChannelEndpointResponse.pEndpointWebrtc != NULL )
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK && endpoints.webrtcEndpoint.pEndpoint != NULL )
     {
-        if( getSignalingChannelEndpointResponse.endpointWebrtcLength > SIGNALING_AWS_MAX_ARN_LEN )
+        if( endpoints.webrtcEndpoint.endpointLength > SIGNALING_CONTROLLER_AWS_MAX_ARN_LENGTH )
         {
-            LogError( ("Length of webRTC endpoint name is too long to store, length=%d", getSignalingChannelEndpointResponse.endpointWebrtcLength) );
+            LogError( ("Length of webRTC endpoint name is too long to store, length=%d", endpoints.webrtcEndpoint.endpointLength) );
             ret = SIGNALING_CONTROLLER_RESULT_INVALID_WEBRTC_ENDPOINT;
         }
         else
         {
-            strncpy( pCtx->channelInfo.endpointWebrtc, getSignalingChannelEndpointResponse.pEndpointWebrtc, getSignalingChannelEndpointResponse.endpointWebrtcLength );
-            pCtx->channelInfo.endpointWebrtc[getSignalingChannelEndpointResponse.endpointWebrtcLength] = '\0';
-            pCtx->channelInfo.endpointWebrtcLength = getSignalingChannelEndpointResponse.endpointWebrtcLength;
+            strncpy( pCtx->channelInfo.endpointWebrtc, endpoints.webrtcEndpoint.pEndpoint, endpoints.webrtcEndpoint.endpointLength );
+            pCtx->channelInfo.endpointWebrtc[ endpoints.webrtcEndpoint.endpointLength ] = '\0';
+            pCtx->channelInfo.endpointWebrtcLength = endpoints.webrtcEndpoint.endpointLength;
         }
     }
 
@@ -617,30 +623,29 @@ static SignalingControllerResult_t getIceServerList( SignalingControllerContext_
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     SignalingResult_t retSignal;
+    SignalingChannelEndpoint_t httpEndpoint;
+    GetIceServerConfigRequestInfo_t getIceServerConfigRequestInfo;
     SignalingRequest_t signalRequest;
-    SignalingGetIceServerConfigRequest_t getIceServerConfigRequest;
-    SignalingGetIceServerConfigResponse_t getIceServerConfigResponse;
-    char url[MAX_URI_CHAR_LEN];
-    char paramsJson[MAX_JSON_PARAMETER_STRING_LEN];
     HttpRequest_t request;
     HttpResponse_t response;
-    char responseBuffer[MAX_JSON_PARAMETER_STRING_LEN];
+    SignalingIceServer_t iceServers[ SIGNALING_CONTROLLER_ICE_SERVER_MAX_ICE_CONFIG_COUNT ];
+    size_t iceServersNum = SIGNALING_CONTROLLER_ICE_SERVER_MAX_ICE_CONFIG_COUNT;
 
+    // Prepare HTTP endpoint
+    httpEndpoint.pEndpoint = pCtx->channelInfo.endpointHttps;
+    httpEndpoint.endpointLength = pCtx->channelInfo.endpointHttpsLength;
     // Prepare URL buffer
-    signalRequest.pUrl = &url[0];
-    signalRequest.urlLength = MAX_URI_CHAR_LEN;
+    signalRequest.pUrl = pCtx->httpUrlBuffer;
+    signalRequest.urlLength = SIGNALING_CONTROLLER_MAX_HTTP_URI_LENGTH;
     // Prepare body buffer
-    signalRequest.pBody = &paramsJson[0];
-    signalRequest.bodyLength = MAX_JSON_PARAMETER_STRING_LEN;
+    signalRequest.pBody = pCtx->httpBodyBuffer;
+    signalRequest.bodyLength = SIGNALING_CONTROLLER_MAX_HTTP_BODY_LENGTH;
     // Create the API url
-    getIceServerConfigRequest.pChannelArn = pCtx->channelInfo.signalingChannelARN;
-    getIceServerConfigRequest.channelArnLength = pCtx->channelInfo.signalingChannelARNLength;
-    getIceServerConfigRequest.pEndpointHttps = pCtx->channelInfo.endpointHttps;
-    getIceServerConfigRequest.endpointHttpsLength = pCtx->channelInfo.endpointHttpsLength;
-    getIceServerConfigRequest.pClientId = "ProducerMaster";
-    getIceServerConfigRequest.clientIdLength = strlen("ProducerMaster");
-
-    retSignal = Signaling_constructGetIceServerConfigRequest(&pCtx->signalingContext, &getIceServerConfigRequest, &signalRequest);
+    getIceServerConfigRequestInfo.channelArn.pChannelArn = pCtx->channelInfo.signalingChannelARN;
+    getIceServerConfigRequestInfo.channelArn.channelArnLength = pCtx->channelInfo.signalingChannelARNLength;
+    getIceServerConfigRequestInfo.pClientId = "ProducerMaster";
+    getIceServerConfigRequestInfo.clientIdLength = strlen("ProducerMaster");
+    retSignal = Signaling_ConstructGetIceServerConfigRequest( &httpEndpoint, &getIceServerConfigRequestInfo, &signalRequest);
 
     if( retSignal != SIGNALING_RESULT_OK )
     {
@@ -657,15 +662,15 @@ static SignalingControllerResult_t getIceServerList( SignalingControllerContext_
         request.bodyLength = signalRequest.bodyLength;
 
         memset( &response, 0, sizeof(HttpResponse_t) );
-        response.pBuffer = responseBuffer;
-        response.bufferLength = MAX_JSON_PARAMETER_STRING_LEN;
+        response.pBuffer = pCtx->httpResponserBuffer;
+        response.bufferLength = SIGNALING_CONTROLLER_MAX_HTTP_BODY_LENGTH;
 
         ret = SignalingController_HttpPerform( pCtx, &request, 0, &response );
     }
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        retSignal = Signaling_parseGetIceServerConfigResponse(&pCtx->signalingContext, response.pBuffer, response.bufferLength, &getIceServerConfigResponse);
+        retSignal = Signaling_ParseGetIceServerConfigResponse( response.pBuffer, response.bufferLength, iceServers, &iceServersNum );
 
         if( retSignal != SIGNALING_RESULT_OK )
         {
@@ -677,7 +682,7 @@ static SignalingControllerResult_t getIceServerList( SignalingControllerContext_
     // Parse the response
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        ret = updateIceServerConfigs( pCtx, &getIceServerConfigResponse );
+        ret = updateIceServerConfigs( pCtx, iceServers, iceServersNum );
     }
 
     return ret;
@@ -687,30 +692,32 @@ static SignalingControllerResult_t connectWssEndpoint( SignalingControllerContex
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     SignalingResult_t retSignal;
+    SignalingChannelEndpoint_t wssEndpoint;
+    ConnectWssEndpointRequestInfo_t wssEndpointRequestInfo;
     SignalingRequest_t signalRequest;
-    SignalingConnectWssEndpointRequest_t connectWssEndpointRequest;
-    char url[MAX_URI_CHAR_LEN];
     WebsocketServerInfo_t serverInfo;
 
+    // Prepare WSS endpoint
+    wssEndpoint.pEndpoint = pCtx->channelInfo.endpointWebsocketSecure;
+    wssEndpoint.endpointLength = pCtx->channelInfo.endpointWebsocketSecureLength;
     // Prepare URL buffer
-    signalRequest.pUrl = &url[0];
-    signalRequest.urlLength = MAX_URI_CHAR_LEN;
+    signalRequest.pUrl = pCtx->httpUrlBuffer;
+    signalRequest.urlLength = SIGNALING_CONTROLLER_MAX_HTTP_URI_LENGTH;
     // Prepare body buffer
     signalRequest.pBody = NULL;
     signalRequest.bodyLength = 0;
     // Create the API url
-    memset( &connectWssEndpointRequest, 0, sizeof(SignalingConnectWssEndpointRequest_t) );
-    connectWssEndpointRequest.pChannelArn = pCtx->channelInfo.signalingChannelARN;
-    connectWssEndpointRequest.channelArnLength = pCtx->channelInfo.signalingChannelARNLength;
-    connectWssEndpointRequest.pEndpointWebsocketSecure = pCtx->channelInfo.endpointWebsocketSecure;
-    connectWssEndpointRequest.endpointWebsocketSecureLength = pCtx->channelInfo.endpointWebsocketSecureLength;
-    connectWssEndpointRequest.role = SIGNALING_ROLE_MASTER;
-    // if(connectWssEndpointRequest.role == SIGNALING_ROLE_VIEWER)
+    memset( &wssEndpointRequestInfo, 0, sizeof( ConnectWssEndpointRequestInfo_t ) );
+    wssEndpointRequestInfo.channelArn.pChannelArn = pCtx->channelInfo.signalingChannelARN;
+    wssEndpointRequestInfo.channelArn.channelArnLength = pCtx->channelInfo.signalingChannelARNLength;
+    wssEndpointRequestInfo.role = SIGNALING_ROLE_MASTER;
+    // TODO: for viewer
+    // if(wssEndpointRequestInfo.role == SIGNALING_ROLE_VIEWER)
     // {
-    //     connectWssEndpointRequest.pClientId = pCtx->channelInfo.;
-    //     connectWssEndpointRequest.clientIdLength = strlen(pSignalingClient->clientInfo.signalingClientInfo.clientId);
+    //     wssEndpointRequestInfo.pClientId = pCtx->channelInfo.;
+    //     wssEndpointRequestInfo.clientIdLength = strlen(pSignalingClient->clientInfo.signalingClientInfo.clientId);
     // }
-    retSignal = Signaling_constructConnectWssEndpointRequest(&pCtx->signalingContext, &connectWssEndpointRequest, &signalRequest);
+    retSignal = Signaling_ConstructConnectWssEndpointRequest( &wssEndpoint, &wssEndpointRequestInfo, &signalRequest);
 
     if( retSignal != SIGNALING_RESULT_OK )
     {
@@ -722,7 +729,7 @@ static SignalingControllerResult_t connectWssEndpoint( SignalingControllerContex
     {
         serverInfo.pUrl = signalRequest.pUrl;
         serverInfo.urlLength = signalRequest.urlLength;
-        serverInfo.port = 443;
+        serverInfo.port = WEBSOCKET_ENDPOINT_PORT;
         ret = SignalingController_WebsocketConnect( &serverInfo );
 
         if( ret != SIGNALING_CONTROLLER_RESULT_OK )
@@ -741,7 +748,7 @@ static SignalingControllerResult_t handleEvent( SignalingControllerContext_t *pC
     WebsocketResult_t websocketRet;
     SignalingControllerEventStatus_t callbackEventStatus = SIGNALING_CONTROLLER_EVENT_STATUS_NONE;
     Base64Result_t retBase64;
-    SignalingWssSendMessage_t wssSendMessage;
+    WssSendMessage_t wssSendMessage;
     SignalingControllerEventContentSend_t *pEventContentSend;
     SignalingResult_t retSignal;
 
@@ -764,7 +771,7 @@ static SignalingControllerResult_t handleEvent( SignalingControllerContext_t *pC
             if( ret == SIGNALING_CONTROLLER_RESULT_OK )
             {
                 /* Construct signaling message into ring buffer. */
-                memset( &wssSendMessage, 0, sizeof( SignalingWssSendMessage_t ) );
+                memset( &wssSendMessage, 0, sizeof( WssSendMessage_t ) );
 
                 // Prepare the buffer to send
                 wssSendMessage.messageType = pEventContentSend->messageType;
@@ -777,7 +784,7 @@ static SignalingControllerResult_t handleEvent( SignalingControllerContext_t *pC
 
                 /* We must preserve LWS_PRE ahead of buffer for libwebsockets. */
                 pCtx->constructedSignalingBufferLength = SIGNALING_CONTROLLER_MAX_CONTENT_LENGTH;
-                retSignal = Signaling_constructWssMessage( &wssSendMessage, pCtx->constructedSignalingBuffer, &pCtx->constructedSignalingBufferLength );
+                retSignal = Signaling_ConstructWssMessage( &wssSendMessage, pCtx->constructedSignalingBuffer, &pCtx->constructedSignalingBufferLength );
                 if( retSignal != SIGNALING_RESULT_OK )
                 {
                     LogError( ( "Fail to construct Wss message, result: %d", retSignal ) );
@@ -821,8 +828,6 @@ static SignalingControllerResult_t handleEvent( SignalingControllerContext_t *pC
 SignalingControllerResult_t SignalingController_Init( SignalingControllerContext_t * pCtx, SignalingControllerCredential_t * pCred, SignalingControllerReceiveMessageCallback receiveMessageCallback, void *pReceiveMessageCallbackContext )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
-    SignalingResult_t retSignal;
-    SignalingAwsControlPlaneInfo_t awsControlPlaneInfo;
     MessageQueueResult_t retMessageQueue;
 
     if( pCtx == NULL || pCred == NULL )
@@ -859,21 +864,6 @@ SignalingControllerResult_t SignalingController_Init( SignalingControllerContext
 
         pCtx->receiveMessageCallback = receiveMessageCallback;
         pCtx->pReceiveMessageCallbackContext = pReceiveMessageCallbackContext;
-    }
-
-    /* Initialize signaling component. */
-    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
-    {
-        memset( &awsControlPlaneInfo, 0, sizeof( SignalingAwsControlPlaneInfo_t ) );
-
-        awsControlPlaneInfo.pRegion = pCtx->credential.pRegion;
-        awsControlPlaneInfo.regionLength = pCtx->credential.regionLength;
-        retSignal = Signaling_Init(&pCtx->signalingContext, &awsControlPlaneInfo);
-
-        if( retSignal != SIGNALING_RESULT_OK )
-        {
-            ret = SIGNALING_CONTROLLER_RESULT_SIGNALING_INIT_FAIL;
-        }
     }
 
     /* Initialize HTTP. */

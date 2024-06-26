@@ -174,7 +174,6 @@ static SdpControllerResult_t serializeMedias( SdpSerializerContext_t *pCtx, SdpC
 {
     SdpControllerResult_t ret = SDP_CONTROLLER_RESULT_OK;
     SdpResult_t sdpResult = SDP_RESULT_OK;
-    SdpAttribute_t attribute;
     uint32_t i;
     SdpControllerMediaDescription_t *pCurrentMedia = pMediaDescriptions;
 
@@ -301,7 +300,6 @@ SdpControllerResult_t SdpController_DeserializeSdpOffer( const char *pSdpOfferCo
     StringUtilsResult_t stringResult;
     SdpDeserializerContext_t ctx;
     const char *pValue;
-    char *pEnd;
     size_t valueLength;
     uint8_t type;
 
@@ -397,7 +395,7 @@ SdpControllerResult_t SdpController_DeserializeSdpOffer( const char *pSdpOfferCo
                 stringResult = StringUtils_ConvertStringToUl( pValue, valueLength, &pOffer->version );
                 if( stringResult != STRING_UTILS_RESULT_OK )
                 {
-                    LogError( ( "StringUtils_ConvertStringToUl fail, result %d, converting %.*s to %u",
+                    LogError( ( "StringUtils_ConvertStringToUl fail, result %d, converting %.*s to %lu",
                                 stringResult,
                                 ( int ) valueLength, pValue,
                                 pOffer->version ) );

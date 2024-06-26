@@ -16,8 +16,8 @@ extern "C" {
 #define ICE_CONTROLLER_CANDIDATE_TYPE_UNKNOWN_STRING "unknown"
 #define ICE_CANDIDATE_JSON_TEMPLATE "{\"candidate\":\"%.*s\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0}"
 #define ICE_CANDIDATE_JSON_MAX_LENGTH ( 1024 )
-#define ICE_CANDIDATE_JSON_CANDIDATE_IPV4_TEMPLATE "candidate:%u 1 udp %u %d.%d.%d.%d %d typ %s raddr 0.0.0.0 rport 0 generation 0 network-cost 999"
-#define ICE_CANDIDATE_JSON_CANDIDATE_IPV6_TEMPLATE "candidate:%u 1 udp %u %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X "\
+#define ICE_CANDIDATE_JSON_CANDIDATE_IPV4_TEMPLATE "candidate:%u 1 udp %lu %d.%d.%d.%d %d typ %s raddr 0.0.0.0 rport 0 generation 0 network-cost 999"
+#define ICE_CANDIDATE_JSON_CANDIDATE_IPV6_TEMPLATE "candidate:%u 1 udp %lu %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X "\
                                                    "%d typ %s raddr ::/0 rport 0 generation 0 network-cost 999"
 #define ICE_CANDIDATE_JSON_CANDIDATE_MAX_LENGTH ( 512 )
 

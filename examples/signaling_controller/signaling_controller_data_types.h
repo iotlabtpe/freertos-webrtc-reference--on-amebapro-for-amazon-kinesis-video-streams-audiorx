@@ -24,14 +24,18 @@ extern "C" {
    length of secret access key, set it same as access key ID for now. */
 #define SIGNALING_CONTROLLER_ACCESS_KEY_ID_MAX_LENGTH ( 128 )
 #define SIGNALING_CONTROLLER_SECRET_ACCESS_KEY_MAX_LENGTH ( 128 )
-#define SIGNALING_CONTROLLER_ICE_SERVER_MAX_ICE_CONFIG_COUNT ( SIGNALING_AWS_ICE_SERVER_MAX_NUM )
-#define SIGNALING_CONTROLLER_ICE_SERVER_MAX_URIS_COUNT ( SIGNALING_AWS_ICE_SERVER_MAX_URIS )
+#define SIGNALING_CONTROLLER_ICE_SERVER_MAX_ICE_CONFIG_COUNT ( 5 )
+#define SIGNALING_CONTROLLER_ICE_SERVER_MAX_URIS_COUNT ( 3 )
 #define SIGNALING_CONTROLLER_ICE_SERVER_MAX_URI_LENGTH ( 256 )
 #define SIGNALING_CONTROLLER_ICE_SERVER_MAX_USER_NAME_LENGTH ( 256 )
 #define SIGNALING_CONTROLLER_ICE_SERVER_MAX_PASSWORD_LENGTH ( 256 )
 #define SIGNALING_CONTROLLER_MAX_CONTENT_LENGTH ( 10000 )
 #define SIGNALING_CONTROLLER_CORRELATION_ID_MAX_LENGTH ( 256 )
 #define SIGNALING_CONTROLLER_REMOTE_ID_MAX_LENGTH ( 256 )
+#define SIGNALING_CONTROLLER_MAX_HTTP_URI_LENGTH ( 10000 )
+#define SIGNALING_CONTROLLER_MAX_HTTP_BODY_LENGTH ( 10 * 1024 )
+#define SIGNALING_CONTROLLER_AWS_MAX_ARN_LENGTH ( 1024 )
+#define SIGNALING_CONTROLLER_AWS_MAX_CHANNEL_NAME_LENGTH ( 256 )
 
 typedef enum SignalingControllerEventStatus
 {
@@ -70,7 +74,6 @@ typedef enum SignalingControllerResult
     SIGNALING_CONTROLLER_RESULT_OK = 0,
     SIGNALING_CONTROLLER_RESULT_FAIL,
     SIGNALING_CONTROLLER_RESULT_BAD_PARAMETER,
-    SIGNALING_CONTROLLER_RESULT_SIGNALING_INIT_FAIL,
     SIGNALING_CONTROLLER_RESULT_CONSTRUCT_DESCRIBE_SIGNALING_CHANNEL_FAIL,
     SIGNALING_CONTROLLER_RESULT_PARSE_DESCRIBE_SIGNALING_CHANNEL_FAIL,
     SIGNALING_CONTROLLER_RESULT_CONSTRUCT_GET_SIGNALING_CHANNEL_ENDPOINTS_FAIL,
@@ -128,18 +131,18 @@ typedef struct SignalingControllerCredential
 typedef struct SignalingControllerChannelInfo
 {
     /* Describe signaling channel */
-    char signalingChannelName[SIGNALING_AWS_MAX_CHANNEL_NAME_LEN + 1];
+    char signalingChannelName[SIGNALING_CONTROLLER_AWS_MAX_CHANNEL_NAME_LENGTH + 1];
     size_t signalingChannelNameLength;
-    char signalingChannelARN[SIGNALING_AWS_MAX_ARN_LEN + 1];
+    char signalingChannelARN[SIGNALING_CONTROLLER_AWS_MAX_ARN_LENGTH + 1];
     size_t signalingChannelARNLength;
     uint32_t signalingChannelTtlSeconds;
 
     /* Get signaling channel endpoints */
-    char endpointWebsocketSecure[SIGNALING_AWS_MAX_ARN_LEN + 1];
+    char endpointWebsocketSecure[SIGNALING_CONTROLLER_AWS_MAX_ARN_LENGTH + 1];
     size_t endpointWebsocketSecureLength;
-    char endpointHttps[SIGNALING_AWS_MAX_ARN_LEN + 1];
+    char endpointHttps[SIGNALING_CONTROLLER_AWS_MAX_ARN_LENGTH + 1];
     size_t endpointHttpsLength;
-    char endpointWebrtc[SIGNALING_AWS_MAX_ARN_LEN + 1];
+    char endpointWebrtc[SIGNALING_CONTROLLER_AWS_MAX_ARN_LENGTH + 1];
     size_t endpointWebrtcLength;
 } SignalingControllerChannelInfo_t;
 
@@ -183,9 +186,6 @@ typedef struct SignalingControllerEventMessage
 
 typedef struct SignalingControllerContext
 {
-    /* Signaling Component Context */
-    SignalingContext_t signalingContext;
-
     SignalingControllerCredential_t credential;
 
     SignalingControllerChannelInfo_t channelInfo;
@@ -196,6 +196,9 @@ typedef struct SignalingControllerContext
     SignalingControllerMetrics_t metrics;
 
     SignalingControllerReceiveMessageCallback receiveMessageCallback;
+    char httpUrlBuffer[ SIGNALING_CONTROLLER_MAX_HTTP_URI_LENGTH ];
+    char httpBodyBuffer[ SIGNALING_CONTROLLER_MAX_HTTP_BODY_LENGTH ];
+    char httpResponserBuffer[ SIGNALING_CONTROLLER_MAX_HTTP_BODY_LENGTH ];
     void *pReceiveMessageCallbackContext;
     char base64Buffer[ SIGNALING_CONTROLLER_MAX_CONTENT_LENGTH ];
     size_t base64BufferLength;

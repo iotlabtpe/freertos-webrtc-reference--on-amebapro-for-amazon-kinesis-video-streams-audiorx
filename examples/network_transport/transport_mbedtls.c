@@ -39,6 +39,7 @@
 #include "FreeRTOS.h"
 
 #include "mbedtls/config.h"
+#include "mbedtls/version.h"
 
 #ifdef MBEDTLS_PSA_CRYPTO_C
     /* MbedTLS PSA Includes */
@@ -72,18 +73,6 @@ struct NetworkContext
 };
 
 /*-----------------------------------------------------------*/
-
-/**
- * @brief Represents string to be logged when mbedTLS returned error
- * does not contain a high-level code.
- */
-static const char * pNoHighLevelMbedTlsCodeStr = "<No-High-Level-Code>";
-
-/**
- * @brief Represents string to be logged when mbedTLS returned error
- * does not contain a low-level code.
- */
-static const char * pNoLowLevelMbedTlsCodeStr = "<No-Low-Level-Code>";
 
 /**
  * @brief Utility for converting the high-level code in an mbedTLS error to string,
@@ -682,7 +671,6 @@ TlsTransportStatus_t TLS_FreeRTOS_Connect( NetworkContext_t * pNetworkContext,
     TlsTransportStatus_t returnStatus = TLS_TRANSPORT_SUCCESS;
     BaseType_t socketStatus = 0;
     BaseType_t isSocketConnected = pdFALSE, isTlsSetup = pdFALSE;
-    NetworkCredentials_t xNetworkCredentials = { 0 };
 
     if( ( pNetworkContext == NULL ) ||
         ( pNetworkContext->pParams == NULL ) ||
@@ -709,10 +697,6 @@ TlsTransportStatus_t TLS_FreeRTOS_Connect( NetworkContext_t * pNetworkContext,
     /* Establish a TCP connection with the server. */
     if( returnStatus == TLS_TRANSPORT_SUCCESS )
     {
-        xNetworkCredentials.disableSni = pdFALSE;
-        xNetworkCredentials.pRootCa = pNetworkCredentials->pRootCa;
-        xNetworkCredentials.rootCaSize = pNetworkCredentials->rootCaSize;
-
         pTlsTransportParams = pNetworkContext->pParams;
 
         /* Initialize tcpSocket. */
@@ -726,7 +710,7 @@ TlsTransportStatus_t TLS_FreeRTOS_Connect( NetworkContext_t * pNetworkContext,
 
         if( socketStatus != 0 )
         {
-            LogError( ( "Failed to connect to %s with error %d.",
+            LogError( ( "Failed to connect to %s with error %ld.",
                         pHostName,
                         socketStatus ) );
             returnStatus = TLS_TRANSPORT_CONNECT_FAILURE;
@@ -816,8 +800,8 @@ void TLS_FreeRTOS_Disconnect( NetworkContext_t * pNetworkContext )
             /* WANT_READ and WANT_WRITE can be ignored. Logging for debugging purposes. */
             LogInfo( ( "(Network connection %p) TLS close-notify sent; "
                        "received %s as the TLS status can be ignored for close-notify.",
-                       ( tlsStatus == MBEDTLS_ERR_SSL_WANT_READ ) ? "WANT_READ" : "WANT_WRITE",
-                       pNetworkContext ) );
+                       pNetworkContext,
+                       ( tlsStatus == MBEDTLS_ERR_SSL_WANT_READ ) ? "WANT_READ" : "WANT_WRITE" ) );
         }
 
         /* Call socket shutdown function to close connection. */
