@@ -206,7 +206,7 @@ IceControllerResult_t IceControllerSocketListener_InitializeTask( void *pParamet
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
-        for( i=0 ; i<AWS_MAX_VIEWER_NUM * ICE_MAX_LOCAL_CANDIDATE_COUNT ; i++ )
+        for( i=0 ; i<AWS_MAX_VIEWER_NUM * ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ; i++ )
         {
             pCtx->socketListenerContext.fds[i] = -1;
             pCtx->socketListenerContext.pFdsMapContext[i] = NULL;

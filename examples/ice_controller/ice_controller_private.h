@@ -22,15 +22,15 @@ extern "C" {
 #define ICE_CANDIDATE_JSON_CANDIDATE_MAX_LENGTH ( 512 )
 
 IceControllerResult_t IceControllerNet_InitRemoteInfo( IceControllerRemoteInfo_t *pRemoteInfo );
-IceControllerResult_t IceControllerNet_ConvertIpString( const char *pIpAddr, size_t ipAddrLength, IceIPAddress_t *pDest );
+IceControllerResult_t IceControllerNet_ConvertIpString( const char *pIpAddr, size_t ipAddrLength, IceEndpoint_t *pDestinationIceEndpoint );
 IceControllerResult_t IceControllerNet_Htons( uint16_t port, uint16_t *pOutPort );
 IceControllerResult_t IceControllerNet_AddLocalCandidates( IceControllerContext_t *pCtx, IceControllerRemoteInfo_t *pRemoteInfo );
 IceControllerResult_t IceControllerNet_AttachPolling( IceControllerContext_t *pCtx, IceControllerSocketContext_t *pSocketContext );
 IceControllerResult_t IceControllerNet_DetectRxPacket( IceControllerContext_t *pCtx, IceControllerSocketContext_t *pSocketContext );
 IceControllerResult_t IceControllerNet_HandleRxPacket( IceControllerContext_t *pCtx, IceControllerSocketContext_t *pSocketContext );
-IceControllerResult_t IceControllerNet_DnsLookUp( char *pUrl, StunAttributeAddress_t *pIpAddress );
-IceControllerResult_t IceControllerNet_SendPacket( IceControllerSocketContext_t *pSocketContext, IceIPAddress_t *pDestinationIpAddress, uint8_t *pBuffer, size_t length );
-const char *IceControllerNet_LogIpAddressInfo( IceIPAddress_t *pIceIpAddress, char *pIpBuffer, size_t ipBufferLength );
+IceControllerResult_t IceControllerNet_DnsLookUp( char *pUrl, IceTransportAddress_t *pIceTransportAddress );
+IceControllerResult_t IceControllerNet_SendPacket( IceControllerSocketContext_t *pSocketContext, IceEndpoint_t *pDestinationIceEndpoint, uint8_t *pBuffer, size_t length );
+const char *IceControllerNet_LogIpAddressInfo( const IceEndpoint_t *pIceEndpoint, char *pIpBuffer, size_t ipBufferLength );
 void IceControllerNet_LogStunPacket( uint8_t *pStunPacket, size_t stunPacketSize );
 void IceController_PrintMetrics( IceControllerContext_t * pCtx );
 

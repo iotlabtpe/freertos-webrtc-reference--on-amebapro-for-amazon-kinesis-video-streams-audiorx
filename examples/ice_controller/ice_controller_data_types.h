@@ -41,7 +41,11 @@ extern "C" {
  */
 #define ICE_CONTROLLER_ICE_SERVER_PASSWORD_MAX_LENGTH ( 256 )
 
-#define ICE_CONTROLLER_CONNECTIVITY_TIMER_INTERVAL_MS ( 1000 )
+#define ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT       ( 1024 )
+#define ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT      ( 100 )
+#define ICE_CONTROLLER_MAX_REMOTE_CANDIDATE_COUNT     ( 100 )
+
+#define ICE_CONTROLLER_CONNECTIVITY_TIMER_INTERVAL_MS ( 5000 )
 
 #define AWS_DEFAULT_STUN_SERVER_URL_POSTFIX "amazonaws.com"
 #define AWS_DEFAULT_STUN_SERVER_URL_POSTFIX_CN "amazonaws.com.cn"
@@ -143,8 +147,7 @@ typedef struct IceControllerCandidate
     size_t remoteClientIdLength;
     IceSocketProtocol_t protocol;
     uint32_t priority;
-    IceIPAddress_t iceIpAddress;
-    uint16_t port;
+    IceEndpoint_t iceEndpoint;
     IceCandidateType_t candidateType;
 } IceControllerCandidate_t;
 
@@ -162,19 +165,22 @@ typedef struct IceControllerSignalingRemoteInfo
 {
     /* Remote client ID is used to provide the destination of Signaling message. */
     uint8_t isUsed;
+    char remoteUserName[ ICE_CONTROLLER_USER_NAME_LENGTH + 1 ];
+    char remotePassword[ ICE_CONTROLLER_PASSWORD_LENGTH + 1 ];
+    // Reserve 1 space for NULL terminator, the other one is for ':' between remote username & local username
+    char combinedName[ ( ICE_CONTROLLER_USER_NAME_LENGTH << 1 ) + 2 ];
     char remoteClientId[ SIGNALING_CONTROLLER_REMOTE_ID_MAX_LENGTH ];
     size_t remoteClientIdLength;
-    IceControllerSocketContext_t socketsContexts[ ICE_MAX_CANDIDATE_PAIR_COUNT ];
+    IceControllerSocketContext_t socketsContexts[ ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT ];
     size_t socketsContextsCount;
 
     /* For ICE component. */
-    IceAgent_t iceAgent;
-    IceCandidate_t localCandidates[ ICE_MAX_LOCAL_CANDIDATE_COUNT ];
-    IceCandidate_t remoteCandidates[ ICE_MAX_REMOTE_CANDIDATE_COUNT ];
-    IceCandidatePair_t candidatePairs[ ICE_MAX_CANDIDATE_PAIR_COUNT ];
-    uint8_t stunBuffers[ ICE_MAX_CANDIDATE_PAIR_COUNT ][ ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE ];
+    IceContext_t iceContext;
+    IceCandidate_t localCandidatesBuffer[ ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ];
+    IceCandidate_t remoteCandidatesBuffer[ ICE_CONTROLLER_MAX_REMOTE_CANDIDATE_COUNT ];
+    IceCandidatePair_t candidatePairsBuffer[ ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT ];
     TransactionIdStore_t transactionIdStore;
-    uint8_t transactionIds[ ICE_MAX_CANDIDATE_PAIR_COUNT ][ STUN_HEADER_TRANSACTION_ID_LENGTH ];
+    TransactionIdSlot_t transactionIdsBuffer[ ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT ];
 } IceControllerRemoteInfo_t;
 
 typedef struct IceControllerDetectRxPacket
@@ -208,7 +214,7 @@ typedef struct IceControllerIceServer
     IceControllerIceServerType_t serverType; /* STUN or TURN */
     char url[ ICE_CONTROLLER_ICE_SERVER_URL_MAX_LENGTH ];
     size_t urlLength;
-    IceIPAddress_t ipAddress; //IP address
+    IceEndpoint_t iceEndpoint; //IP address
     char userName[ ICE_CONTROLLER_ICE_SERVER_USERNAME_MAX_LENGTH ]; //user name
     size_t userNameLength;
     char password[ ICE_CONTROLLER_ICE_SERVER_PASSWORD_MAX_LENGTH ]; //password
@@ -227,9 +233,9 @@ typedef struct IceControllerStunMsgHeader
 
 typedef struct IceControllerSocketListenerContext
 {
-    int fds[ AWS_MAX_VIEWER_NUM * ICE_MAX_LOCAL_CANDIDATE_COUNT ];
+    int fds[ AWS_MAX_VIEWER_NUM * ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ];
     size_t fdsCount;
-    IceControllerSocketContext_t *pFdsMapContext[ AWS_MAX_VIEWER_NUM * ICE_MAX_LOCAL_CANDIDATE_COUNT + 1 ]; /* To map corresponding socket context with fds. */
+    IceControllerSocketContext_t *pFdsMapContext[ AWS_MAX_VIEWER_NUM * ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ]; /* To map corresponding socket context with fds. */
 
     SemaphoreHandle_t socketListenerMutex;
     uint8_t executeSocketListener;
@@ -244,8 +250,8 @@ typedef struct IceControllerContext
     char localPassword[ ICE_CONTROLLER_PASSWORD_LENGTH + 1 ];
 
     IceControllerRemoteInfo_t remoteInfo[ AWS_MAX_VIEWER_NUM ];
-    IceIPAddress_t localIpAddresses[ ICE_MAX_LOCAL_CANDIDATE_COUNT ];
-    size_t localIpAddressesCount;
+    IceEndpoint_t localEndpoints[ ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ];
+    size_t localIceEndpointsCount;
     size_t candidateFoundationCounter;
 
     IceControllerIceServer_t iceServers[ SIGNALING_CONTROLLER_ICE_SERVER_MAX_ICE_CONFIG_COUNT + 1 ]; /* Reserve 1 space for default STUN server. */
