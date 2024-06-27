@@ -17,7 +17,6 @@
 
 #define ICE_CONTROLLER_CANDIDATE_JSON_KEY "candidate"
 #define MAX_QUEUE_MSG_NUM ( 30 )
-#define POLL_TIMEOUT_MS 500
 #define REQUEST_QUEUE_POLL_ID ( 0 )
 #define ICE_SERVER_TYPE_STUN "stun:"
 #define ICE_SERVER_TYPE_STUN_LENGTH ( 5 )
@@ -679,19 +678,19 @@ void IceController_PrintMetrics( IceControllerContext_t * pCtx )
     long long duration_ms;
 
     /* Print each step duration */
-    LogDebug( ( "======================================== Ice Duration ========================================" ) );
+    LogInfo( ( "======================================== Ice Duration ========================================" ) );
     duration_ms = (pCtx->metrics.gatheringCandidateEndTime.tv_sec - pCtx->metrics.gatheringCandidateStartTime.tv_sec) * 1000LL +
                   (pCtx->metrics.gatheringCandidateEndTime.tv_usec - pCtx->metrics.gatheringCandidateStartTime.tv_usec) / 1000LL;
-    LogDebug( ( "Duration from Starting Gathering Candidates to All Host Candidates Ready: %lld ms", duration_ms ) );
+    LogInfo( ( "Duration from Starting Gathering Candidates to All Host Candidates Ready: %lld ms", duration_ms ) );
     duration_ms = (pCtx->metrics.allSrflxCandidateReadyTime.tv_sec - pCtx->metrics.gatheringCandidateStartTime.tv_sec) * 1000LL +
                   (pCtx->metrics.allSrflxCandidateReadyTime.tv_usec - pCtx->metrics.gatheringCandidateStartTime.tv_usec) / 1000LL;
-    LogDebug( ( "Duration from Starting Gathering Candidates to All Server Candidates Ready: %lld ms", duration_ms ) );
+    LogInfo( ( "Duration from Starting Gathering Candidates to All Server Candidates Ready: %lld ms", duration_ms ) );
     duration_ms = (pCtx->metrics.sentNominationResponseTime.tv_sec - pCtx->metrics.firstConnectivityRequestTime.tv_sec) * 1000LL +
                   (pCtx->metrics.sentNominationResponseTime.tv_usec - pCtx->metrics.firstConnectivityRequestTime.tv_usec) / 1000LL;
-    LogDebug( ( "Duration from Starting Connectivity Check to Sent Nomination Response: %lld ms", duration_ms ) );
+    LogInfo( ( "Duration from Starting Connectivity Check to Sent Nomination Response: %lld ms", duration_ms ) );
     duration_ms = (pCtx->metrics.sentNominationResponseTime.tv_sec - pCtx->metrics.gatheringCandidateStartTime.tv_sec) * 1000LL +
                   (pCtx->metrics.sentNominationResponseTime.tv_usec - pCtx->metrics.gatheringCandidateStartTime.tv_usec) / 1000LL;
-    LogDebug( ( "Duration of entire Ice flow: %lld ms", duration_ms ) );
+    LogInfo( ( "Duration of entire Ice flow: %lld ms", duration_ms ) );
 }
 
 IceControllerResult_t IceController_Deinit( IceControllerContext_t *pCtx )

@@ -308,7 +308,7 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent
 
     ( void ) pUserContext;
 
-    LogInfo( ( "Received Message from websocket server!" ) );
+    LogDebug( ( "Received Message from websocket server!" ) );
     LogDebug( ( "Message Type: %x", pEvent->messageType ) );
     LogDebug( ( "Sender ID: %.*s", ( int ) pEvent->remoteClientIdLength, pEvent->pRemoteClientId ) );
     LogDebug( ( "Correlation ID: %.*s", ( int ) pEvent->correlationIdLength, pEvent->pCorrelationId ) );

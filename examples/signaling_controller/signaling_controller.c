@@ -182,10 +182,6 @@ static WebsocketResult_t handleWssMessage( char *pMessage, size_t messageLength,
         coreHttpCred.pRootCa = ( uint8_t* ) pCtx->credential.pCaCertPem;
         coreHttpCred.rootCaSize = pCtx->credential.caCertPemSize;
 
-        LogInfo( ( "Signaling Control is initializing HTTP: root CA(%d): %s",
-                   pCtx->credential.caCertPemSize,
-                   pCtx->credential.pCaCertPem ) );
-
         retHttp = Http_Init( &coreHttpCred );
 
         if( retHttp != HTTP_RESULT_OK )
@@ -268,45 +264,45 @@ static void printMetrics( SignalingControllerContext_t * pCtx )
     long long duration_ms;
 
     /* channel info */
-    LogDebug( ( "======================================== Channel Info ========================================" ) );
-    LogDebug( ( "Signaling Channel Name: %s", pCtx->channelInfo.signalingChannelName ) );
-    LogDebug( ( "Signaling Channel ARN: %s", pCtx->channelInfo.signalingChannelARN ) );
-    LogDebug( ( "Signaling Channel TTL (seconds): %lu", pCtx->channelInfo.signalingChannelTtlSeconds ) );
-    LogDebug( ( "======================================== Endpoints Info ========================================" ) );
-    LogDebug( ( "HTTPS Endpoint: %s", pCtx->channelInfo.endpointHttps ) );
-    LogDebug( ( "WSS Endpoint: %s", pCtx->channelInfo.endpointWebsocketSecure ) );
-    LogDebug( ( "WebRTC Endpoint: %s", pCtx->channelInfo.endpointWebrtc[0]=='\0'? "N/A":pCtx->channelInfo.endpointWebrtc ) );
+    LogInfo( ( "======================================== Channel Info ========================================" ) );
+    LogInfo( ( "Signaling Channel Name: %s", pCtx->channelInfo.signalingChannelName ) );
+    LogInfo( ( "Signaling Channel ARN: %s", pCtx->channelInfo.signalingChannelARN ) );
+    LogInfo( ( "Signaling Channel TTL (seconds): %lu", pCtx->channelInfo.signalingChannelTtlSeconds ) );
+    LogInfo( ( "======================================== Endpoints Info ========================================" ) );
+    LogInfo( ( "HTTPS Endpoint: %s", pCtx->channelInfo.endpointHttps ) );
+    LogInfo( ( "WSS Endpoint: %s", pCtx->channelInfo.endpointWebsocketSecure ) );
+    LogInfo( ( "WebRTC Endpoint: %s", pCtx->channelInfo.endpointWebrtc[0]=='\0'? "N/A":pCtx->channelInfo.endpointWebrtc ) );
 
     /* Ice server list */
-    LogDebug( ( "======================================== Ice Server List ========================================" ) );
-    LogDebug( ( "Ice Server Count: %u", pCtx->iceServerConfigsCount ) );
+    LogInfo( ( "======================================== Ice Server List ========================================" ) );
+    LogInfo( ( "Ice Server Count: %u", pCtx->iceServerConfigsCount ) );
     for( i=0 ; i<pCtx->iceServerConfigsCount ; i++ )
     {
-        LogDebug( ( "======================================== Ice Server[%u] ========================================", i ) );
-        LogDebug( ( "    TTL (secodns): %lu", pCtx->iceServerConfigs[i].ttlSeconds ) );
-        LogDebug( ( "    User Name: %s", pCtx->iceServerConfigs[i].userName ) );
-        LogDebug( ( "    Password: %s", pCtx->iceServerConfigs[i].password ) );
-        LogDebug( ( "    URI Count: %u", pCtx->iceServerConfigs[i].uriCount ) );
+        LogInfo( ( "======================================== Ice Server[%u] ========================================", i ) );
+        LogInfo( ( "    TTL (secodns): %lu", pCtx->iceServerConfigs[i].ttlSeconds ) );
+        LogInfo( ( "    User Name: %s", pCtx->iceServerConfigs[i].userName ) );
+        LogInfo( ( "    Password: %s", pCtx->iceServerConfigs[i].password ) );
+        LogInfo( ( "    URI Count: %u", pCtx->iceServerConfigs[i].uriCount ) );
         for( j=0 ; j<pCtx->iceServerConfigs[i].uriCount ; j++ )
         {
-            LogDebug( ( "        URI: %s", pCtx->iceServerConfigs[i].uris[j] ) );
+            LogInfo( ( "        URI: %s", pCtx->iceServerConfigs[i].uris[j] ) );
         }
     }
 
     /* Print each step duration */
-    LogDebug( ( "======================================== Duration ========================================" ) );
+    LogInfo( ( "======================================== Duration ========================================" ) );
     duration_ms = (pCtx->metrics.describeSignalingChannelEndTime.tv_sec - pCtx->metrics.describeSignalingChannelStartTime.tv_sec) * 1000LL +
                   (pCtx->metrics.describeSignalingChannelEndTime.tv_usec - pCtx->metrics.describeSignalingChannelStartTime.tv_usec) / 1000LL;
-    LogDebug( ( "Duration of Describe Signaling Channel: %lld ms", duration_ms ) );
+    LogInfo( ( "Duration of Describe Signaling Channel: %lld ms", duration_ms ) );
     duration_ms = (pCtx->metrics.getSignalingEndpointsEndTime.tv_sec - pCtx->metrics.getSignalingEndpointsStartTime.tv_sec) * 1000LL +
                   (pCtx->metrics.getSignalingEndpointsEndTime.tv_usec - pCtx->metrics.getSignalingEndpointsStartTime.tv_usec) / 1000LL;
-    LogDebug( ( "Duration of Get Signaling Endpoints: %lld ms", duration_ms ) );
+    LogInfo( ( "Duration of Get Signaling Endpoints: %lld ms", duration_ms ) );
     duration_ms = (pCtx->metrics.getIceServerListEndTime.tv_sec - pCtx->metrics.getIceServerListStartTime.tv_sec) * 1000LL +
                   (pCtx->metrics.getIceServerListEndTime.tv_usec - pCtx->metrics.getIceServerListStartTime.tv_usec) / 1000LL;
-    LogDebug( ( "Duration of Get Ice Server List: %lld ms", duration_ms ) );
+    LogInfo( ( "Duration of Get Ice Server List: %lld ms", duration_ms ) );
     duration_ms = (pCtx->metrics.connectWssServerEndTime.tv_sec - pCtx->metrics.connectWssServerStartTime.tv_sec) * 1000LL +
                   (pCtx->metrics.connectWssServerEndTime.tv_usec - pCtx->metrics.connectWssServerStartTime.tv_usec) / 1000LL;
-    LogDebug( ( "Duration of Connect Websocket Server: %lld ms", duration_ms ) );
+    LogInfo( ( "Duration of Connect Websocket Server: %lld ms", duration_ms ) );
 }
 
 static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerContext_t *pCtx, SignalingIceServer_t *pIceServerList, size_t iceServerListNum )
@@ -445,7 +441,8 @@ static SignalingControllerResult_t describeSignalingChannel( SignalingController
 
         if( retSignal != SIGNALING_RESULT_OK )
         {
-            LogError( ("Fail to parse describe signaling channel response, return=0x%x", retSignal) );
+            LogError( ("Fail to parse describe signaling channel response, return=0x%x, response(%u): %.*s", retSignal, response.bufferLength,
+                       (int) response.bufferLength, response.pBuffer) );
             ret = SIGNALING_CONTROLLER_RESULT_PARSE_DESCRIBE_SIGNALING_CHANNEL_FAIL;
         }
     }
