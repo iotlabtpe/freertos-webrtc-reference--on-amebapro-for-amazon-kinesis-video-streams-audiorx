@@ -641,13 +641,20 @@ IceControllerResult_t IceControllerNet_HandleRxPacket( IceControllerContext_t *p
     readBytes = recvfrom( pSocketContext->socketFd, receiveBuffer, RX_BUFFER_SIZE, 0, &srcAddress, &srcAddressLength );
     if( readBytes < 0 )
     {
-        LogError( ( "Fail to receive packets from socket ID: %d, errno: %s", pSocketContext->socketFd, strerror( errno ) ) );
-        ret = ICE_CONTROLLER_RESULT_FAIL_RECVFROM;
+        if( errno == EAGAIN || errno == EWOULDBLOCK )
+        {
+            /* Timeout, no more data to receive. */
+            ret = ICE_CONTROLLER_RESULT_NO_MORE_RX_PACKET;
+        }
+        else
+        {
+            LogError( ( "Fail to receive packets from socket ID: %d, errno: %s", pSocketContext->socketFd, strerror( errno ) ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL_RECVFROM;
+        }
     }
     else if( readBytes == 0 )
     {
         /* Nothing to do if receive 0 byte. */
-        LogDebug( ( "Have RX event but receive no data." ) );
         ret = ICE_CONTROLLER_RESULT_NO_MORE_RX_PACKET;
     }
     else

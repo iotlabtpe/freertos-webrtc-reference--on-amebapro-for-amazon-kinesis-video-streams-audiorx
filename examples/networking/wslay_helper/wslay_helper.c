@@ -8,6 +8,9 @@
 #include <mbedtls/base64.h>
 #include <mbedtls/sha1.h>
 
+#include "errno.h"
+#include "lwip/sockets.h"
+
 NetworkingWslayContext_t networkingWslayContext;
 
 #define NETWORKING_WSLAY_SEND_TIMEOUT_MS ( 1000 )
@@ -899,6 +902,8 @@ static WebsocketResult_t InitializeWakeUpSocket( void )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     uint32_t socketTimeoutMs = 1U;
+    struct sockaddr* sockAddress = NULL;
+    socklen_t addressLength;
 
     networkingWslayContext.socketWakeUp = socket( PF_INET, SOCK_DGRAM, 0 );
     if( networkingWslayContext.socketWakeUp < 0 )
@@ -911,7 +916,7 @@ static WebsocketResult_t InitializeWakeUpSocket( void )
     {
         memset( &networkingWslayContext.socketWakeUpAddr, 0, sizeof( struct sockaddr_in ) );
         networkingWslayContext.socketWakeUpAddr.sin_family = AF_INET;
-        networkingWslayContext.socketWakeUpAddr.sin_addr.s_addr = htonl( INADDR_LOOPBACK );
+        networkingWslayContext.socketWakeUpAddr.sin_addr.s_addr = htonl( IPADDR_ANY );
         networkingWslayContext.socketWakeUpAddr.sin_port = 0;
 
         if( bind( networkingWslayContext.socketWakeUp, (const struct sockaddr *)&networkingWslayContext.socketWakeUpAddr, sizeof( networkingWslayContext.socketWakeUpAddr ) ) < 0 )
@@ -926,6 +931,18 @@ static WebsocketResult_t InitializeWakeUpSocket( void )
     {
         setsockopt( networkingWslayContext.socketWakeUp, SOL_SOCKET, SO_RCVTIMEO, &socketTimeoutMs, sizeof( socketTimeoutMs ) );
         setsockopt( networkingWslayContext.socketWakeUp, SOL_SOCKET, SO_SNDTIMEO, &socketTimeoutMs, sizeof( socketTimeoutMs ) );
+
+        sockAddress = (struct sockaddr*) &networkingWslayContext.socketWakeUpAddr;
+        addressLength = sizeof(struct sockaddr_in);
+        if( getsockname( networkingWslayContext.socketWakeUp, sockAddress, &addressLength ) < 0 )
+        {
+            LogError( ( "getsockname() failed with errno: %s", strerror( errno ) ) );
+            close( networkingWslayContext.socketWakeUp );
+        }
+        else
+        {
+            LogDebug( ("Creating wake up socket at port %u", ntohs( networkingWslayContext.socketWakeUpAddr.sin_port )) );
+        }
     }
 
     return ret;
@@ -1034,10 +1051,13 @@ static void TriggerWakeUpSocket( void )
 
     writtenLength = sendto( networkingWslayContext.socketWakeUp, &ch, 1, 0,
                             (struct sockaddr *) &networkingWslayContext.socketWakeUpAddr, sizeof( networkingWslayContext.socketWakeUpAddr ) );
-    LogDebug( ("Sent %d byte to wake up running websocket thread", writtenLength) );
     if( writtenLength < 0 )
     {
-        LogError( ("Fail to trigger wake up socket.") );
+        LogError( ("Fail to trigger wake up socket, error=%s.", strerror( errno )) );
+    }
+    else
+    {
+        LogInfo( ("Wake wslay up via socket") );
     }
 }
 
