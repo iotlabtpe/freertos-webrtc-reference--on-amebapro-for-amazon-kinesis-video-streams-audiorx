@@ -1,11 +1,11 @@
 #include "logging.h"
 #include "wslay_helper.h"
 #include "core_http_client.h"
+#include <base64.h>
 
 /* Inlucde mbedtls for random/base64 */
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
-#include <mbedtls/base64.h>
 #include <mbedtls/sha1.h>
 
 #include "errno.h"
@@ -746,8 +746,8 @@ static WebsocketResult_t GenerateWebSocketClientKey( char *pClientKey, size_t cl
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     uint8_t randomBuffer[ NETWORKING_WSLAY_CLIENT_KEY_RANDOM_LENGTH ];
-    uint32_t olen = 0;
-    int retBase64;
+    Base64Result_t retBase64;
+    size_t outputLength = clientKeyLength;
 
     if( pClientKey == NULL || clientKeyLength < NETWORKING_WSLAY_CLIENT_KEY_LENGTH + 1 )
     {
@@ -758,12 +758,17 @@ static WebsocketResult_t GenerateWebSocketClientKey( char *pClientKey, size_t cl
     {
         GenerateRandomBytes( randomBuffer, NETWORKING_WSLAY_CLIENT_KEY_RANDOM_LENGTH );
 
-        retBase64 = mbedtls_base64_encode( (uint8_t*) pClientKey, clientKeyLength, (void*) &olen, randomBuffer, NETWORKING_WSLAY_CLIENT_KEY_RANDOM_LENGTH );
-        if( retBase64 != 0 )
+        retBase64 = Base64_Encode( (const char*) randomBuffer, NETWORKING_WSLAY_CLIENT_KEY_RANDOM_LENGTH, pClientKey, &outputLength );
+        if( retBase64 != BASE64_RESULT_OK )
         {
             LogError( ("Fail to base64 encode to generate client key, return=0x%x", retBase64) );
 
             ret = NETWORKING_WSLAY_RESULT_FAIL_BASE64_ENCODE;
+        }
+        else
+        {
+            LogInfo( ("Base64 encode output length %u, original length %u", outputLength, clientKeyLength) );
+            LogInfo( ("Last byte 0x%x", pClientKey[ clientKeyLength - 1 ]) );
         }
     }
 
@@ -775,8 +780,8 @@ static WebsocketResult_t GenerateAcceptKey( const char *pClientKey, size_t clien
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     char tempBuffer[ clientKeyLength + NETWORKING_WSLAY_RFC6455_UUID_LENGTH ];
     uint8_t sha1Buffer[ NETWORKING_WSLAY_SHA1_LENGTH ];
-    int retBase64;
-    uint32_t olen = 0;
+    Base64Result_t retBase64;
+    size_t outputLength = outAcceptKeyLength;
 
     if( pClientKey == NULL || pOutAcceptKey == NULL || outAcceptKeyLength < NETWORKING_WSLAY_ACCEPT_KEY_LENGTH + 1 )
     {
@@ -792,13 +797,17 @@ static WebsocketResult_t GenerateAcceptKey( const char *pClientKey, size_t clien
         memcpy( tempBuffer + clientKeyLength, NETWORKING_WSLAY_STRING_RFC6455_UUID, NETWORKING_WSLAY_RFC6455_UUID_LENGTH );
 
         mbedtls_sha1( ( unsigned char * ) tempBuffer, clientKeyLength + NETWORKING_WSLAY_RFC6455_UUID_LENGTH, sha1Buffer );
-        retBase64 = mbedtls_base64_encode( (uint8_t*) pOutAcceptKey, outAcceptKeyLength, (void*) &olen, sha1Buffer, NETWORKING_WSLAY_SHA1_LENGTH );
-
-        if( retBase64 != 0 )
+        retBase64 = Base64_Encode( (const char*) sha1Buffer, NETWORKING_WSLAY_SHA1_LENGTH, pOutAcceptKey, &outputLength );
+        if( retBase64 != BASE64_RESULT_OK )
         {
             LogError( ("Fail to base64 encode to generate accept key, return=0x%x", retBase64) );
 
             ret = NETWORKING_WSLAY_RESULT_FAIL_BASE64_ENCODE;
+        }
+        else
+        {
+            LogInfo( ("Base64 encode output length %u, original length %u", outputLength, outAcceptKeyLength) );
+            LogInfo( ("Last byte 0x%x", pOutAcceptKey[ clientKeyLength - 1 ]) );
         }
     }
 
@@ -1054,10 +1063,6 @@ static void TriggerWakeUpSocket( void )
     if( writtenLength < 0 )
     {
         LogError( ("Fail to trigger wake up socket, error=%s.", strerror( errno )) );
-    }
-    else
-    {
-        LogInfo( ("Wake wslay up via socket") );
     }
 }
 

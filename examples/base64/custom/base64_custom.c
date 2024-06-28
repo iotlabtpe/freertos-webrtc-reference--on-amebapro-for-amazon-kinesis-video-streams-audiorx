@@ -50,7 +50,7 @@ uint8_t base64DecodeAlpha[256] =
     0,  0,  0,  0,  0,  0,
 };
 
-Base64Result_t base64Encode( const char *pInputData, size_t inputDataLength, char *pOutputData, size_t *pOutputDataLength )
+Base64Result_t Base64_Encode( const char *pInputData, size_t inputDataLength, char *pOutputData, size_t *pOutputDataLength )
 {
     Base64Result_t ret = BASE64_RESULT_OK;
     uint32_t padding, i;
@@ -121,7 +121,7 @@ Base64Result_t base64Encode( const char *pInputData, size_t inputDataLength, cha
     return ret;
 }
 
-Base64Result_t base64Decode( const char *pInputData, size_t inputDataLength, char *pOutputData, size_t *pOutputDataLength )
+Base64Result_t Base64_Decode( const char *pInputData, size_t inputDataLength, char *pOutputData, size_t *pOutputDataLength )
 {
     Base64Result_t ret = BASE64_RESULT_OK;
     const char *pInput = pInputData;

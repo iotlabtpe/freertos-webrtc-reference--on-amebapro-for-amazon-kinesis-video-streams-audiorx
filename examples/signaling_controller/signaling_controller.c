@@ -52,7 +52,7 @@ static WebsocketResult_t handleWssMessage( char *pMessage, size_t messageLength,
     if( ret == WEBSOCKET_RESULT_OK )
     {
         pCtx->base64BufferLength = SIGNALING_CONTROLLER_MAX_CONTENT_LENGTH;
-        retBase64 = base64Decode( wssRecvMessage.pBase64EncodedPayload, wssRecvMessage.base64EncodedPayloadLength, pCtx->base64Buffer, &pCtx->base64BufferLength );
+        retBase64 = Base64_Decode( wssRecvMessage.pBase64EncodedPayload, wssRecvMessage.base64EncodedPayloadLength, pCtx->base64Buffer, &pCtx->base64BufferLength );
 
         if( retBase64 != BASE64_RESULT_OK )
         {
@@ -759,7 +759,7 @@ static SignalingControllerResult_t handleEvent( SignalingControllerContext_t *pC
             /* Then fill the event information, like correlation ID, recipient client ID and base64 encoded message.
              * Note that the message now is not based encoded yet. */
             pCtx->base64BufferLength = SIGNALING_CONTROLLER_MAX_CONTENT_LENGTH;
-            retBase64 = base64Encode( pEventContentSend->pDecodeMessage, pEventContentSend->decodeMessageLength, pCtx->base64Buffer, &pCtx->base64BufferLength );
+            retBase64 = Base64_Encode( pEventContentSend->pDecodeMessage, pEventContentSend->decodeMessageLength, pCtx->base64Buffer, &pCtx->base64BufferLength );
             if( retBase64 != BASE64_RESULT_OK )
             {
                 ret = SIGNALING_CONTROLLER_RESULT_BASE64_ENCODE_FAIL;

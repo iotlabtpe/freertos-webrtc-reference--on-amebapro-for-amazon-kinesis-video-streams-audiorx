@@ -72,7 +72,7 @@ file(
   "${REPO_ROOT_DIRECTORY}/examples/networking/networking_utils/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/networking/wslay_helper/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/message_queue/*.c"
-  "${REPO_ROOT_DIRECTORY}/examples/base64/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/base64/mbedtls/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/sdp_controller/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/string_utils/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/ice_controller/*.c"
