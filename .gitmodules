@@ -1,0 +1,27 @@
+[submodule "libraries/ambpro2_sdk"]
+	path = libraries/ambpro2_sdk
+	url = https://github.com/ambiot/ambpro2_sdk.git
+[submodule "libraries/coreHTTP"]
+	path = libraries/coreHTTP
+	url = https://github.com/FreeRTOS/coreHTTP
+[submodule "libraries/wslay"]
+	path = libraries/wslay
+	url = https://github.com/tatsuhiro-t/wslay
+[submodule "libraries/crypto/SigV4-for-AWS-IoT-embedded-sdk"]
+	path = libraries/crypto/SigV4-for-AWS-IoT-embedded-sdk
+	url = https://github.com/aws/SigV4-for-AWS-IoT-embedded-sdk
+[submodule "libraries/components/amazon-kinesis-video-streams-signaling"]
+	path = libraries/components/amazon-kinesis-video-streams-signaling
+	url = https://github.com/ActoryOu/amazon-kinesis-video-streams-signaling-public
+[submodule "libraries/coreJSON"]
+	path = libraries/coreJSON
+	url = https://github.com/FreeRTOS/coreJSON
+[submodule "libraries/components/amazon-kinesis-video-streams-sdp"]
+	path = libraries/components/amazon-kinesis-video-streams-sdp
+	url = https://github.com/awslabs/amazon-kinesis-video-streams-sdp/
+[submodule "libraries/components/amazon-kinesis-video-streams-ice"]
+	path = libraries/components/amazon-kinesis-video-streams-ice
+	url = https://github.com/kar-rahul-aws/KVS_ICE
+[submodule "libraries/components/amazon-kinesis-video-streams-stun"]
+	path = libraries/components/amazon-kinesis-video-streams-stun
+	url = https://github.com/awslabs/amazon-kinesis-video-streams-stun
