@@ -65,6 +65,7 @@ file(
   GLOB
   WEBRTC_APPLICATION_MASTER_SOURCE_FILES
   "${REPO_ROOT_DIRECTORY}/examples/master/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/peer_connection/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/signaling_controller/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/network_transport/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/network_transport/tcp_sockets_wrapper/ports/lwip/*.c"
@@ -80,6 +81,7 @@ file(
 
 set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/master/"
+     "${REPO_ROOT_DIRECTORY}/examples/peer_connection/"
      "${REPO_ROOT_DIRECTORY}/examples/signaling_controller"
      "${REPO_ROOT_DIRECTORY}/examples/network_transport"
      "${REPO_ROOT_DIRECTORY}/examples/network_transport/tcp_sockets_wrapper/include"

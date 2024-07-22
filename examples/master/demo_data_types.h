@@ -10,7 +10,7 @@ extern "C" {
 #include <stdio.h>
 #include "sdp_controller.h"
 #include "signaling_controller.h"
-#include "ice_controller.h"
+#include "peer_connection.h"
 
 #define DEMO_SDP_BUFFER_MAX_LENGTH ( 10000 )
 
@@ -32,8 +32,8 @@ typedef struct DemoContext
     char sdpConstructedBuffer[ DEMO_SDP_BUFFER_MAX_LENGTH ];
     size_t sdpConstructedBufferLength;
 
-    /* Ice controller. */
-    IceControllerContext_t iceControllerContext;
+    /* Peer Connection. */
+    PeerConnectionContext_t peerConnectionContext;
 } DemoContext_t;
 
 #ifdef __cplusplus

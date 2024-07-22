@@ -20,7 +20,6 @@
 
 #define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect 
 
-extern void IceControllerSocketListener_Task( void *pParameter );
 static void platform_init(void);
 static void wifi_common_init(void);
 static uint8_t IsUpdatedCurrentTime(void);
@@ -28,11 +27,10 @@ static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteC
 static uint8_t searchUserNamePassWord( SdpControllerAttributes_t *pAttributes, size_t attributesCount,
                                        const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength );
 static uint8_t getRemoteInfo( DemoSessionInformation_t *pSessionInformation, const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength );
-static uint8_t setRemoteDescription( IceControllerContext_t *pIceControllerCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength );
+static uint8_t setRemoteDescription( PeerConnectionContext_t *pPeerConnectionCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength );
 static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext );
 static int initializeApplication( DemoContext_t *pDemoContext );
-static int initializeIceController( DemoContext_t *pDemoContext );
-static void IceController_Task( void *pParameter );
+static int initializePeerConnection( DemoContext_t *pDemoContext );
 static void Master_Task( void *pParameter );
 
 extern uint8_t prepareSdpAnswer( DemoSessionInformation_t *pSessionInDescriptionOffer, DemoSessionInformation_t *pSessionInDescriptionAnswer );
@@ -212,23 +210,22 @@ static uint8_t getRemoteInfo( DemoSessionInformation_t *pSessionInformation, con
     return skipProcess;
 }
 
-static uint8_t setRemoteDescription( IceControllerContext_t *pIceControllerCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength )
+static uint8_t setRemoteDescription( PeerConnectionContext_t *pPeerConnectionCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength )
 {
     uint8_t skipProcess = 0;
-    const char *pRemoteUserName;
-    size_t remoteUserNameLength;
-    const char *pRemotePassword;
-    size_t remotePasswordLength;
-    IceControllerResult_t iceControllerResult;
+    PeerConnectionRemoteInfo_t remoteInfo;
+    PeerConnectionResult_t peerConnectionResult;
 
-    skipProcess = getRemoteInfo( pSessionInformation, &pRemoteUserName, &remoteUserNameLength, &pRemotePassword, &remotePasswordLength );
+    remoteInfo.pRemoteClientId = pRemoteClientId;
+    remoteInfo.remoteClientIdLength = remoteClientIdLength;
+    skipProcess = getRemoteInfo( pSessionInformation, &remoteInfo.pRemoteUserName, &remoteInfo.remoteUserNameLength, &remoteInfo.pRemotePassword, &remoteInfo.remotePasswordLength );
 
     if( skipProcess == 0 )
     {
-        iceControllerResult = IceController_SetRemoteDescription( pIceControllerCtx, pRemoteClientId, remoteClientIdLength, pRemoteUserName, remoteUserNameLength, pRemotePassword, remotePasswordLength );
-        if( iceControllerResult != 0 )
+        peerConnectionResult = PeerConnection_SetRemoteDescription( pPeerConnectionCtx, &remoteInfo );
+        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
-            LogError( ( "Fail to set remote description, result: %d", iceControllerResult ) );
+            LogError( ( "Fail to set remote description, result: %d", peerConnectionResult ) );
             skipProcess = 1;
         }
     }
@@ -278,22 +275,22 @@ static int initializeApplication( DemoContext_t *pDemoContext )
 
     if( ret == 0 )
     {
-        /* Initialize Ice controller. */
-        ret = initializeIceController( pDemoContext );
+        /* Initialize Peer Connection. */
+        ret = initializePeerConnection( pDemoContext );
     }
 
     return ret;
 }
 
-static int initializeIceController( DemoContext_t *pDemoContext )
+static int initializePeerConnection( DemoContext_t *pDemoContext )
 {
     int ret = 0;
-    IceControllerResult_t iceControllerReturn;
+    PeerConnectionResult_t peerConnectionResult;
 
-    iceControllerReturn = IceController_Init( &pDemoContext->iceControllerContext, &pDemoContext->signalingControllerContext );
-    if( iceControllerReturn != ICE_CONTROLLER_RESULT_OK )
+    peerConnectionResult = PeerConnection_Init( &pDemoContext->peerConnectionContext, &pDemoContext->signalingControllerContext );
+    if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
     {
-        LogError( ( "Fail to initialize ice controller." ) );
+        LogError( ( "Fail to initialize Peer Connection." ) );
         ret = -1;
     }
 
@@ -303,8 +300,7 @@ static int initializeIceController( DemoContext_t *pDemoContext )
 static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext )
 {
     uint8_t skipProcess = 0;
-    IceControllerResult_t iceControllerResult;
-    IceControllerCandidate_t candidate;
+    PeerConnectionResult_t peerConnectionResult;
 
     ( void ) pUserContext;
 
@@ -327,27 +323,18 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent
 
             if( !skipProcess )
             {
-                skipProcess = setRemoteDescription( &demoContext.iceControllerContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
+                skipProcess = setRemoteDescription( &demoContext.peerConnectionContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
             }
             break;
         case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:
             break;
         case SIGNALING_TYPE_MESSAGE_ICE_CANDIDATE:
-            iceControllerResult = IceController_DeserializeIceCandidate( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &candidate );
-            if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
+            peerConnectionResult = PeerConnection_AddRemoteCandidate( &demoContext.peerConnectionContext,
+                                                                      pEvent->pRemoteClientId, pEvent->remoteClientIdLength,
+                                                                      pEvent->pDecodeMessage, pEvent->decodeMessageLength );
+            if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
             {
-                LogWarn( ( "IceController_DeserializeIceCandidate fail, result: %d, dropping ICE candidate.", iceControllerResult ) );
-                skipProcess = 1;
-            }
-
-            if( !skipProcess )
-            {
-                iceControllerResult = IceController_SendRemoteCandidateRequest( &demoContext.iceControllerContext, pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &candidate );
-                if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
-                {
-                    LogWarn( ( "IceController_SendRemoteCandidateRequest fail, result: %d, dropping ICE candidate.", iceControllerResult ) );
-                    skipProcess = 1;
-                }
+                LogWarn( ( "PeerConnection_AddRemoteCandidate fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
             }
             break;
         case SIGNALING_TYPE_MESSAGE_GO_AWAY:
@@ -363,16 +350,6 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent
     return 0;
 }
 
-static void IceController_Task( void *pParameter )
-{
-    IceControllerContext_t *pIceControllerContext = (IceControllerContext_t *) pParameter;
-    
-    for( ;; )
-    {
-        (void) IceController_ProcessLoop( pIceControllerContext );
-    }
-}
-
 static void Master_Task( void *pParameter )
 {
     int ret = 0;
@@ -385,24 +362,6 @@ static void Master_Task( void *pParameter )
     platform_init();
 
     ret = initializeApplication( &demoContext );
-
-    if( ret == 0 )
-    {
-        if( xTaskCreate( IceControllerSocketListener_Task, ( (const char *)"IcSockListenerTask" ), 1024, &demoContext.iceControllerContext, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
-        {
-            LogError( ("xTaskCreate(IceControllerSocketListener_Task) failed") );
-            ret = -1;
-        }
-    }
-
-    if( ret == 0 )
-    {
-        if( xTaskCreate( IceController_Task, ( (const char *)"IcTask" ), 10240, &demoContext.iceControllerContext, tskIDLE_PRIORITY + 2, NULL ) != pdPASS )
-        {
-            LogError( ("xTaskCreate(IceController_Task) failed") );
-            ret = -1;
-        }
-    }
 
     if( ret == 0 )
     {

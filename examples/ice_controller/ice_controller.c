@@ -718,7 +718,7 @@ void IceController_PrintMetrics( IceControllerContext_t * pCtx )
     LogInfo( ( "Duration of entire Ice flow: %lld ms", duration_ms ) );
 }
 
-IceControllerResult_t IceController_Deinit( IceControllerContext_t *pCtx )
+IceControllerResult_t IceController_Destroy( IceControllerContext_t *pCtx )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
 
