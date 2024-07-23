@@ -11,12 +11,15 @@ extern "C" {
 #include <stdint.h>
 
 #include "ice_controller.h"
+#include "transceiver_data_types.h"
+
+#define PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ( 2 )
 
 typedef enum PeerConnectionResult
 {
     PEER_CONNECTION_RESULT_OK = 0,
     PEER_CONNECTION_RESULT_BAD_PARAMETER,
-    PEER_CONNECTION_RESULT_NO_FREE_ICE_CONTROLLER,
+    PEER_CONNECTION_RESULT_NO_FREE_TRANSCEIVER,
     PEER_CONNECTION_RESULT_FAIL_CREATE_TASK_ICE_CONTROLLER,
     PEER_CONNECTION_RESULT_FAIL_CREATE_TASK_ICE_SOCK_LISTENER,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_INIT,
@@ -25,11 +28,6 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_DESERIALIZE_CANDIDATE,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_REMOTE_CANDIDATE,
 } PeerConnectionResult_t;
-
-typedef struct PeerConnectionTransceiver
-{
-    
-} PeerConnectionTransceiver_t;
 
 typedef struct PeerConnectionRemoteInfo
 {
@@ -43,6 +41,8 @@ typedef struct PeerConnectionRemoteInfo
 
 typedef struct PeerConnectionContext
 {
+    Transceiver_t transceivers[ PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ];
+    uint32_t transceiverInUse[ PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ];
     IceControllerContext_t iceControllerContext;
 } PeerConnectionContext_t;
 

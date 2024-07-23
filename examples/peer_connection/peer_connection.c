@@ -19,7 +19,7 @@ static void IceController_Task( void *pParameter )
     }
 }
 
-static PeerConnectionResult_t InitializeIceController( PeerConnectionContext_t *pCtx, SignalingControllerContext_t *pSignalingControllerContext )
+static PeerConnectionResult_t InitializeIceController( PeerConnectionContext_t *pCtx, const SignalingControllerContext_t *pSignalingControllerContext )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     IceControllerResult_t iceControllerResult;
@@ -82,7 +82,7 @@ static PeerConnectionResult_t DestroyIceController( PeerConnectionContext_t *pCt
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        iceControllerResult = PeerConnection_Destroy( &pCtx->iceControllerContext );
+        iceControllerResult = IceController_Destroy( &pCtx->iceControllerContext );
         if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
         {
             LogError( ( "Fail to destroy Ice Controller." ) );
@@ -93,7 +93,28 @@ static PeerConnectionResult_t DestroyIceController( PeerConnectionContext_t *pCt
     return ret;
 }
 
-PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t *pCtx, SignalingControllerContext_t *pSignalingControllerContext )
+static Transceiver_t *AllocateFreeTransceiver( PeerConnectionContext_t *pCtx )
+{
+    Transceiver_t *pReturn = NULL;
+    int i;
+
+    if( pCtx )
+    {
+        for( i=0; i<PEER_CONNECTION_TRANSCEIVER_MAX_COUNT; i++ )
+        {
+            if( pCtx->transceiverInUse[i] == 0 )
+            {
+                pCtx->transceiverInUse[i] = 1;
+                pReturn = &pCtx->transceivers[i];
+                break;
+            }
+        }
+    }
+
+    return pReturn;
+}
+
+PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t *pCtx, const SignalingControllerContext_t *pSignalingControllerContext )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
 
@@ -131,7 +152,7 @@ PeerConnectionResult_t PeerConnection_Destroy( PeerConnectionContext_t *pCtx )
     return ret;
 }
 
-PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContext_t *pCtx, PeerConnectionRemoteInfo_t *pRemoteInfo )
+PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContext_t *pCtx, const PeerConnectionRemoteInfo_t *pRemoteInfo )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     IceControllerResult_t iceControllerResult;
@@ -193,6 +214,34 @@ PeerConnectionResult_t PeerConnection_AddRemoteCandidate( PeerConnectionContext_
             LogWarn( ( "IceController_SendRemoteCandidateRequest fail, result: %d, dropping ICE candidate.", iceControllerResult ) );
             ret = PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_REMOTE_CANDIDATE;
         }
+    }
+
+    return ret;
+}
+
+PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t *pCtx, const Transceiver_t transceiver )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    Transceiver_t * pTargetTransceiver;
+
+    if( pCtx == NULL )
+    {
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        pTargetTransceiver = AllocateFreeTransceiver( pCtx );
+        if( pTargetTransceiver == NULL )
+        {
+            LogWarn( ("No space to add transceiver") );
+            ret = PEER_CONNECTION_RESULT_NO_FREE_TRANSCEIVER;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        memcpy( pTargetTransceiver, &transceiver, sizeof(Transceiver_t) );
     }
 
     return ret;

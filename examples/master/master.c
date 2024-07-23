@@ -18,6 +18,17 @@
 #define SET_REMOTE_INFO_PASSWORD_FOUND( isFoundBit ) ( isFoundBit |= IS_PASSWORD_FOUND_BIT )
 #define IS_REMOTE_INFO_ALL_FOUND( isFoundBit ) ( isFoundBit & IS_USERNAME_FOUND_BIT && isFoundBit & IS_PASSWORD_FOUND_BIT )
 
+#define DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND ( 3 )
+
+// Considering 4 Mbps for 720p (which is what our samples use). This is for H.264.
+// The value could be different for other codecs.
+#define DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE ( 4 * 1024 * 1024 )
+
+#define DEFAULT_TRANSCEIVER_VIDEO_STREAM_ID "myKvsVideoStream"
+#define DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID "myVideoTrack"
+#define DEFAULT_TRANSCEIVER_AUDIO_STREAM_ID "myKvsAudioStream"
+#define DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID "myAudioTrack"
+
 #define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect 
 
 static void platform_init(void);
@@ -31,6 +42,7 @@ static uint8_t setRemoteDescription( PeerConnectionContext_t *pPeerConnectionCtx
 static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext );
 static int initializeApplication( DemoContext_t *pDemoContext );
 static int initializePeerConnection( DemoContext_t *pDemoContext );
+static int addTransceivers( DemoContext_t *pDemoContext );
 static void Master_Task( void *pParameter );
 
 extern uint8_t prepareSdpAnswer( DemoSessionInformation_t *pSessionInDescriptionOffer, DemoSessionInformation_t *pSessionInDescriptionAnswer );
@@ -297,6 +309,54 @@ static int initializePeerConnection( DemoContext_t *pDemoContext )
     return ret;
 }
 
+static int addTransceivers( DemoContext_t *pDemoContext )
+{
+    int ret = 0;
+    PeerConnectionResult_t peerConnectionResult;
+    Transceiver_t transceiver;
+
+    /* Add video transceiver. */
+    memset( &transceiver, 0, sizeof( Transceiver_t ) );
+    transceiver.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
+    transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
+    transceiver.codecBitMap |= TRANSCEIVER_RTC_CODEC_H265_BIT;
+    transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
+    transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE;
+    strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_VIDEO_STREAM_ID, sizeof( transceiver.streamId ) );
+    transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_STREAM_ID );
+    strncpy( transceiver.trackId, DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID, sizeof( transceiver.trackId ) );
+    transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID );
+    peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
+    if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+    {
+        LogError( ( "Fail to add video transceiver, result = %d.", peerConnectionResult ) );
+        ret = -1;
+    }
+
+    if( ret == 0 )
+    {
+        /* Add audio transceiver. */
+        memset( &transceiver, 0, sizeof( Transceiver_t ) );
+        transceiver.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
+        transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
+        transceiver.codecBitMap |= TRANSCEIVER_RTC_CODEC_AAC_BIT;
+        transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
+        transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE;
+        strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_AUDIO_STREAM_ID, sizeof( transceiver.streamId ) );
+        transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_AUDIO_STREAM_ID );
+        strncpy( transceiver.trackId, DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID, sizeof( transceiver.trackId ) );
+        transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID );
+        peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
+        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+        {
+            LogError( ( "Fail to add audio transceiver, result = %d.", peerConnectionResult ) );
+            ret = -1;
+        }
+    }
+
+    return ret;
+}
+
 static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext )
 {
     uint8_t skipProcess = 0;
@@ -362,6 +422,11 @@ static void Master_Task( void *pParameter )
     platform_init();
 
     ret = initializeApplication( &demoContext );
+
+    if( ret == 0 )
+    {
+        ret = addTransceivers( &demoContext );
+    }
 
     if( ret == 0 )
     {
