@@ -82,6 +82,291 @@ const char videoAttribute19Value[] = "106 goog-remb";
 const char videoAttribute20Name[] = "rtcp-fb";
 const char videoAttribute20Value[] = "106 transport-cc";
 
+static SdpControllerAttributes_t *SearchAttributesValueSubstring( SdpControllerAttributes_t *pAttributes, size_t attributeNum, const char *pPattern, size_t patternLength )
+{
+    SdpControllerAttributes_t *pFound = NULL;
+    int i;
+
+    if( pAttributes == NULL || pPattern == NULL )
+    {
+        LogError( ("Invalid input") );
+    }
+    else
+    {
+        for( i=0 ; i<attributeNum ; i++ )
+        {
+            if( (pAttributes + i)->attributeValueLength >= patternLength &&
+                strncmp( (pAttributes + i)->pAttributeValue, pPattern, patternLength ) == 0 )
+            {
+                pFound = pAttributes + i;
+            }
+        }
+    }
+
+    return pFound;
+}
+
+static int AddSessionAttributeGroup( char *pBuffer, size_t remainSize, SdpControllerSdpDescription_t *pLocalSdpDescription, SdpControllerSdpDescription_t *pRemoteSdpDescription )
+{
+    int totalWritten = 0;
+    int written = 0;
+    char *pCurBuffer = pBuffer;
+    int i;
+    SdpControllerAttributes_t *pRemoteAttribute = NULL;
+
+    if( pBuffer == NULL ||
+        pLocalSdpDescription == NULL )
+    {
+        totalWritten = -1;
+        LogError( ("Invalid input") );
+    }
+
+    /* Append attribute name group. */
+    if( totalWritten >= 0 )
+    {
+        written = snprintf( pCurBuffer, remainSize, "group" );
+        if( written < 0 )
+        {
+            totalWritten = -1;
+            LogError( ( "snprintf return unexpected value %d", written ) );
+        }
+        else if( written == remainSize )
+        {
+            totalWritten = -2;
+            LogError( ( "buffer has no space for attribute name" ) );
+        }
+        else
+        {
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeName = pCurBuffer;
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeNameLength = strlen( pCurBuffer );
+
+            pCurBuffer += written;
+            remainSize -= written;
+            totalWritten += written;
+        }
+    }
+    
+    /* Append attribute value BUNDLE. */
+    if( totalWritten >= 0 )
+    {
+        /* If we have SDP offer, reuse the BUNDLE string from it. */
+        if( pRemoteSdpDescription != NULL )
+        {
+            pRemoteAttribute = SearchAttributesValueSubstring( pRemoteSdpDescription->attributes, SDP_CONTROLLER_MAX_SDP_ATTRIBUTES_COUNT, "BUNDLE", strlen( "BUNDLE" ) );
+        }
+
+        if( pRemoteAttribute )
+        {
+            written = snprintf( pCurBuffer, remainSize, "%.*s",
+                                ( int ) pRemoteAttribute->attributeValueLength,
+                                pRemoteAttribute->pAttributeValue );
+            if( written < 0 )
+            {
+                totalWritten = -1;
+                LogError( ( "snprintf return unexpected value %d", written ) );
+            }
+            else if( written == remainSize )
+            {
+                totalWritten = -2;
+                LogError( ( "buffer has no space for attribute value" ) );
+            }
+            else
+            {
+                pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
+                pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
+
+                totalWritten += written;
+            }
+        }
+    }
+
+    /* Append attribute value BUNDLE if not ready from previous step. */
+    if( totalWritten >= 0 && pRemoteAttribute == NULL )
+    {
+        written = snprintf( pCurBuffer, remainSize, "BUNDLE" );
+        if( written < 0 )
+        {
+            totalWritten = -1;
+            LogError( ( "snprintf return unexpected value %d", written ) );
+        }
+        else if( written == remainSize )
+        {
+            totalWritten = -2;
+            LogError( ( "buffer has no space for attribute value" ) );
+        }
+        else
+        {
+            char *pAppendNumber = pCurBuffer + written;
+            int offset = 0;
+
+            totalWritten += written;
+
+            for( i=0 ; i<pLocalSdpDescription->mediaCount ; i++ )
+            {
+                written = snprintf( pAppendNumber + offset, remainSize - offset, " %d", i );
+                if( written < 0 )
+                {
+                    totalWritten = -1;
+                    LogError( ( "snprintf return unexpected value %d", written ) );
+                    break;
+                }
+                else if( written == remainSize - offset )
+                {
+                    totalWritten = -2;
+                    LogError( ( "buffer has no space for attribute value" ) );
+                    break;
+                }
+                else
+                {
+                    offset += written;
+                }
+            }
+
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
+            totalWritten += offset;
+        }
+    }
+
+    /* Update session attribute count. */
+    if( totalWritten >= 0 )
+    {
+        pLocalSdpDescription->sessionAttributesCount++;
+    }
+
+    return totalWritten;
+}
+
+static int AddSessionAttributeIceOptions( char *pBuffer, size_t remainSize, SdpControllerSdpDescription_t *pLocalSdpDescription, SdpControllerSdpDescription_t *pRemoteSdpDescription )
+{
+    int totalWritten = 0;
+    int written = 0;
+    char *pCurBuffer = pBuffer;
+
+    ( void ) pRemoteSdpDescription;
+
+    if( pBuffer == NULL ||
+        pLocalSdpDescription == NULL )
+    {
+        totalWritten = -1;
+        LogError( ("Invalid input") );
+    }
+
+    if( totalWritten >= 0 )
+    {
+        written = snprintf( pCurBuffer, remainSize, "ice-options" );
+        if( written < 0 )
+        {
+            totalWritten = -1;
+            LogError( ( "snprintf return unexpected value %d", written ) );
+        }
+        else if( written == remainSize )
+        {
+            totalWritten = -2;
+            LogError( ( "buffer has no space for session attributes" ) );
+        }
+        else
+        {
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeName = pCurBuffer;
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeNameLength = strlen( pCurBuffer );
+
+            pCurBuffer += written;
+            remainSize -= written;
+            totalWritten += written;
+        }
+    }
+
+    if( totalWritten >= 0 )
+    {
+        written = snprintf( pCurBuffer, remainSize, "trickle" );
+        if( written < 0 )
+        {
+            totalWritten = -1;
+            LogError( ( "snprintf return unexpected value %d", written ) );
+        }
+        else if( written == remainSize )
+        {
+            totalWritten = -2;
+            LogError( ( "buffer has no space for session attributes" ) );
+        }
+        else
+        {
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
+
+            totalWritten += written;
+            pLocalSdpDescription->sessionAttributesCount++;
+        }
+    }
+
+    return totalWritten;
+}
+
+static int AddSessionAttributeMsidSemantic( char *pBuffer, size_t remainSize, SdpControllerSdpDescription_t *pLocalSdpDescription, SdpControllerSdpDescription_t *pRemoteSdpDescription )
+{
+    int totalWritten = 0;
+    int written = 0;
+    char *pCurBuffer = pBuffer;
+
+    ( void ) pRemoteSdpDescription;
+
+    if( pBuffer == NULL ||
+        pLocalSdpDescription == NULL )
+    {
+        totalWritten = -1;
+        LogError( ("Invalid input") );
+    }
+
+    if( totalWritten >= 0 )
+    {
+        written = snprintf( pCurBuffer, remainSize, "msid-semantic" );
+        if( written < 0 )
+        {
+            totalWritten = -1;
+            LogError( ( "snprintf return unexpected value %d", written ) );
+        }
+        else if( written == remainSize )
+        {
+            totalWritten = -2;
+            LogError( ( "buffer has no space for session attributes" ) );
+        }
+        else
+        {
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeName = pCurBuffer;
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeNameLength = strlen( pCurBuffer );
+
+            pCurBuffer += written;
+            remainSize -= written;
+            totalWritten += written;
+        }
+    }
+
+    if( totalWritten >= 0 )
+    {
+        written = snprintf( pCurBuffer, remainSize, " WMS myKvsVideoStream" );
+        if( written < 0 )
+        {
+            totalWritten = -1;
+            LogError( ( "snprintf return unexpected value %d", written ) );
+        }
+        else if( written == remainSize )
+        {
+            totalWritten = -2;
+            LogError( ( "buffer has no space for session attributes" ) );
+        }
+        else
+        {
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
+
+            totalWritten += written;
+            pLocalSdpDescription->sessionAttributesCount++;
+        }
+    }
+
+    return totalWritten;
+}
+
 static uint8_t storeAndParseSdpOffer( const char *pEventSdpOffer, size_t eventSdpOfferlength, DemoSessionInformation_t *pSessionInDescriptionOffer )
 {
     uint8_t skipProcess = 0;
@@ -149,154 +434,71 @@ static void populateSessionOrigin( char **ppBuffer, size_t *pBufferLength, SdpCo
     pOrigin->sdpConnectionInformation.connectionAddressLength = strlen( SDP_CONTROLLER_ORIGIN_DEFAULT_IP_ADDRESS );
 }
 
-static uint8_t populateSessionAttributes( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpDescription )
+static uint8_t populateSessionAttributes( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pRemoteSdpDescription, SdpControllerSdpDescription_t *pLocalSdpDescription )
 {
     uint8_t skipProcess = 0;
     int written;
     size_t remainSize = *pBufferLength;
     char *pCurBuffer = *ppBuffer;
 
-    /* group. */
-    written = snprintf( pCurBuffer, remainSize, "group" );
-    if( written < 0 )
+    if( ppBuffer == NULL ||
+        *ppBuffer == NULL ||
+        pBufferLength == NULL ||
+        pRemoteSdpDescription == NULL ||
+        pLocalSdpDescription == NULL )
     {
+        LogError( ("Invalid input.") );
         skipProcess = 1;
-        LogError( ( "snprintf return unexpected value %d", written ) );
-    }
-    else if( written == remainSize )
-    {
-        skipProcess = 1;
-        LogError( ( "buffer has no space for session attributes" ) );
-    }
-    else
-    {
-        pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].pAttributeName = pCurBuffer;
-        pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].attributeNameLength = strlen( pCurBuffer );
-
-        pCurBuffer += written;
-        remainSize -= written;
     }
 
-    if( !skipProcess )
+    if( skipProcess == 0 )
     {
-        written = snprintf( pCurBuffer, remainSize, "BUNDLE 0 1" );
+        /* a=group:BINDLE 0 1
+         * Note that we need to session media count to populate this value. */
+        written = AddSessionAttributeGroup( pCurBuffer, remainSize, pLocalSdpDescription, pRemoteSdpDescription );
         if( written < 0 )
         {
             skipProcess = 1;
-            LogError( ( "snprintf return unexpected value %d", written ) );
-        }
-        else if( written == remainSize )
-        {
-            skipProcess = 1;
-            LogError( ( "buffer has no space for session attributes" ) );
+            LogError( ( "Fail to add group to session attribute with return %d", written ) );
         }
         else
         {
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
-
             pCurBuffer += written;
             remainSize -= written;
-
-            pSdpDescription->sessionAttributesCount++;
         }
     }
 
     /* ice-options. */
     if( !skipProcess )
     {
-        written = snprintf( pCurBuffer, remainSize, "ice-options" );
+        /* a=ice-options:trickle */
+        written = AddSessionAttributeIceOptions( pCurBuffer, remainSize, pLocalSdpDescription, pRemoteSdpDescription );
         if( written < 0 )
         {
             skipProcess = 1;
-            LogError( ( "snprintf return unexpected value %d", written ) );
-        }
-        else if( written == remainSize )
-        {
-            skipProcess = 1;
-            LogError( ( "buffer has no space for session attributes" ) );
+            LogError( ( "Fail to add ice-options to session attribute with return %d", written ) );
         }
         else
         {
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].pAttributeName = pCurBuffer;
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].attributeNameLength = strlen( pCurBuffer );
-
             pCurBuffer += written;
             remainSize -= written;
-        }
-    }
-
-    if( !skipProcess )
-    {
-        written = snprintf( pCurBuffer, remainSize, "trickle" );
-        if( written < 0 )
-        {
-            skipProcess = 1;
-            LogError( ( "snprintf return unexpected value %d", written ) );
-        }
-        else if( written == remainSize )
-        {
-            skipProcess = 1;
-            LogError( ( "buffer has no space for session attributes" ) );
-        }
-        else
-        {
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
-
-            pCurBuffer += written;
-            remainSize -= written;
-
-            pSdpDescription->sessionAttributesCount++;
         }
     }
 
     /* msid-semantic */
     if( !skipProcess )
     {
-        written = snprintf( pCurBuffer, remainSize, "msid-semantic" );
+        /* a=msid-semantic: WMS myKvsVideoStream */
+        written = AddSessionAttributeMsidSemantic( pCurBuffer, remainSize, pLocalSdpDescription, pRemoteSdpDescription );
         if( written < 0 )
         {
             skipProcess = 1;
-            LogError( ( "snprintf return unexpected value %d", written ) );
-        }
-        else if( written == remainSize )
-        {
-            skipProcess = 1;
-            LogError( ( "buffer has no space for session attributes" ) );
+            LogError( ( "Fail to add ice-options to session attribute with return %d", written ) );
         }
         else
         {
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].pAttributeName = pCurBuffer;
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].attributeNameLength = strlen( pCurBuffer );
-
             pCurBuffer += written;
             remainSize -= written;
-        }
-    }
-
-    if( !skipProcess )
-    {
-        written = snprintf( pCurBuffer, remainSize, " WMS myKvsVideoStream" );
-        if( written < 0 )
-        {
-            skipProcess = 1;
-            LogError( ( "snprintf return unexpected value %d", written ) );
-        }
-        else if( written == remainSize )
-        {
-            skipProcess = 1;
-            LogError( ( "buffer has no space for session attributes" ) );
-        }
-        else
-        {
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
-
-            pCurBuffer += written;
-            remainSize -= written;
-
-            pSdpDescription->sessionAttributesCount++;
         }
     }
 
@@ -548,7 +750,7 @@ static void populateAudioAttributes( SdpControllerSdpDescription_t *pSdpDescript
     pSdpDescription->mediaCount++;
 }
 
-static uint8_t populateMediaAttributes( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpLocalDescription, SdpControllerSdpDescription_t *pSdpRemoteDescription )
+static uint8_t populateMediaDescriptions( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpLocalDescription, SdpControllerSdpDescription_t *pSdpRemoteDescription )
 {
     uint8_t skipProcess = 0;
     int i;
@@ -582,43 +784,46 @@ static uint8_t populateMediaAttributes( char **ppBuffer, size_t *pBufferLength, 
     return skipProcess;
 }
 
-uint8_t prepareSdpAnswer( DemoSessionInformation_t *pSessionInDescriptionOffer, DemoSessionInformation_t *pSessionInDescriptionAnswer )
+uint8_t populateSdpContent( DemoSessionInformation_t *pRemoteSessionDescription, DemoSessionInformation_t *pLocalSessionDescription )
 {
     uint8_t skipProcess = 0;
     size_t remainLength = DEMO_SDP_BUFFER_MAX_LENGTH;
-    char *pSdpBuffer = &pSessionInDescriptionAnswer->sdpBuffer[0];
+    char *pSdpBuffer = NULL;
     
-    if( pSessionInDescriptionOffer == NULL || pSessionInDescriptionAnswer == NULL )
+    if( pRemoteSessionDescription == NULL || pLocalSessionDescription == NULL )
     {
         skipProcess = 1;
     }
 
     if( !skipProcess )
     {
-        memset( pSessionInDescriptionAnswer, 0, sizeof( DemoSessionInformation_t ) );
+        pSdpBuffer = &pLocalSessionDescription->sdpBuffer[0];
+        memset( pLocalSessionDescription, 0, sizeof( DemoSessionInformation_t ) );
 
         /* Session version. */
-        pSessionInDescriptionAnswer->sdpDescription.version = 0U;
+        pLocalSessionDescription->sdpDescription.version = 0U;
 
         /* Session origin. */
-        populateSessionOrigin( &pSdpBuffer, &remainLength, &pSessionInDescriptionAnswer->sdpDescription.origin );
+        populateSessionOrigin( &pSdpBuffer, &remainLength, &pLocalSessionDescription->sdpDescription.origin );
 
         /* Session name. */
-        pSessionInDescriptionAnswer->sdpDescription.pSessionName = SDP_CONTROLLER_ORIGIN_DEFAULT_SESSION_NAME;
-        pSessionInDescriptionAnswer->sdpDescription.sessionNameLength = strlen( SDP_CONTROLLER_ORIGIN_DEFAULT_SESSION_NAME );
+        pLocalSessionDescription->sdpDescription.pSessionName = SDP_CONTROLLER_ORIGIN_DEFAULT_SESSION_NAME;
+        pLocalSessionDescription->sdpDescription.sessionNameLength = strlen( SDP_CONTROLLER_ORIGIN_DEFAULT_SESSION_NAME );
 
         /* Session timing description. */
-        pSessionInDescriptionAnswer->sdpDescription.timingDescription.startTime = 0U;
-        pSessionInDescriptionAnswer->sdpDescription.timingDescription.stopTime = 0U;
+        pLocalSessionDescription->sdpDescription.timingDescription.startTime = 0U;
+        pLocalSessionDescription->sdpDescription.timingDescription.stopTime = 0U;
 
-        /* Session attributes. */
-        skipProcess = populateSessionAttributes( &pSdpBuffer, &remainLength, &pSessionInDescriptionAnswer->sdpDescription );
+        /* Add media descriptions. */
+        skipProcess = populateMediaDescriptions( &pSdpBuffer, &remainLength, &pLocalSessionDescription->sdpDescription, &pRemoteSessionDescription->sdpDescription );
     }
 
     if( !skipProcess )
     {
-        /* Media attributes. */
-        skipProcess = populateMediaAttributes( &pSdpBuffer, &remainLength, &pSessionInDescriptionAnswer->sdpDescription, &pSessionInDescriptionOffer->sdpDescription );
+        /* Add session attributes.
+         * Note that we need to session media count to populate group attribute,
+         * so this have to do after populate media sessions. */
+        skipProcess = populateSessionAttributes( &pSdpBuffer, &remainLength, &pRemoteSessionDescription->sdpDescription, &pLocalSessionDescription->sdpDescription );
     }
 
     return skipProcess;

@@ -45,7 +45,7 @@ static int initializePeerConnection( DemoContext_t *pDemoContext );
 static int addTransceivers( DemoContext_t *pDemoContext );
 static void Master_Task( void *pParameter );
 
-extern uint8_t prepareSdpAnswer( DemoSessionInformation_t *pSessionInDescriptionOffer, DemoSessionInformation_t *pSessionInDescriptionAnswer );
+extern uint8_t populateSdpContent( DemoSessionInformation_t *pSessionInDescriptionOffer, DemoSessionInformation_t *pSessionInDescriptionAnswer );
 extern uint8_t serializeSdpMessage( DemoSessionInformation_t *pSessionInDescriptionAnswer, DemoContext_t *pDemoContext );
 extern uint8_t addressSdpOffer( const char *pEventSdpOffer, size_t eventSdpOfferlength, DemoContext_t *pDemoContext );
 
@@ -117,7 +117,7 @@ static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteC
     };
 
     /* Prepare SDP answer and send it back to remote peer. */
-    skipProcess = prepareSdpAnswer( &pDemoContext->sessionInformationSdpOffer, &pDemoContext->sessionInformationSdpAnswer );
+    skipProcess = populateSdpContent( &pDemoContext->sessionInformationSdpOffer, &pDemoContext->sessionInformationSdpAnswer );
 
     if( !skipProcess )
     {
