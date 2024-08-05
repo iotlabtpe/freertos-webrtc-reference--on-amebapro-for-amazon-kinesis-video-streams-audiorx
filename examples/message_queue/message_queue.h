@@ -9,6 +9,8 @@ extern "C" {
 
 #include <stdio.h>
 #include <stdint.h>
+
+#include "FreeRTOS.h"
 #include "queue.h"
 
 typedef enum MessageQueueResult

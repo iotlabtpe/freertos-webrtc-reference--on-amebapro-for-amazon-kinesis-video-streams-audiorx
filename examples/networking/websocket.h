@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 #include <stdio.h>
+#include <stdint.h>
 
 typedef enum WebsocketResult
 {
