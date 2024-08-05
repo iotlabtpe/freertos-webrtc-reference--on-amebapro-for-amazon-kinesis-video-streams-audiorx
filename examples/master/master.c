@@ -12,12 +12,6 @@
 #include "demo_config.h"
 #include "demo_data_types.h"
 
-#define IS_USERNAME_FOUND_BIT ( 1 << 0 )
-#define IS_PASSWORD_FOUND_BIT ( 1 << 1 )
-#define SET_REMOTE_INFO_USERNAME_FOUND( isFoundBit ) ( isFoundBit |= IS_USERNAME_FOUND_BIT )
-#define SET_REMOTE_INFO_PASSWORD_FOUND( isFoundBit ) ( isFoundBit |= IS_PASSWORD_FOUND_BIT )
-#define IS_REMOTE_INFO_ALL_FOUND( isFoundBit ) ( isFoundBit & IS_USERNAME_FOUND_BIT && isFoundBit & IS_PASSWORD_FOUND_BIT )
-
 #define DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND ( 3 )
 
 // Considering 4 Mbps for 720p (which is what our samples use). This is for H.264.
@@ -35,9 +29,6 @@ static void platform_init(void);
 static void wifi_common_init(void);
 static uint8_t IsUpdatedCurrentTime(void);
 static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteClientIdLength, DemoContext_t *pDemoContext );
-static uint8_t searchUserNamePassWord( SdpControllerAttributes_t *pAttributes, size_t attributesCount,
-                                       const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength );
-static uint8_t getRemoteInfo( DemoSessionInformation_t *pSessionInformation, const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength );
 static uint8_t setRemoteDescription( PeerConnectionContext_t *pPeerConnectionCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength );
 static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext );
 static int initializeApplication( DemoContext_t *pDemoContext );
@@ -45,7 +36,7 @@ static int initializePeerConnection( DemoContext_t *pDemoContext );
 static int addTransceivers( DemoContext_t *pDemoContext );
 static void Master_Task( void *pParameter );
 
-extern uint8_t populateSdpContent( DemoSessionInformation_t *pSessionInDescriptionOffer, DemoSessionInformation_t *pSessionInDescriptionAnswer );
+extern uint8_t populateSdpContent( DemoSessionInformation_t *pRemoteSessionDescription, DemoSessionInformation_t *pLocalSessionDescription, PeerConnectionContext_t *pPeerConnectionContext );
 extern uint8_t serializeSdpMessage( DemoSessionInformation_t *pSessionInDescriptionAnswer, DemoContext_t *pDemoContext );
 extern uint8_t addressSdpOffer( const char *pEventSdpOffer, size_t eventSdpOfferlength, DemoContext_t *pDemoContext );
 
@@ -117,7 +108,7 @@ static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteC
     };
 
     /* Prepare SDP answer and send it back to remote peer. */
-    skipProcess = populateSdpContent( &pDemoContext->sessionInformationSdpOffer, &pDemoContext->sessionInformationSdpAnswer );
+    skipProcess = populateSdpContent( &pDemoContext->sessionInformationSdpOffer, &pDemoContext->sessionInformationSdpAnswer, &pDemoContext->peerConnectionContext );
 
     if( !skipProcess )
     {
@@ -145,95 +136,21 @@ static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteC
     return skipProcess;
 }
 
-static uint8_t searchUserNamePassWord( SdpControllerAttributes_t *pAttributes, size_t attributesCount,
-                                       const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength )
-{
-    uint8_t isFound = 0;
-    size_t i;
-
-    for( i=0 ; i<attributesCount ; i++ )
-    {
-        if( pAttributes[i].attributeNameLength == strlen( "ice-ufrag" ) &&
-            strncmp( pAttributes[i].pAttributeName, "ice-ufrag", pAttributes[i].attributeNameLength ) == 0 )
-        {
-            /* Found user name. */
-            SET_REMOTE_INFO_USERNAME_FOUND( isFound );
-            *ppRemoteUserName = pAttributes[i].pAttributeValue;
-            *pRemoteUserNameLength = pAttributes[i].attributeValueLength;
-        }
-        else if( pAttributes[i].attributeNameLength == strlen( "ice-pwd" ) &&
-                 strncmp( pAttributes[i].pAttributeName, "ice-pwd", pAttributes[i].attributeNameLength ) == 0 )
-        {
-            /* Found password. */
-            SET_REMOTE_INFO_PASSWORD_FOUND( isFound );
-            *ppRemotePassword = pAttributes[i].pAttributeValue;
-            *pRemotePasswordLength = pAttributes[i].attributeValueLength;
-        }
-        else
-        {
-            continue;
-        }
-
-        if( IS_REMOTE_INFO_ALL_FOUND( isFound ) )
-        {
-            break;
-        }
-    }
-
-    return isFound;
-}
-
-static uint8_t getRemoteInfo( DemoSessionInformation_t *pSessionInformation, const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength )
-{
-    uint8_t skipProcess = 0;
-    SdpControllerSdpDescription_t *pSessionDescription = &pSessionInformation->sdpDescription;
-    size_t i;
-    uint8_t isFound;
-
-    /* Assuming that the username & password in a single session description is same. */
-    /* Search session attributes first. */
-    isFound = searchUserNamePassWord( pSessionDescription->attributes, pSessionDescription->sessionAttributesCount,
-                                      ppRemoteUserName, pRemoteUserNameLength,
-                                      ppRemotePassword, pRemotePasswordLength );
-
-    if( !IS_REMOTE_INFO_ALL_FOUND( isFound ) )
-    {
-        /* Search media attributes if not found in session attributes. */
-        for( i=0 ; i<pSessionDescription->mediaCount ; i++ )
-        {
-            isFound = 0;
-            isFound = searchUserNamePassWord( pSessionDescription->mediaDescriptions[i].attributes, pSessionDescription->mediaDescriptions[i].mediaAttributesCount,
-                                              ppRemoteUserName, pRemoteUserNameLength,
-                                              ppRemotePassword, pRemotePasswordLength );
-            if( IS_REMOTE_INFO_ALL_FOUND( isFound ) )
-            {
-                break;
-            }
-        }
-    }
-
-    if( !IS_REMOTE_INFO_ALL_FOUND( isFound ) )
-    {
-        /* Can't find user name & pass word, drop this remote description. */
-        LogWarn( ( "No remote username & password found in session description, drop this message" ) );
-        skipProcess = 1;
-    }
-
-    return skipProcess;
-}
-
 static uint8_t setRemoteDescription( PeerConnectionContext_t *pPeerConnectionCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength )
 {
     uint8_t skipProcess = 0;
     PeerConnectionRemoteInfo_t remoteInfo;
     PeerConnectionResult_t peerConnectionResult;
 
-    remoteInfo.pRemoteClientId = pRemoteClientId;
-    remoteInfo.remoteClientIdLength = remoteClientIdLength;
-    skipProcess = getRemoteInfo( pSessionInformation, &remoteInfo.pRemoteUserName, &remoteInfo.remoteUserNameLength, &remoteInfo.pRemotePassword, &remoteInfo.remotePasswordLength );
-
     if( skipProcess == 0 )
     {
+        remoteInfo.pRemoteClientId = pRemoteClientId;
+        remoteInfo.remoteClientIdLength = remoteClientIdLength;
+        remoteInfo.pRemoteUserName = demoContext.sessionInformationSdpOffer.sdpDescription.pIceUfrag;
+        remoteInfo.remoteUserNameLength = demoContext.sessionInformationSdpOffer.sdpDescription.iceUfragLength;
+        remoteInfo.pRemotePassword = demoContext.sessionInformationSdpOffer.sdpDescription.pIcePwd;
+        remoteInfo.remotePasswordLength = demoContext.sessionInformationSdpOffer.sdpDescription.icePwdLength;
+
         peerConnectionResult = PeerConnection_SetRemoteDescription( pPeerConnectionCtx, &remoteInfo );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
@@ -319,7 +236,7 @@ static int addTransceivers( DemoContext_t *pDemoContext )
     memset( &transceiver, 0, sizeof( Transceiver_t ) );
     transceiver.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
     transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
-    transceiver.codecBitMap |= TRANSCEIVER_RTC_CODEC_H265_BIT;
+    TRANSCEIVER_ENABLE_CODEC( transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT );
     transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
     transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE;
     strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_VIDEO_STREAM_ID, sizeof( transceiver.streamId ) );
@@ -339,7 +256,7 @@ static int addTransceivers( DemoContext_t *pDemoContext )
         memset( &transceiver, 0, sizeof( Transceiver_t ) );
         transceiver.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
         transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
-        transceiver.codecBitMap |= TRANSCEIVER_RTC_CODEC_AAC_BIT;
+        TRANSCEIVER_ENABLE_CODEC( transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT );
         transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
         transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE;
         strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_AUDIO_STREAM_ID, sizeof( transceiver.streamId ) );
@@ -361,6 +278,7 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent
 {
     uint8_t skipProcess = 0;
     PeerConnectionResult_t peerConnectionResult;
+    PeerConnectionRemoteInfo_t remoteInfo;
 
     ( void ) pUserContext;
 

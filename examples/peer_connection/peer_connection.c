@@ -96,19 +96,10 @@ static PeerConnectionResult_t DestroyIceController( PeerConnectionContext_t *pCt
 static Transceiver_t *AllocateFreeTransceiver( PeerConnectionContext_t *pCtx )
 {
     Transceiver_t *pReturn = NULL;
-    int i;
 
-    if( pCtx )
+    if( pCtx && pCtx->transceiverCount < PEER_CONNECTION_TRANSCEIVER_MAX_COUNT )
     {
-        for( i=0; i<PEER_CONNECTION_TRANSCEIVER_MAX_COUNT; i++ )
-        {
-            if( pCtx->transceiverInUse[i] == 0 )
-            {
-                pCtx->transceiverInUse[i] = 1;
-                pReturn = &pCtx->transceivers[i];
-                break;
-            }
-        }
+        pReturn = &pCtx->transceivers[ pCtx->transceiverCount++ ];
     }
 
     return pReturn;
@@ -242,6 +233,52 @@ PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t *p
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
         memcpy( pTargetTransceiver, &transceiver, sizeof(Transceiver_t) );
+        pTargetTransceiver->ssrc = ( uint32_t ) rand();
+    }
+
+    return ret;
+}
+
+PeerConnectionResult_t PeerConnection_GetTransceivers( PeerConnectionContext_t *pCtx, const Transceiver_t **ppTransceivers, size_t *pTransceiversCount )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+
+    if( pCtx == NULL ||
+        ppTransceivers == NULL ||
+        pTransceiversCount == NULL )
+    {
+        LogError( ("Invalid input.") );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        *ppTransceivers = pCtx->transceivers;
+        *pTransceiversCount = pCtx->transceiverCount;
+    }
+
+    return ret;
+}
+
+PeerConnectionResult_t PeerConnection_GetLocalUserInfo( PeerConnectionContext_t *pCtx, PeerConnectionUserInfo_t *pLocalUserInfo )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+
+    if( pCtx == NULL ||
+        pLocalUserInfo == NULL )
+    {
+        LogError( ("Invalid input.") );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        pLocalUserInfo->pCname = pCtx->iceControllerContext.localCname;
+        pLocalUserInfo->cnameLength = strlen( pCtx->iceControllerContext.localCname );
+        pLocalUserInfo->pUserName = pCtx->iceControllerContext.localUserName;
+        pLocalUserInfo->userNameLength = strlen( pCtx->iceControllerContext.localUserName );
+        pLocalUserInfo->pPassword = pCtx->iceControllerContext.localPassword;
+        pLocalUserInfo->passwordLength = strlen( pCtx->iceControllerContext.localPassword );
     }
 
     return ret;

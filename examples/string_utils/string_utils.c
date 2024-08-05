@@ -18,9 +18,13 @@ StringUtilsResult_t StringUtils_ConvertStringToUl( const char *pStr, size_t strL
             {
                 result = result * 10 + ( pStr[i] - '0' );
             }
-            else
+            else if( i == 0 )
             {
                 ret = STRING_UTILS_RESULT_NON_NUMBERIC_STRING;
+                break;
+            }
+            else
+            {
                 break;
             }
         } 

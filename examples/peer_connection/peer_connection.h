@@ -21,6 +21,8 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
 PeerConnectionResult_t PeerConnection_AddRemoteCandidate( PeerConnectionContext_t *pCtx,
                                                           const char *pRemoteClientId, size_t remoteClientIdLength,
                                                           const char *pDecodeMessage, size_t decodeMessageLength );
+PeerConnectionResult_t PeerConnection_GetTransceivers( PeerConnectionContext_t *pCtx, const Transceiver_t **ppTransceivers, size_t *pTransceiversCount );
+PeerConnectionResult_t PeerConnection_GetLocalUserInfo( PeerConnectionContext_t *pCtx, PeerConnectionUserInfo_t *pLocalUserInfo );
 
 #ifdef __cplusplus
 }

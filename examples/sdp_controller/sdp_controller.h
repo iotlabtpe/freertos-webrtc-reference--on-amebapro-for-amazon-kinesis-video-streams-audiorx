@@ -9,17 +9,12 @@ extern "C" {
 
 #include <stdio.h>
 #include <stdint.h>
+#include "peer_connection.h"
 
 #define SDP_CONTROLLER_MAX_SDP_SESSION_TIMING_COUNT ( 2 )
 #define SDP_CONTROLLER_MAX_SDP_SESSION_TIMEZONE_COUNT ( 2 )
 #define SDP_CONTROLLER_MAX_SDP_ATTRIBUTES_COUNT ( 256 )
 #define SDP_CONTROLLER_MAX_SDP_MEDIA_DESCRIPTIONS_COUNT ( 5 )
-
-#define SDP_CONTROLLER_ORIGIN_DEFAULT_USER_NAME "-"
-#define SDP_CONTROLLER_ORIGIN_DEFAULT_SESSION_VERSION ( 2 )
-#define SDP_CONTROLLER_ORIGIN_DEFAULT_NET_TYPE "IN"
-#define SDP_CONTROLLER_ORIGIN_IPV4_TYPE "IP4"
-#define SDP_CONTROLLER_ORIGIN_DEFAULT_IP_ADDRESS "127.0.0.1"
 
 #define SDP_CONTROLLER_ORIGIN_DEFAULT_SESSION_NAME "-"
 
@@ -32,16 +27,31 @@ typedef enum SdpControllerResult
     SDP_CONTROLLER_RESULT_BAD_PARAMETER,
     SDP_CONTROLLER_RESULT_INVALID_JSON,
     SDP_CONTROLLER_RESULT_NOT_SDP_OFFER,
-    SDP_CONTROLLER_RESULT_SDP_DESERIALIZER_INIT_FAIL,
-    SDP_CONTROLLER_RESULT_SDP_DESERIALIZER_PARSE_ATTRIBUTE_FAIL,
-    SDP_CONTROLLER_RESULT_SDP_SERIALIZER_INIT_FAIL,
-    SDP_CONTROLLER_RESULT_SDP_SERIALIZER_ADD_FAIL,
+    SDP_CONTROLLER_RESULT_SDP_FAIL_DESERIALIZER_INIT,
+    SDP_CONTROLLER_RESULT_SDP_FAIL_DESERIALIZER_PARSE_ATTRIBUTE,
+    SDP_CONTROLLER_RESULT_SDP_FAIL_SERIALIZER_INIT,
+    SDP_CONTROLLER_RESULT_SDP_FAIL_SERIALIZER_ADD,
+    SDP_CONTROLLER_RESULT_SDP_FAIL_SNPRINTF,
+    SDP_CONTROLLER_RESULT_SDP_FAIL_GET_TRANSCEIVERS,
+    SDP_CONTROLLER_RESULT_SDP_FAIL_GET_LOCALUSERINFO,
+    SDP_CONTROLLER_RESULT_SDP_FAIL_NO_FINGERPRINT_FOUND,
+    SDP_CONTROLLER_RESULT_SDP_FAIL_NO_ICE_UFRAG_FOUND,
+    SDP_CONTROLLER_RESULT_SDP_FAIL_NO_ICE_PWD_FOUND,
+    SDP_CONTROLLER_RESULT_SDP_FAIL_CODEC_NOT_SUPPORT,
     SDP_CONTROLLER_RESULT_SDP_SESSION_ATTRIBUTE_MAX_EXCEDDED,
     SDP_CONTROLLER_RESULT_SDP_MEDIA_ATTRIBUTE_MAX_EXCEDDED,
     SDP_CONTROLLER_RESULT_SDP_INVALID_VERSION,
+    SDP_CONTROLLER_RESULT_SDP_INVALID_TWCC_ID,
     SDP_CONTROLLER_RESULT_SDP_CONVERTED_BUFFER_TOO_SMALL,
-    SDP_CONTROLLER_RESULT_SDP_SNPRINTF_FAIL,
+    SDP_CONTROLLER_RESULT_SDP_POPULATE_BUFFER_TOO_SMALL,
 } SdpControllerResult_t;
+
+typedef enum SdpControllerDtlsRole
+{
+    SDP_CONTROLLER_DTLS_ROLE_NONE = 0,
+    SDP_CONTROLLER_DTLS_ROLE_ACTIVE,
+    SDP_CONTROLLER_DTLS_ROLE_ACTPASS,
+} SdpControllerDtlsRole_t;
 
 /*
  * c=<nettype> <addrtype> <connection-address>
@@ -168,6 +178,17 @@ typedef struct SdpControllerSdpOffer
     uint16_t sessionAttributesCount;
 
     uint16_t mediaCount;
+
+    /* Below is extra info to accerlate SDP creation. */
+    const char *pFingerprint;
+    size_t fingerprintLength;
+    SdpControllerDtlsRole_t dtlsRole;
+    uint8_t isIceTrickle;
+    const char *pIceUfrag;
+    size_t iceUfragLength;
+    const char *pIcePwd;
+    size_t icePwdLength;
+    uint32_t twccExtId;
 } SdpControllerSdpDescription_t;
 
 typedef enum SdpControllerMessageType
@@ -182,6 +203,8 @@ SdpControllerResult_t SdpController_DeserializeSdpContentNewline( const char *pS
 SdpControllerResult_t SdpController_DeserializeSdpOffer( const char *pSdpOfferContent, size_t sdpOfferContentLength, SdpControllerSdpDescription_t *pOffer );
 SdpControllerResult_t SdpController_SerializeSdpMessage( SdpControllerMessageType_t messageType, SdpControllerSdpDescription_t *pSdpDescription, char *pSdpMessage, size_t *pSdpMessageLength );
 SdpControllerResult_t SdpController_SerializeSdpNewline( const char *pSdpContent, size_t sdpContentLength, char *pSdpConvertedContent, size_t *pSdpConvertedContentLength );
+void SdpController_PopulateSessionOrigin( char **ppBuffer, size_t *pBufferLength, SdpControllerOrigin_t *pOrigin );
+SdpControllerResult_t SdpController_PopulateMediaDescriptions( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpLocalDescription, SdpControllerSdpDescription_t *pSdpRemoteDescription, PeerConnectionContext_t *pPeerConnectionContext );
 
 #ifdef __cplusplus
 }
