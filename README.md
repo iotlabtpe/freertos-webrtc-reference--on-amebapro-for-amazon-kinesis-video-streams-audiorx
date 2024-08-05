@@ -1,40 +1,103 @@
 # FreeRTOS-WebRTC
 
-## Prerequisite
-### Toolchain
+## Ameba Pro2 Mini
+![Board Image](docs/images/board.jpg)
+
+## Clone
+Execute the following commands to clone this repository along with all the
+submodules-
+```sh
+git clone https://github.com/ActoryOu/FreeRTOS-WebRTC.git
+cd FreeRTOS-WebRTC
+git submodule update --init --recursive
 ```
-cd libraries/ambpro2_sdk/tools
-cat asdk-10.3.0-linux-newlib-build-3633-x86_64.tar.bz2.* | tar jxvf -
-export PATH=libraries/ambpro2_sdk/tools/asdk-10.3.0/linux/newlib/bin:$PATH
-```
 
-## Build project
-1. Clone all submodules by `git submodule update --init --recursive`
-1. Open `libraries/ambpro2_sdk/component/lwip/api/lwipopts.h` and set `LWIP_IPV6` to `1`.
-1. Open linux terminal and enter the project location: project/realtek_amebapro2_webrtc_application/GCC-RELEASE.
-1. Create folder “build” and enter “build” folder.
-1. Run “cmake .. -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=../toolchain.cmake” to create the makefile.
-1. Run “cmake --build . --target flash” to build and generate flash binary.
+## Setup
+1. Open `libraries/ambpro2_sdk/component/lwip/api/lwipopts.h` and set
+   `LWIP_IPV6` to `1`.
+1. Open `examples/master/demo_config.h` and set the following:
+   * Set `AWS_KVS_CHANNEL_NAME` to your signaling channel name.
+   * Set `AWS_ACCESS_KEY_ID` to your access key.
+   * Set `AWS_SECRET_ACCESS_KEY` to your secret access key.
+1. Setup toolchain:
+   ```sh
+   cd libraries/ambpro2_sdk/tools
+   cat asdk-10.3.0-linux-newlib-build-3633-x86_64.tar.bz2.* | tar jxvf -
+   export PATH=libraries/ambpro2_sdk/tools/asdk-10.3.0/linux/newlib/bin:$PATH
+   ```
+1. Connect the board to the PC using the CH340 micro USB port (marked as "Serial
+   Output" in the above image).
 
-<!-- TODO: Flash tool can be downloaded in Amazon only. -->
-## Flash image
-1. Download the [Flash Tool](https://quip-amazon.com/-/blob/QCb9AAoSj4u/mq-Ip0mBd-SnIxv1FFVefQ?name=Pro2_PG_tool%20_v1.3.2_temp1.zip) from Amazon Quip.
-1. Copy compiled image `flash_ntz.bin` to Pro2_PG_tool _v1.3.2_temp1 folder together with uartfwburn.exe
-2. Make sure the jumper of J27 is plugged to enter download mode.
-3. Plug the device to host.
-4. Open terminal and goto Pro2_PG_tool _v1.3.2_temp1 directory.
-    1. cd Pro2_PG_tool _v1.3.2_temp1 
-    1. If NAND flash (Ameba Pro2)
-        1. uartfwburn.exe -p COMxx -f flash_ntz.bin -b 3000000 -n pro2
-    1. If NOR flash (Ameba Pro2 Mini)
-        1. uartfwburn.exe -p COMxx -f flash_ntz.bin -b 3000000
-    1. If using Ameba Pro2 Mini, the maximum baudrate is 2000000. Besides that, we can use -U to speed up the flash time because Ameba Pro2 Mini is NOR flash.
-        1. uartfwburn.exe -p COMxx -f flash_ntz.bin -b 2000000 -U
+## Build
+1. Open terminal and change directory to the project location:
+   ```sh
+   cd project/realtek_amebapro2_webrtc_application/GCC-RELEASE
+   ```
+1. Create `build` directory and enter `build` directory:
+   ```sh
+   mkdir build
+   cd build
+   ```
+1. Run the following command to generate Makefile:
+   ```sh
+   cmake .. -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=../toolchain.cmake
+   ```
+1. Run the following command to build:
+   ```sh
+   cmake --build . --target flash
+   ```
 
+## Flash
+### Copy Flash Tool [Needed only one time]
+1. Unzip the flash tool:
+   ```shell
+   cd libraries/ambpro2_sdk/tools/
+   unzip Pro2_PG_tool _v1.3.0.zip
+   ```
+1. Copy the contents of `libraries/ambpro2_sdk/tools/Pro2_PG_tool _v1.3.0` to
+   a directory in the Windows file system.
 
-## Trouble shooting
+### Flash Binary
+1. Close TeraTerm if it is running and connected to the board.
+1. Copy the generated binary `project/realtek_amebapro2_webrtc_application/GCC-RELEASE/build/flash_ntz.bin`
+   to the directory in the Windows file system which contains the flash tool
+   from the [Copy Flash Tool](#copy-flash-tool-needed-only-one-time) section.
+1. Open a windows terminal (such as PowerShell) and enter the directory in the
+   Windows file system which contains the flash tool from the
+   [Copy Flash Tool](#copy-flash-tool-needed-only-one-time) section.
+1. Enter the board into program mode:
+   * Press the Reset button.
+   * Press the Program button while keeping the Reset button pressed.
+   * Release the Reset button.
+   * Release the Program button.
+1. Run the following command in the Windows Terminal (such as PowerShell) to
+   flash the binary:
+   ```sh
+    uartfwburn.exe -p COMxx -f flash_ntz.bin -b 2000000 -U
+   ```
+   Replace COMxx with the actual COM port that you can find in the Device
+   Manager.
 
-1. Permission denied of accessing project/realtek_amebapro2_webrtc_application/GCC-RELEASE/mp/*.linux
-    1. Provide execute permission to current user.
-    1. Or use command chmod to add execute permission, for example: `chmod +x project/realtek_amebapro2_webrtc_application/GCC-RELEASE/mp/*.linux`
+## Run
+### Set up WiFi [Needed only one time]
+1. Open TeraTerm and connect to the COM port.
+1. Press and release the Reset button.
+1. Send the following commands to the device using TeraTerm to setup WiFi SSID
+   and Password:
+   ```sh
+   ATW0=<ssid>
+   ATW1=<password>
+   ATWC
+   ```
 
+### Run the Program
+1. Open TeraTerm and connect to the COM port.
+1. Press and release the Reset button.
+
+## Troubleshooting
+
+1. Permission denied while accessing `project/realtek_amebapro2_webrtc_application/GCC-RELEASE/mp/*.linux`.
+   Run the following command to add execute permission:
+   ```sh
+   chmod +x project/realtek_amebapro2_webrtc_application/GCC-RELEASE/mp/*.linux
+   ```
