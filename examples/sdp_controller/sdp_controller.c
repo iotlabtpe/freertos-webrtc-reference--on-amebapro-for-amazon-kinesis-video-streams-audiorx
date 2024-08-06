@@ -92,6 +92,30 @@
 #define SDP_CONTROLLER_MEDIA_ATTRIBUTE_VALUE_FMTP_H265 "profile-space=0;profile-id=0;tier-flag=0;level-id=0;interop-constraints=000000000000;sprop-vps=QAEMAf//" \
                                                        "AIAAAAMAAAMAAAMAAAMAALUCQA==;sprop-sps=QgEBAIAAAAMAAAMAAAMAAAMAAKACgIAtH+W1kkbQzkkktySqSfKSyA==;sprop-pps=RAHBpVgeSA=="
 
+#define SDP_CONTROLLER_H264_PACKETIZATION_MODE "packetization-mode=1"
+#define SDP_CONTROLLER_H264_PACKETIZATION_MODE_LENGTH ( 20 )
+#define SDP_CONTROLLER_H264_ASYMMETRY_ALLOWED "level-asymmetry-allowed=1"
+#define SDP_CONTROLLER_H264_ASYMMETRY_ALLOWED_LENGTH ( 25 )
+#define SDP_CONTROLLER_H264_PROFILE_LEVEL_ID "profile-level-id="
+#define SDP_CONTROLLER_H264_PROFILE_LEVEL_ID_LENGTH ( 17 )
+
+// profile-level-id:
+//   A base16 [7] (hexadecimal) representation of the following
+//   three bytes in the sequence parameter set NAL unit is specified
+//   in [1]: 1) profile_idc, 2) a byte herein referred to as
+//   profile-iop, composed of the values of constraint_set0_flag,
+//   constraint_set1_flag, constraint_set2_flag,
+//   constraint_set3_flag, constraint_set4_flag,
+//   constraint_set5_flag, and reserved_zero_2bits in bit-
+//   significance order, starting from the most-significant bit, and
+//   3) level_id.
+//
+// Reference: https://tools.ietf.org/html/rfc6184#section-8.1
+#define SDP_CONTROLLER_H264_PROFILE_42E01F 0x42e01f
+#define SDP_CONTROLLER_H264_FMTP_SUBPROFILE_MASK 0xFFFF00
+#define SDP_CONTROLLER_H264_FMTP_PROFILE_LEVEL_MASK 0x0000FF
+#define SDP_CONTROLLER_H264_FMTP_HIGHEST_SCORE ( 3 )
+
 #define SDP_CONTROLLER_CODEC_H264_VALUE "H264/90000"
 #define SDP_CONTROLLER_CODEC_H264_VALUE_LENGTH ( 10 )
 #define SDP_CONTROLLER_CODEC_H265_VALUE "H265/90000"
@@ -1804,11 +1828,113 @@ static SdpControllerResult_t PopulateSingleMedia( char **ppBuffer, size_t *pBuff
     return ret;
 }
 
+static SdpControllerAttributes_t *FindH264FmtpAttribute( SdpControllerAttributes_t *pAttributes, uint8_t attributeCount, SdpControllerAttributes_t *pTargetRtpmapAttribute )
+{
+    const char *pCodecStart = NULL;
+    size_t codecStringLength = 0;
+    int i;
+    SdpControllerAttributes_t *pTargetFmtpAttribute = NULL;
+
+    if( pAttributes && pTargetRtpmapAttribute )
+    {
+        /* Find the corresponding codec payload from target RTPMAP attribute. */
+        pCodecStart = pTargetRtpmapAttribute->pAttributeValue;
+        while( pCodecStart && codecStringLength < pTargetRtpmapAttribute->attributeValueLength )
+        {
+            if( pCodecStart[ codecStringLength ] >= '0' && pCodecStart[ codecStringLength ] <= '9' )
+            {
+                codecStringLength++;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        /* Find corresonding fmtp attribute. */
+        if( codecStringLength )
+        {
+            for( i=0 ; i<attributeCount ; i++ )
+            {
+                if( pAttributes[i].attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_FMTP_LENGTH &&
+                    strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_FMTP, pAttributes[i].pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_FMTP_LENGTH ) == 0 &&
+                    pAttributes[i].attributeValueLength >= codecStringLength &&
+                    strncmp( pCodecStart, pAttributes[i].pAttributeValue, codecStringLength ) == 0 )
+                {
+                    /* Found the fmtp. */
+                    pTargetFmtpAttribute = &pAttributes[i];
+                }
+            }
+        }
+    }
+
+    return pTargetFmtpAttribute;
+}
+
+static uint32_t CalculateH264ScoreByFmtp( SdpControllerAttributes_t *pTargetFmtpAttribute )
+{
+    uint32_t score = 0;
+    char *pProfileLevelIdStart = NULL;
+    uint32_t profileLevelId = 0;
+    StringUtilsResult_t stringResult;
+    size_t remainLength = 0;
+
+    do
+    {
+        if( !pTargetFmtpAttribute )
+        {
+            /* No target fmtp found, return 0. */
+            break;
+        }
+        
+        /* Calculate the score from fmtp. */
+        if( StringUtils_StrStr( pTargetFmtpAttribute->pAttributeValue, pTargetFmtpAttribute->attributeValueLength,
+                                SDP_CONTROLLER_H264_PACKETIZATION_MODE, SDP_CONTROLLER_H264_PACKETIZATION_MODE_LENGTH ) )
+        {
+            score++;
+        }
+
+        if( StringUtils_StrStr( pTargetFmtpAttribute->pAttributeValue, pTargetFmtpAttribute->attributeValueLength,
+                                SDP_CONTROLLER_H264_ASYMMETRY_ALLOWED, SDP_CONTROLLER_H264_ASYMMETRY_ALLOWED_LENGTH ) )
+        {
+            score++;
+        }
+
+        pProfileLevelIdStart = StringUtils_StrStr( pTargetFmtpAttribute->pAttributeValue, pTargetFmtpAttribute->attributeValueLength,
+                                                SDP_CONTROLLER_H264_PROFILE_LEVEL_ID, SDP_CONTROLLER_H264_PROFILE_LEVEL_ID_LENGTH );
+        if( !pProfileLevelIdStart )
+        {
+            break;
+        }
+
+        /* Move pProfileLevelIdStart to the start of ID. */
+        pProfileLevelIdStart = pProfileLevelIdStart + SDP_CONTROLLER_H264_PROFILE_LEVEL_ID_LENGTH;
+        remainLength = pTargetFmtpAttribute->pAttributeValue + pTargetFmtpAttribute->attributeValueLength - pProfileLevelIdStart;
+        stringResult = StringUtils_ConvertStringToHex( pProfileLevelIdStart, remainLength, &profileLevelId );
+        if( stringResult != STRING_UTILS_RESULT_OK )
+        {
+            LogWarn( ("Fail to convert string(%d): %.*s to hex.",
+                        remainLength,
+                        ( int ) remainLength, pProfileLevelIdStart) );
+            break;
+        }
+        
+        if( (profileLevelId & SDP_CONTROLLER_H264_FMTP_SUBPROFILE_MASK) == (SDP_CONTROLLER_H264_PROFILE_42E01F & SDP_CONTROLLER_H264_FMTP_SUBPROFILE_MASK) &&
+            (profileLevelId & SDP_CONTROLLER_H264_FMTP_PROFILE_LEVEL_MASK) <= (SDP_CONTROLLER_H264_PROFILE_42E01F & SDP_CONTROLLER_H264_FMTP_PROFILE_LEVEL_MASK) )
+        {
+            score++;
+        }
+    } while ( 0 );
+
+    return score;
+}
+
 static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t *pAttributes, uint8_t attributeCount, uint32_t *pCodecPayloads, size_t codecPayloadsSize )
 {
-    uint32_t codecBitMap = 0;
+    uint32_t codecBitMap = 0, h264Score = 0, highestH264Score = 0;
     int i;
     StringUtilsResult_t stringResult;
+    SdpControllerAttributes_t *pH264FmtpAttribute = NULL;
 
     if( pAttributes == NULL || pCodecPayloads == NULL || codecPayloadsSize < TRANSCEIVER_RTC_CODEC_NUM )
     {
@@ -1824,21 +1950,27 @@ static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t *pAttrib
             if( pAttributes[i].attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_RTPMAP_LENGTH &&
                 strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_RTPMAP, pAttributes[i].pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_RTPMAP_LENGTH ) == 0 )
             {
-                if( !TRANSCEIVER_IS_CODEC_ENABLED( codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) && pAttributes[i].attributeValueLength >= SDP_CONTROLLER_CODEC_H264_VALUE_LENGTH &&
+                if( highestH264Score < SDP_CONTROLLER_H264_FMTP_HIGHEST_SCORE && pAttributes[i].attributeValueLength >= SDP_CONTROLLER_CODEC_H264_VALUE_LENGTH &&
                     strncmp( SDP_CONTROLLER_CODEC_H264_VALUE, pAttributes[i].pAttributeValue + pAttributes[i].attributeValueLength - SDP_CONTROLLER_CODEC_H264_VALUE_LENGTH, SDP_CONTROLLER_CODEC_H264_VALUE_LENGTH ) == 0 )
                 {
-                    stringResult = StringUtils_ConvertStringToUl( pAttributes[i].pAttributeValue, pAttributes[i].attributeValueLength - SDP_CONTROLLER_CODEC_H264_VALUE_LENGTH, &pCodecPayloads[ TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ] );
-                    if( stringResult != STRING_UTILS_RESULT_OK )
+                    pH264FmtpAttribute = FindH264FmtpAttribute( pAttributes, attributeCount, &pAttributes[i] );
+                    h264Score = CalculateH264ScoreByFmtp( pH264FmtpAttribute );
+                    if( highestH264Score < h264Score )
                     {
-                        LogWarn( ( "StringUtils_ConvertStringToUl fail, result %d, converting %.*s to %lu",
-                                    stringResult,
-                                    ( int ) pAttributes[i].attributeValueLength - SDP_CONTROLLER_CODEC_H264_VALUE_LENGTH, pAttributes[i].pAttributeValue,
-                                    pCodecPayloads[ TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ] ) );
-                    }
-                    else
-                    {
-                        TRANSCEIVER_ENABLE_CODEC( codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT );
-                        LogDebug( ("Found H264 codec: %d", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ]) );
+                        stringResult = StringUtils_ConvertStringToUl( pAttributes[i].pAttributeValue, pAttributes[i].attributeValueLength - SDP_CONTROLLER_CODEC_H264_VALUE_LENGTH, &pCodecPayloads[ TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ] );
+                        if( stringResult != STRING_UTILS_RESULT_OK )
+                        {
+                            LogWarn( ( "StringUtils_ConvertStringToUl fail, result %d, converting %.*s to %lu",
+                                        stringResult,
+                                        ( int ) pAttributes[i].attributeValueLength - SDP_CONTROLLER_CODEC_H264_VALUE_LENGTH, pAttributes[i].pAttributeValue,
+                                        pCodecPayloads[ TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ] ) );
+                        }
+                        else
+                        {
+                            TRANSCEIVER_ENABLE_CODEC( codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT );
+                            LogDebug( ("Found H264 codec: %d", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ]) );
+                            highestH264Score = h264Score;
+                        }
                     }
                 }
                 else if( !TRANSCEIVER_IS_CODEC_ENABLED( codecBitMap, TRANSCEIVER_RTC_CODEC_VP8_BIT ) && pAttributes[i].attributeValueLength >= SDP_CONTROLLER_CODEC_VP8_VALUE_LENGTH &&

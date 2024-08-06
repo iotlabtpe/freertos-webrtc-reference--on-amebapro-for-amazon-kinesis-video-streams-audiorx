@@ -37,3 +37,64 @@ StringUtilsResult_t StringUtils_ConvertStringToUl( const char *pStr, size_t strL
     
     return ret;
 }
+
+StringUtilsResult_t StringUtils_ConvertStringToHex( const char *pStr, size_t strLength, uint32_t *pOutUl )
+{
+    StringUtilsResult_t ret = STRING_UTILS_RESULT_OK;
+    int result;
+
+    if( pStr == NULL || pOutUl == NULL )
+    {
+        return STRING_UTILS_RESULT_OK;
+    }
+
+    if( ret == STRING_UTILS_RESULT_OK )
+    {
+        result = sscanf(pStr, "%x", pOutUl);
+        if( result < 1 )
+        {
+            ret = STRING_UTILS_RESULT_NON_NUMBERIC_STRING;
+        }
+    }
+    
+    return ret;
+}
+
+char *StringUtils_StrStr( const char *pStr, size_t strLength, uint32_t *pPattern, size_t patternLength )
+{
+    char *pRet = NULL;
+    const char *pCurrentStr, *pCurrentPattern;
+    int i;
+    size_t checkedLength = 0;
+
+    if( pPattern == NULL || patternLength == 0 )
+    {
+        pRet = pStr;
+    }
+    else if( pStr && pPattern )
+    {
+        for( i=0 ; i<strLength - patternLength ; i++ )
+        {
+            pCurrentStr = &pStr[i];
+            pCurrentPattern = pPattern;
+            checkedLength = 0;
+            while( pCurrentStr[ checkedLength ] == pCurrentPattern[ checkedLength ] && checkedLength < patternLength )
+            {
+                checkedLength++;
+            }
+
+            if( checkedLength == patternLength )
+            {
+                /* Found pattern. */
+                pRet = &pStr[i];
+                break;
+            }
+        }
+    }
+    else
+    {
+        pRet = NULL;
+    }
+
+    return pRet;
+}
