@@ -758,10 +758,6 @@ IceControllerResult_t IceController_Init( IceControllerContext_t *pCtx, Signalin
         pCtx->localPassword[ ICE_CONTROLLER_PASSWORD_LENGTH ] = '\0';
         generateJSONValidString( pCtx->localCname, ICE_CONTROLLER_CNAME_LENGTH );
         pCtx->localCname[ ICE_CONTROLLER_CNAME_LENGTH ] = '\0';
-        // memcpy( pCtx->localUserName, "GnjB", ICE_CONTROLLER_USER_NAME_LENGTH );
-        // pCtx->localUserName[ ICE_CONTROLLER_USER_NAME_LENGTH ] = '\0';
-        // memcpy( pCtx->localPassword, "eu8hMmfpUkEU3t1DfJb+/J3e", ICE_CONTROLLER_PASSWORD_LENGTH );
-        // pCtx->localPassword[ ICE_CONTROLLER_PASSWORD_LENGTH ] = '\0';
 
         pCtx->pSignalingControllerContext = pSignalingControllerContext;
 
