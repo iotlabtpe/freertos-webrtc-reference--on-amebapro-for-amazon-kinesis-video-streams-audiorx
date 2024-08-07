@@ -61,7 +61,7 @@ static void platform_init( void )
     long long sec;
     /* mbedtls init */
     crypto_init();
-    platform_set_malloc_free( calloc, free );
+    platform_set_malloc_free(( void (*) ) calloc, (void (*)(void *))free);
 
     /* Show backtrace if exception. */
     sys_backtrace_enable();
