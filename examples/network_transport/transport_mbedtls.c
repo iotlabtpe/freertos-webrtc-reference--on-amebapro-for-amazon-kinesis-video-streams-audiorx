@@ -42,7 +42,7 @@
 #include "mbedtls/version.h"
 
 #ifdef MBEDTLS_PSA_CRYPTO_C
-    /* MbedTLS PSA Includes */
+/* MbedTLS PSA Includes */
     #include "psa/crypto.h"
     #include "psa/crypto_values.h"
 #endif /* MBEDTLS_PSA_CRYPTO_C */
@@ -212,17 +212,17 @@ static TlsTransportStatus_t initMbedtls( mbedtls_entropy_context * pEntropyConte
 /*-----------------------------------------------------------*/
 
 #ifdef MBEDTLS_DEBUG_C
-    void mbedtls_string_printf( void * sslContext,
-                                int level,
-                                const char * file,
-                                int line,
-                                const char * str )
+void mbedtls_string_printf( void * sslContext,
+                            int level,
+                            const char * file,
+                            int line,
+                            const char * str )
+{
+    if( ( str != NULL ) && ( file != NULL ) )
     {
-        if( ( str != NULL ) && ( file != NULL ) )
-        {
-            LogDebug( ( "%s:%d: [%d] %s", file, line, level, str ) );
-        }
+        LogDebug( ( "%s:%d: [%d] %s", file, line, level, str ) );
     }
+}
 #endif /* MBEDTLS_DEBUG_C */
 
 /*-----------------------------------------------------------*/
@@ -237,10 +237,10 @@ static void sslContextInit( SSLContext_t * pSslContext )
     mbedtls_x509_crt_init( &( pSslContext->clientCert ) );
     mbedtls_ssl_init( &( pSslContext->context ) );
     #ifdef MBEDTLS_DEBUG_C
-        mbedtls_debug_set_threshold( 1 );
-        mbedtls_ssl_conf_dbg( &( pSslContext->config ),
-                              mbedtls_string_printf,
-                              NULL );
+    mbedtls_debug_set_threshold( 1 );
+    mbedtls_ssl_conf_dbg( &( pSslContext->config ),
+                          mbedtls_string_printf,
+                          NULL );
     #endif /* MBEDTLS_DEBUG_C */
 }
 /*-----------------------------------------------------------*/
@@ -325,17 +325,17 @@ static int32_t setPrivateKey( SSLContext_t * pSslContext,
     configASSERT( pPrivateKey != NULL );
 
     #if MBEDTLS_VERSION_NUMBER < 0x03000000
-        mbedtlsError = mbedtls_pk_parse_key( &( pSslContext->privKey ),
-                                             pPrivateKey,
-                                             privateKeySize,
-                                             NULL, 0 );
+    mbedtlsError = mbedtls_pk_parse_key( &( pSslContext->privKey ),
+                                         pPrivateKey,
+                                         privateKeySize,
+                                         NULL, 0 );
     #else
-        mbedtlsError = mbedtls_pk_parse_key( &( pSslContext->privKey ),
-                                             pPrivateKey,
-                                             privateKeySize,
-                                             NULL, 0,
-                                             mbedtls_ctr_drbg_random,
-                                             &( pSslContext->ctrDrbgContext ) );
+    mbedtlsError = mbedtls_pk_parse_key( &( pSslContext->privKey ),
+                                         pPrivateKey,
+                                         privateKeySize,
+                                         NULL, 0,
+                                         mbedtls_ctr_drbg_random,
+                                         &( pSslContext->ctrDrbgContext ) );
     #endif /* if MBEDTLS_VERSION_NUMBER < 0x03000000 */
 
     if( mbedtlsError != 0 )
@@ -577,8 +577,8 @@ static TlsTransportStatus_t initMbedtls( mbedtls_entropy_context * pEntropyConte
     int32_t mbedtlsError = 0;
 
     #if defined( MBEDTLS_THREADING_ALT )
-        /* Set the mutex functions for mbed TLS thread safety. */
-        mbedtls_platform_threading_init();
+    /* Set the mutex functions for mbed TLS thread safety. */
+    mbedtls_platform_threading_init();
     #endif
 
     /* Initialize contexts for random number generation. */
@@ -594,16 +594,16 @@ static TlsTransportStatus_t initMbedtls( mbedtls_entropy_context * pEntropyConte
     }
 
     #ifdef MBEDTLS_PSA_CRYPTO_C
-        if( returnStatus == TLS_TRANSPORT_SUCCESS )
-        {
-            mbedtlsError = psa_crypto_init();
+    if( returnStatus == TLS_TRANSPORT_SUCCESS )
+    {
+        mbedtlsError = psa_crypto_init();
 
-            if( mbedtlsError != PSA_SUCCESS )
-            {
-                LogError( ( "Failed to initialize PSA Crypto implementation: %s", ( int ) mbedtlsError ) );
-                returnStatus = TLS_TRANSPORT_INTERNAL_ERROR;
-            }
+        if( mbedtlsError != PSA_SUCCESS )
+        {
+            LogError( ( "Failed to initialize PSA Crypto implementation: %s", ( int ) mbedtlsError ) );
+            returnStatus = TLS_TRANSPORT_INTERNAL_ERROR;
         }
+    }
     #endif /* MBEDTLS_PSA_CRYPTO_C */
 
     if( returnStatus == TLS_TRANSPORT_SUCCESS )
@@ -908,7 +908,7 @@ int32_t TLS_FreeRTOS_GetSocketFd( NetworkContext_t * pNetworkContext )
 {
     int32_t ret = -1;
 
-    if( pNetworkContext != NULL && pNetworkContext->pParams != NULL )
+    if( ( pNetworkContext != NULL ) && ( pNetworkContext->pParams != NULL ) )
     {
         ret = TCP_Sockets_GetSocketFd( pNetworkContext->pParams->tcpSocket );
     }

@@ -157,9 +157,9 @@ typedef struct IceControllerSignalingRemoteInfo IceControllerRemoteInfo_t;
 typedef struct IceControllerSocketContext
 {
     IceCandidateType_t candidateType; /* server socket of host/srflx/relay candidate or client socket connecting with remote. */
-    IceCandidate_t *pLocalCandidate;
+    IceCandidate_t * pLocalCandidate;
     int socketFd;
-    IceControllerRemoteInfo_t *pRemoteInfo;
+    IceControllerRemoteInfo_t * pRemoteInfo;
 } IceControllerSocketContext_t;
 
 typedef struct IceControllerSignalingRemoteInfo
@@ -186,7 +186,7 @@ typedef struct IceControllerSignalingRemoteInfo
 
 typedef struct IceControllerDetectRxPacket
 {
-    IceControllerSocketContext_t *pSocketContext;
+    IceControllerSocketContext_t * pSocketContext;
 } IceControllerDetectRxPacket_t;
 
 typedef enum IceControllerRequestType
@@ -205,7 +205,7 @@ typedef struct IceControllerRequestMessage
     union RequestContent_t
     {
         IceControllerCandidate_t remoteCandidate; /* ICE_CONTROLLER_REQUEST_TYPE_ADD_REMOTE_CANDIDATE */
-        IceControllerRemoteInfo_t *pRemoteInfo; /* ICE_CONTROLLER_REQUEST_TYPE_CONNECTIVITY_CHECK */
+        IceControllerRemoteInfo_t * pRemoteInfo; /* ICE_CONTROLLER_REQUEST_TYPE_CONNECTIVITY_CHECK */
         IceControllerDetectRxPacket_t detectRxPacket; /* ICE_CONTROLLER_REQUEST_TYPE_DETECT_RX_PACKET */
     } requestContent;
 } IceControllerRequestMessage_t;
@@ -236,7 +236,7 @@ typedef struct IceControllerSocketListenerContext
 {
     int fds[ AWS_MAX_VIEWER_NUM * ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ];
     size_t fdsCount;
-    IceControllerSocketContext_t *pFdsMapContext[ AWS_MAX_VIEWER_NUM * ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ]; /* To map corresponding socket context with fds. */
+    IceControllerSocketContext_t * pFdsMapContext[ AWS_MAX_VIEWER_NUM * ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ]; /* To map corresponding socket context with fds. */
 
     SemaphoreHandle_t socketListenerMutex;
     uint8_t executeSocketListener;
@@ -245,7 +245,7 @@ typedef struct IceControllerSocketListenerContext
 typedef struct IceControllerContext
 {
     /* The signaling controller context initialized by application. */
-    SignalingControllerContext_t *pSignalingControllerContext;
+    SignalingControllerContext_t * pSignalingControllerContext;
 
     char localUserName[ ICE_CONTROLLER_USER_NAME_LENGTH + 1 ];
     char localPassword[ ICE_CONTROLLER_PASSWORD_LENGTH + 1 ];

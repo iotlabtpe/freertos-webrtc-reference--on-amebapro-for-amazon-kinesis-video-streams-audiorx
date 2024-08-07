@@ -6,7 +6,7 @@
 
 static void generalTimerCallback( TimerHandle_t xTimer )
 {
-    TimerHandler_t *pTimerHandler = (TimerHandler_t *) pvTimerGetTimerID( xTimer );
+    TimerHandler_t * pTimerHandler = ( TimerHandler_t * ) pvTimerGetTimerID( xTimer );
 
     if( pTimerHandler == NULL )
     {
@@ -18,14 +18,19 @@ static void generalTimerCallback( TimerHandle_t xTimer )
     }
 }
 
-TimerControllerResult_t TimerController_Create( TimerHandler_t *pTimerHandler, const char *pTimerName, uint32_t initialTimeMs, uint32_t repeatTimeMs, TimerControllerTimerExpireCallback onTimerExpire, void *pUserContext )
+TimerControllerResult_t TimerController_Create( TimerHandler_t * pTimerHandler,
+                                                const char * pTimerName,
+                                                uint32_t initialTimeMs,
+                                                uint32_t repeatTimeMs,
+                                                TimerControllerTimerExpireCallback onTimerExpire,
+                                                void * pUserContext )
 {
     TimerControllerResult_t ret = TIMER_CONTROLLER_RESULT_OK;
-    UBaseType_t uxAutoReload = repeatTimeMs == 0? pdFALSE : pdTRUE;
+    UBaseType_t uxAutoReload = repeatTimeMs == 0 ? pdFALSE : pdTRUE;
 
-    if( pTimerHandler == NULL || onTimerExpire == NULL || pTimerName == NULL )
+    if( ( pTimerHandler == NULL ) || ( onTimerExpire == NULL ) || ( pTimerName == NULL ) )
     {
-        LogError( ("Invalid input parameters, pTimerHandler=%p, onTimerExpire=%p, pTimerName=%p", pTimerHandler, onTimerExpire, pTimerName) );
+        LogError( ( "Invalid input parameters, pTimerHandler=%p, onTimerExpire=%p, pTimerName=%p", pTimerHandler, onTimerExpire, pTimerName ) );
         ret = TIMER_CONTROLLER_RESULT_BAD_PARAMETER;
     }
 
@@ -52,12 +57,14 @@ TimerControllerResult_t TimerController_Create( TimerHandler_t *pTimerHandler, c
     return ret;
 }
 
-TimerControllerResult_t TimerController_SetTimer( TimerHandler_t *pTimerHandler, uint32_t initialTimeMs, uint32_t repeatTimeMs )
+TimerControllerResult_t TimerController_SetTimer( TimerHandler_t * pTimerHandler,
+                                                  uint32_t initialTimeMs,
+                                                  uint32_t repeatTimeMs )
 {
     TimerControllerResult_t ret = TIMER_CONTROLLER_RESULT_OK;
 
-    (void) initialTimeMs;
-    (void) repeatTimeMs;
+    ( void ) initialTimeMs;
+    ( void ) repeatTimeMs;
 
     if( pTimerHandler == NULL )
     {
@@ -76,19 +83,19 @@ TimerControllerResult_t TimerController_SetTimer( TimerHandler_t *pTimerHandler,
     return ret;
 }
 
-void TimerController_ResetTimer( TimerHandler_t *pTimerHandler )
+void TimerController_ResetTimer( TimerHandler_t * pTimerHandler )
 {
     if( pTimerHandler != NULL )
     {
         // Cancel the timer
         if( xTimerStop( pTimerHandler->timer, 0 ) != pdPASS )
         {
-            LogError( ("Fail to reset timer" ) );
+            LogError( ( "Fail to reset timer" ) );
         }
     }
 }
 
-TimerControllerResult_t TimerController_IsTimerSet( TimerHandler_t *pTimerHandler )
+TimerControllerResult_t TimerController_IsTimerSet( TimerHandler_t * pTimerHandler )
 {
     TimerControllerResult_t ret = TIMER_CONTROLLER_RESULT_OK;
     BaseType_t retTimer;

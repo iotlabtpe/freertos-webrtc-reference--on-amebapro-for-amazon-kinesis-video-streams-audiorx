@@ -57,7 +57,7 @@ typedef enum NetworkingWslayResult
 typedef struct NetworkingWslayCredentials
 {
     /* user-agent */
-    char *pUserAgent;
+    char * pUserAgent;
     size_t userAgentLength;
 
     /* Region */
@@ -88,7 +88,7 @@ typedef enum NetworkingWslayHttpHeader
 typedef struct NetworkingWslayConnectResponseContext
 {
     /* user-agent */
-    char *pClientKey;
+    char * pClientKey;
     size_t clientKeyLength;
 
     uint8_t headersParsed; //bitmap with NetworkingWslayHttpHeader_t value.

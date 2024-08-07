@@ -51,14 +51,15 @@ static const uint32_t gCrc32Table[256] = {
     0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
-static IceControllerResult_t IceController_SendConnectivityCheckRequest( IceControllerContext_t *pCtx, IceControllerRemoteInfo_t *pRemoteInfo );
+static IceControllerResult_t IceController_SendConnectivityCheckRequest( IceControllerContext_t * pCtx,
+                                                                         IceControllerRemoteInfo_t * pRemoteInfo );
 
-static void onConnectivityCheckTimerExpire( void *pContext )
+static void onConnectivityCheckTimerExpire( void * pContext )
 {
-    IceControllerContext_t *pCtx = ( IceControllerContext_t * ) pContext;
+    IceControllerContext_t * pCtx = ( IceControllerContext_t * ) pContext;
     uint32_t i;
 
-    for( i = 0 ; i < AWS_MAX_VIEWER_NUM ; i++ )
+    for( i = 0; i < AWS_MAX_VIEWER_NUM; i++ )
     {
         if( pCtx->remoteInfo[ i ].isUsed )
         {
@@ -72,7 +73,7 @@ static IceResult_t IceController_CalculateRandom( uint8_t * pOutputBuffer,
 {
     size_t i;
 
-    for(i = 0; i < outputBufferLength; i++ )
+    for( i = 0; i < outputBufferLength; i++ )
     {
         pOutputBuffer[i] = ( uint8_t ) ( rand() % 256 );
     }
@@ -112,9 +113,9 @@ static IceResult_t IceController_MbedtlsHmac( const uint8_t * pPassword,
     IceResult_t ret = ICE_RESULT_OK;
     int retMbedtls;
 
-    if( pPassword == NULL || pBuffer == NULL || pOutputBuffer == NULL || pOutputBufferLength == NULL )
+    if( ( pPassword == NULL ) || ( pBuffer == NULL ) || ( pOutputBuffer == NULL ) || ( pOutputBufferLength == NULL ) )
     {
-        LogError( ("Invalid inputs, pPassword=%p, pBuffer=%p, pOutputBuffer=%p, pOutputBufferLength=%p", pPassword, pBuffer, pOutputBuffer, pOutputBufferLength) );
+        LogError( ( "Invalid inputs, pPassword=%p, pBuffer=%p, pOutputBuffer=%p, pOutputBufferLength=%p", pPassword, pBuffer, pOutputBuffer, pOutputBufferLength ) );
 
         ret = ICE_RESULT_HMAC_ERROR;
     }
@@ -124,11 +125,11 @@ static IceResult_t IceController_MbedtlsHmac( const uint8_t * pPassword,
         retMbedtls = mbedtls_md_hmac( mbedtls_md_info_from_type( MBEDTLS_MD_SHA1 ), pPassword, passwordLength, pBuffer, bufferLength, pOutputBuffer );
         if( retMbedtls != 0 )
         {
-            LogError( ("mbedtls_md_hmac fails, return=%d.", retMbedtls) );
+            LogError( ( "mbedtls_md_hmac fails, return=%d.", retMbedtls ) );
             ret = ICE_RESULT_HMAC_ERROR;
         }
     }
-    
+
     if( ret == ICE_RESULT_OK )
     {
         *pOutputBufferLength = mbedtls_md_get_size( mbedtls_md_info_from_type( MBEDTLS_MD_SHA1 ) );
@@ -137,7 +138,8 @@ static IceResult_t IceController_MbedtlsHmac( const uint8_t * pPassword,
     return ret;
 }
 
-static IceControllerResult_t IceController_SendConnectivityCheckRequest( IceControllerContext_t *pCtx, IceControllerRemoteInfo_t *pRemoteInfo )
+static IceControllerResult_t IceController_SendConnectivityCheckRequest( IceControllerContext_t * pCtx,
+                                                                         IceControllerRemoteInfo_t * pRemoteInfo )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     MessageQueueResult_t retMessageQueue;
@@ -167,7 +169,8 @@ static IceControllerResult_t IceController_SendConnectivityCheckRequest( IceCont
 /* Generate a printable string that does not
  * need to be escaped when encoding in JSON
  */
-static void generateJSONValidString( char *pDst, size_t length )
+static void generateJSONValidString( char * pDst,
+                                     size_t length )
 {
     size_t i = 0;
     uint8_t skipProcess = 0;
@@ -188,7 +191,10 @@ static void generateJSONValidString( char *pDst, size_t length )
     }
 }
 
-static IceControllerResult_t parseIceCandidate( const char *pDecodeMessage, size_t decodeMessageLength, const char **ppCandidateString, size_t *pCandidateStringLength )
+static IceControllerResult_t parseIceCandidate( const char * pDecodeMessage,
+                                                size_t decodeMessageLength,
+                                                const char ** ppCandidateString,
+                                                size_t * pCandidateStringLength )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     JSONStatus_t jsonResult;
@@ -197,7 +203,7 @@ static IceControllerResult_t parseIceCandidate( const char *pDecodeMessage, size
     uint8_t isCandidateFound = 0;
 
     jsonResult = JSON_Validate( pDecodeMessage, decodeMessageLength );
-    if( jsonResult != JSONSuccess)
+    if( jsonResult != JSONSuccess )
     {
         ret = ICE_CONTROLLER_RESULT_INVALID_JSON;
     }
@@ -209,8 +215,8 @@ static IceControllerResult_t parseIceCandidate( const char *pDecodeMessage, size
 
         while( jsonResult == JSONSuccess )
         {
-            if( pair.keyLength == strlen( ICE_CONTROLLER_CANDIDATE_JSON_KEY ) &&
-                strncmp( pair.key, ICE_CONTROLLER_CANDIDATE_JSON_KEY, pair.keyLength ) == 0 )
+            if( ( pair.keyLength == strlen( ICE_CONTROLLER_CANDIDATE_JSON_KEY ) ) &&
+                ( strncmp( pair.key, ICE_CONTROLLER_CANDIDATE_JSON_KEY, pair.keyLength ) == 0 ) )
             {
                 *ppCandidateString = pair.value;
                 *pCandidateStringLength = pair.valueLength;
@@ -231,12 +237,12 @@ static IceControllerResult_t parseIceCandidate( const char *pDecodeMessage, size
     return ret;
 }
 
-static IceControllerRemoteInfo_t *allocateRemoteInfo( IceControllerContext_t *pCtx )
+static IceControllerRemoteInfo_t * allocateRemoteInfo( IceControllerContext_t * pCtx )
 {
-    IceControllerRemoteInfo_t *pRet = NULL;
+    IceControllerRemoteInfo_t * pRet = NULL;
     int32_t i;
 
-    for( i=0 ; i<AWS_MAX_VIEWER_NUM ; i++ )
+    for( i = 0; i < AWS_MAX_VIEWER_NUM; i++ )
     {
         if( pCtx->remoteInfo[i].isUsed == 0 )
         {
@@ -249,11 +255,14 @@ static IceControllerRemoteInfo_t *allocateRemoteInfo( IceControllerContext_t *pC
     return pRet;
 }
 
-static IceControllerResult_t findRemoteInfo( IceControllerContext_t *pCtx, const char *pRemoteClientId, size_t remoteClientIdLength, IceControllerRemoteInfo_t **ppRemoteInfo )
+static IceControllerResult_t findRemoteInfo( IceControllerContext_t * pCtx,
+                                             const char * pRemoteClientId,
+                                             size_t remoteClientIdLength,
+                                             IceControllerRemoteInfo_t ** ppRemoteInfo )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     size_t remoteInfoIndex;
-    uint8_t isRemoteInfoFound=0;
+    uint8_t isRemoteInfoFound = 0;
 
     if( remoteClientIdLength > SIGNALING_CONTROLLER_REMOTE_ID_MAX_LENGTH )
     {
@@ -262,7 +271,7 @@ static IceControllerResult_t findRemoteInfo( IceControllerContext_t *pCtx, const
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
-        for( remoteInfoIndex=0 ; remoteInfoIndex<AWS_MAX_VIEWER_NUM ; remoteInfoIndex++ )
+        for( remoteInfoIndex = 0; remoteInfoIndex < AWS_MAX_VIEWER_NUM; remoteInfoIndex++ )
         {
             if( strncmp( pCtx->remoteInfo[ remoteInfoIndex ].remoteClientId, pRemoteClientId, remoteClientIdLength ) == 0 )
             {
@@ -281,12 +290,13 @@ static IceControllerResult_t findRemoteInfo( IceControllerContext_t *pCtx, const
     return ret;
 }
 
-static IceControllerResult_t handleAddRemoteCandidateRequest( IceControllerContext_t *pCtx, IceControllerRequestMessage_t *pRequestMessage )
+static IceControllerResult_t handleAddRemoteCandidateRequest( IceControllerContext_t * pCtx,
+                                                              IceControllerRequestMessage_t * pRequestMessage )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     IceResult_t iceResult;
-    IceControllerCandidate_t *pCandidate = (IceControllerCandidate_t *)&pRequestMessage->requestContent;
-    IceControllerRemoteInfo_t *pRemoteInfo;
+    IceControllerCandidate_t * pCandidate = ( IceControllerCandidate_t * )&pRequestMessage->requestContent;
+    IceControllerRemoteInfo_t * pRemoteInfo;
     IceRemoteCandidateInfo_t remoteCandidateInfo;
     char ipBuffer[ INET_ADDRSTRLEN ];
 
@@ -318,14 +328,15 @@ static IceControllerResult_t handleAddRemoteCandidateRequest( IceControllerConte
     return ret;
 }
 
-static IceControllerSocketContext_t *findSocketContextByLocalCandidate( IceControllerRemoteInfo_t *pRemoteInfo, IceCandidate_t *pLocalCandidate )
+static IceControllerSocketContext_t * findSocketContextByLocalCandidate( IceControllerRemoteInfo_t * pRemoteInfo,
+                                                                         IceCandidate_t * pLocalCandidate )
 {
-    IceControllerSocketContext_t *pReturnContext = NULL;
+    IceControllerSocketContext_t * pReturnContext = NULL;
     uint32_t i;
 
     if( pLocalCandidate != NULL )
     {
-        for( i=0 ; i<pRemoteInfo->socketsContextsCount ; i++ )
+        for( i = 0; i < pRemoteInfo->socketsContextsCount; i++ )
         {
             if( pRemoteInfo->socketsContexts[i].pLocalCandidate == pLocalCandidate )
             {
@@ -337,16 +348,17 @@ static IceControllerSocketContext_t *findSocketContextByLocalCandidate( IceContr
     return pReturnContext;
 }
 
-static IceControllerResult_t handleConnectivityCheckRequest( IceControllerContext_t *pCtx, IceControllerRequestMessage_t *pRequestMessage )
+static IceControllerResult_t handleConnectivityCheckRequest( IceControllerContext_t * pCtx,
+                                                             IceControllerRequestMessage_t * pRequestMessage )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
-    IceControllerRemoteInfo_t *pRemoteInfo = pRequestMessage->requestContent.pRemoteInfo;
+    IceControllerRemoteInfo_t * pRemoteInfo = pRequestMessage->requestContent.pRemoteInfo;
     IceResult_t iceResult;
     uint32_t i;
     size_t pairCount;
     uint8_t stunBuffer[ ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE ];
     size_t stunBufferLength = ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE;
-    IceControllerSocketContext_t *pSocketContext;
+    IceControllerSocketContext_t * pSocketContext;
     char ipFromBuffer[ INET_ADDRSTRLEN ];
     char ipToBuffer[ INET_ADDRSTRLEN ];
 
@@ -365,7 +377,7 @@ static IceControllerResult_t handleConnectivityCheckRequest( IceControllerContex
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
-        for( i=0 ; i<pairCount ; i++ )
+        for( i = 0; i < pairCount; i++ )
         {
             ret = ICE_CONTROLLER_RESULT_OK;
 
@@ -417,7 +429,8 @@ static IceControllerResult_t handleConnectivityCheckRequest( IceControllerContex
     return ret;
 }
 
-static IceControllerResult_t handleRequest( IceControllerContext_t *pCtx, MessageQueueHandler_t *pRequestQueue )
+static IceControllerResult_t handleRequest( IceControllerContext_t * pCtx,
+                                            MessageQueueHandler_t * pRequestQueue )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     MessageQueueResult_t retMessageQueue;
@@ -433,56 +446,58 @@ static IceControllerResult_t handleRequest( IceControllerContext_t *pCtx, Messag
         LogDebug( ( "Receive request type: %d", requestMsg.requestType ) );
         switch( requestMsg.requestType )
         {
-            case ICE_CONTROLLER_REQUEST_TYPE_ADD_REMOTE_CANDIDATE:
-                ret = handleAddRemoteCandidateRequest( pCtx, &requestMsg );
-                break;
-            case ICE_CONTROLLER_REQUEST_TYPE_CONNECTIVITY_CHECK:
-                ret = handleConnectivityCheckRequest( pCtx, &requestMsg );
-                break;
-            case ICE_CONTROLLER_REQUEST_TYPE_DETECT_RX_PACKET:
-                while( ret == ICE_CONTROLLER_RESULT_OK )
-                {
-                    ret = IceControllerNet_HandleRxPacket( pCtx, requestMsg.requestContent.detectRxPacket.pSocketContext );
-                }
-                
-                if( ret == ICE_CONTROLLER_RESULT_NO_MORE_RX_PACKET )
-                {
-                    ret = MESSAGE_QUEUE_RESULT_OK;
-                }
-                break;
-            default:
-                /* Unknown request, drop it. */
-                LogDebug( ( "Dropping unknown request" ) );
-                break;
+        case ICE_CONTROLLER_REQUEST_TYPE_ADD_REMOTE_CANDIDATE:
+            ret = handleAddRemoteCandidateRequest( pCtx, &requestMsg );
+            break;
+        case ICE_CONTROLLER_REQUEST_TYPE_CONNECTIVITY_CHECK:
+            ret = handleConnectivityCheckRequest( pCtx, &requestMsg );
+            break;
+        case ICE_CONTROLLER_REQUEST_TYPE_DETECT_RX_PACKET:
+            while( ret == ICE_CONTROLLER_RESULT_OK )
+            {
+                ret = IceControllerNet_HandleRxPacket( pCtx, requestMsg.requestContent.detectRxPacket.pSocketContext );
+            }
+
+            if( ret == ICE_CONTROLLER_RESULT_NO_MORE_RX_PACKET )
+            {
+                ret = MESSAGE_QUEUE_RESULT_OK;
+            }
+            break;
+        default:
+            /* Unknown request, drop it. */
+            LogDebug( ( "Dropping unknown request" ) );
+            break;
         }
     }
 
     return ret;
 }
 
-static IceControllerResult_t parseIceUri( IceControllerIceServer_t *pIceServer, char *pUri, size_t uriLength )
+static IceControllerResult_t parseIceUri( IceControllerIceServer_t * pIceServer,
+                                          char * pUri,
+                                          size_t uriLength )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     StringUtilsResult_t retString;
-    const char *pCurr, *pTail, *pNext;
+    const char * pCurr, * pTail, * pNext;
     uint32_t port, portStringLength;
 
     /* Example Ice server URI:
      *  1. turn:35-94-7-249.t-490d1050.kinesisvideo.us-west-2.amazonaws.com:443?transport=udp
      *  2. stun:stun.kinesisvideo.us-west-2.amazonaws.com:443 */
-    if( uriLength > ICE_SERVER_TYPE_STUN_LENGTH && strncmp( ICE_SERVER_TYPE_STUN, pUri, ICE_SERVER_TYPE_STUN_LENGTH ) == 0 )
+    if( ( uriLength > ICE_SERVER_TYPE_STUN_LENGTH ) && ( strncmp( ICE_SERVER_TYPE_STUN, pUri, ICE_SERVER_TYPE_STUN_LENGTH ) == 0 ) )
     {
         pIceServer->serverType = ICE_CONTROLLER_ICE_SERVER_TYPE_STUN;
         pTail = pUri + uriLength;
         pCurr = pUri + ICE_SERVER_TYPE_STUN_LENGTH;
     }
-    else if( ( uriLength > ICE_SERVER_TYPE_TURNS_LENGTH && strncmp( ICE_SERVER_TYPE_TURNS, pUri, ICE_SERVER_TYPE_TURNS_LENGTH ) == 0 ) )
+    else if( ( ( uriLength > ICE_SERVER_TYPE_TURNS_LENGTH ) && ( strncmp( ICE_SERVER_TYPE_TURNS, pUri, ICE_SERVER_TYPE_TURNS_LENGTH ) == 0 ) ) )
     {
         pIceServer->serverType = ICE_CONTROLLER_ICE_SERVER_TYPE_TURN;
         pTail = pUri + uriLength;
         pCurr = pUri + ICE_SERVER_TYPE_TURNS_LENGTH;
     }
-    else if( uriLength > ICE_SERVER_TYPE_TURN_LENGTH && strncmp( ICE_SERVER_TYPE_TURN, pUri, ICE_SERVER_TYPE_TURN_LENGTH ) == 0 )
+    else if( ( uriLength > ICE_SERVER_TYPE_TURN_LENGTH ) && ( strncmp( ICE_SERVER_TYPE_TURN, pUri, ICE_SERVER_TYPE_TURN_LENGTH ) == 0 ) )
     {
         pIceServer->serverType = ICE_CONTROLLER_ICE_SERVER_TYPE_TURN;
         pTail = pUri + uriLength;
@@ -521,7 +536,7 @@ static IceControllerResult_t parseIceUri( IceControllerIceServer_t *pIceServer, 
         }
     }
 
-    if( ret == ICE_CONTROLLER_RESULT_OK && pCurr <= pTail )
+    if( ( ret == ICE_CONTROLLER_RESULT_OK ) && ( pCurr <= pTail ) )
     {
         pNext = memchr( pCurr, '?', pTail - pCurr );
         if( pNext == NULL )
@@ -534,7 +549,7 @@ static IceControllerResult_t parseIceUri( IceControllerIceServer_t *pIceServer, 
         }
 
         retString = StringUtils_ConvertStringToUl( pCurr, portStringLength, &port );
-        if( retString != STRING_UTILS_RESULT_OK || port > UINT16_MAX )
+        if( ( retString != STRING_UTILS_RESULT_OK ) || ( port > UINT16_MAX ) )
         {
             LogWarn( ( "No valid port number, parsed string: %.*s", ( int ) portStringLength, pCurr ) );
             ret = ICE_CONTROLLER_RESULT_INVALID_ICE_SERVER_PORT;
@@ -548,7 +563,7 @@ static IceControllerResult_t parseIceUri( IceControllerIceServer_t *pIceServer, 
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
-        if( pIceServer->serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_TURN && pCurr >= pTail )
+        if( ( pIceServer->serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_TURN ) && ( pCurr >= pTail ) )
         {
             LogWarn( ( "No valid transport string found" ) );
             ret = ICE_CONTROLLER_RESULT_INVALID_ICE_SERVER_PROTOCOL;
@@ -584,13 +599,14 @@ static IceControllerResult_t parseIceUri( IceControllerIceServer_t *pIceServer, 
     return ret;
 }
 
-static IceControllerResult_t initializeIceServerList( IceControllerContext_t *pCtx, SignalingControllerContext_t *pSignalingControllerContext )
+static IceControllerResult_t initializeIceServerList( IceControllerContext_t * pCtx,
+                                                      SignalingControllerContext_t * pSignalingControllerContext )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     SignalingControllerResult_t signalingControllerReturn;
-    SignalingControllerIceServerConfig_t *pIceServerConfigs;
+    SignalingControllerIceServerConfig_t * pIceServerConfigs;
     size_t iceServerConfigsCount;
-    char *pStunUrlPostfix;
+    char * pStunUrlPostfix;
     int written;
     uint32_t i, j;
 
@@ -647,7 +663,7 @@ static IceControllerResult_t initializeIceServerList( IceControllerContext_t *pC
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
         /* Parse Ice server confgis into IceControllerIceServer_t structure. */
-        for( i=0 ; i<iceServerConfigsCount ; i++ )
+        for( i = 0; i < iceServerConfigsCount; i++ )
         {
             /* Drop the URI that is not able to be parsed, but continue parsing. */
             ret = ICE_CONTROLLER_RESULT_OK;
@@ -669,7 +685,7 @@ static IceControllerResult_t initializeIceServerList( IceControllerContext_t *pC
                 /* Do nothing, coverity happy. */
             }
 
-            for( j=0 ; j<pIceServerConfigs[ i ].uriCount ; j++ )
+            for( j = 0; j < pIceServerConfigs[ i ].uriCount; j++ )
             {
                 /* Parse each URI */
                 ret = parseIceUri( &pCtx->iceServers[ pCtx->iceServersCount ], pIceServerConfigs[ i ].uris[ j ], pIceServerConfigs[ i ].urisLength[ j ] );
@@ -699,21 +715,21 @@ void IceController_PrintMetrics( IceControllerContext_t * pCtx )
 
     /* Print each step duration */
     LogInfo( ( "======================================== Ice Duration ========================================" ) );
-    duration_ms = (pCtx->metrics.gatheringCandidateEndTime.tv_sec - pCtx->metrics.gatheringCandidateStartTime.tv_sec) * 1000LL +
-                  (pCtx->metrics.gatheringCandidateEndTime.tv_usec - pCtx->metrics.gatheringCandidateStartTime.tv_usec) / 1000LL;
+    duration_ms = ( pCtx->metrics.gatheringCandidateEndTime.tv_sec - pCtx->metrics.gatheringCandidateStartTime.tv_sec ) * 1000LL +
+                  ( pCtx->metrics.gatheringCandidateEndTime.tv_usec - pCtx->metrics.gatheringCandidateStartTime.tv_usec ) / 1000LL;
     LogInfo( ( "Duration from Starting Gathering Candidates to All Host Candidates Ready: %lld ms", duration_ms ) );
-    duration_ms = (pCtx->metrics.allSrflxCandidateReadyTime.tv_sec - pCtx->metrics.gatheringCandidateStartTime.tv_sec) * 1000LL +
-                  (pCtx->metrics.allSrflxCandidateReadyTime.tv_usec - pCtx->metrics.gatheringCandidateStartTime.tv_usec) / 1000LL;
+    duration_ms = ( pCtx->metrics.allSrflxCandidateReadyTime.tv_sec - pCtx->metrics.gatheringCandidateStartTime.tv_sec ) * 1000LL +
+                  ( pCtx->metrics.allSrflxCandidateReadyTime.tv_usec - pCtx->metrics.gatheringCandidateStartTime.tv_usec ) / 1000LL;
     LogInfo( ( "Duration from Starting Gathering Candidates to All Server Candidates Ready: %lld ms", duration_ms ) );
-    duration_ms = (pCtx->metrics.sentNominationResponseTime.tv_sec - pCtx->metrics.firstConnectivityRequestTime.tv_sec) * 1000LL +
-                  (pCtx->metrics.sentNominationResponseTime.tv_usec - pCtx->metrics.firstConnectivityRequestTime.tv_usec) / 1000LL;
+    duration_ms = ( pCtx->metrics.sentNominationResponseTime.tv_sec - pCtx->metrics.firstConnectivityRequestTime.tv_sec ) * 1000LL +
+                  ( pCtx->metrics.sentNominationResponseTime.tv_usec - pCtx->metrics.firstConnectivityRequestTime.tv_usec ) / 1000LL;
     LogInfo( ( "Duration from Starting Connectivity Check to Sent Nomination Response: %lld ms", duration_ms ) );
-    duration_ms = (pCtx->metrics.sentNominationResponseTime.tv_sec - pCtx->metrics.gatheringCandidateStartTime.tv_sec) * 1000LL +
-                  (pCtx->metrics.sentNominationResponseTime.tv_usec - pCtx->metrics.gatheringCandidateStartTime.tv_usec) / 1000LL;
+    duration_ms = ( pCtx->metrics.sentNominationResponseTime.tv_sec - pCtx->metrics.gatheringCandidateStartTime.tv_sec ) * 1000LL +
+                  ( pCtx->metrics.sentNominationResponseTime.tv_usec - pCtx->metrics.gatheringCandidateStartTime.tv_usec ) / 1000LL;
     LogInfo( ( "Duration of entire Ice flow: %lld ms", duration_ms ) );
 }
 
-IceControllerResult_t IceController_Destroy( IceControllerContext_t *pCtx )
+IceControllerResult_t IceController_Destroy( IceControllerContext_t * pCtx )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
 
@@ -731,13 +747,14 @@ IceControllerResult_t IceController_Destroy( IceControllerContext_t *pCtx )
     return ret;
 }
 
-IceControllerResult_t IceController_Init( IceControllerContext_t *pCtx, SignalingControllerContext_t *pSignalingControllerContext )
+IceControllerResult_t IceController_Init( IceControllerContext_t * pCtx,
+                                          SignalingControllerContext_t * pSignalingControllerContext )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     MessageQueueResult_t retMessageQueue;
     TimerControllerResult_t retTimer;
 
-    if( pCtx == NULL || pSignalingControllerContext == NULL )
+    if( ( pCtx == NULL ) || ( pSignalingControllerContext == NULL ) )
     {
         ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
     }
@@ -800,19 +817,21 @@ IceControllerResult_t IceController_Init( IceControllerContext_t *pCtx, Signalin
     return ret;
 }
 
-IceControllerResult_t IceController_DeserializeIceCandidate( const char *pDecodeMessage, size_t decodeMessageLength, IceControllerCandidate_t *pCandidate )
+IceControllerResult_t IceController_DeserializeIceCandidate( const char * pDecodeMessage,
+                                                             size_t decodeMessageLength,
+                                                             IceControllerCandidate_t * pCandidate )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     StringUtilsResult_t stringResult;
-    const char *pCandidateString;
+    const char * pCandidateString;
     size_t candidateStringLength;
-    const char *pCurr, *pTail, *pNext;
+    const char * pCurr, * pTail, * pNext;
     size_t tokenLength;
     IceControllerCandidateDeserializerState_t deserializerState = ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_FOUNDATION;
     uint8_t isAllElementsParsed = 0;
     uint32_t port;
 
-    if( pDecodeMessage == NULL || pCandidate == NULL )
+    if( ( pDecodeMessage == NULL ) || ( pCandidate == NULL ) )
     {
         ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
     }
@@ -835,87 +854,87 @@ IceControllerResult_t IceController_DeserializeIceCandidate( const char *pDecode
 
         switch( deserializerState )
         {
-            case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_FOUNDATION:
-            case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_COMPONENT:
-                break;
-            case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_PROTOCOL:
-                if( strncmp( pCurr, "tcp", tokenLength ) == 0 ||
-                    strncmp( pCurr, "TCP", tokenLength ) == 0 )
-                {
-                    pCandidate->protocol = ICE_SOCKET_PROTOCOL_TCP;
-                }
-                else if( strncmp( pCurr, "udp", tokenLength ) == 0 ||
-                         strncmp( pCurr, "UDP", tokenLength ) == 0 )
-                {
-                    pCandidate->protocol = ICE_SOCKET_PROTOCOL_UDP;
-                }
-                else
-                {
-                    LogWarn( ( "unknown protocol %.*s",
-                                ( int ) tokenLength, pCurr ) );
-                    ret = ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_PROTOCOL;
-                }
-                break;
-            case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_PRIORITY:
-                stringResult = StringUtils_ConvertStringToUl( pCurr, tokenLength, &pCandidate->priority );
-                if( stringResult != STRING_UTILS_RESULT_OK )
-                {
-                    LogWarn( ( "Invalid priority %.*s",
-                                ( int ) tokenLength, pCurr ) );
-                    ret = ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_PRIORITY;
-                }
-                break;
-            case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_IP:
-                ret = IceControllerNet_ConvertIpString( pCurr, tokenLength, &pCandidate->iceEndpoint );
-                break;
-            case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_PORT:
-                stringResult = StringUtils_ConvertStringToUl( pCurr, tokenLength, &port );
+        case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_FOUNDATION:
+        case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_COMPONENT:
+            break;
+        case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_PROTOCOL:
+            if( ( strncmp( pCurr, "tcp", tokenLength ) == 0 ) ||
+                ( strncmp( pCurr, "TCP", tokenLength ) == 0 ) )
+            {
+                pCandidate->protocol = ICE_SOCKET_PROTOCOL_TCP;
+            }
+            else if( ( strncmp( pCurr, "udp", tokenLength ) == 0 ) ||
+                     ( strncmp( pCurr, "UDP", tokenLength ) == 0 ) )
+            {
+                pCandidate->protocol = ICE_SOCKET_PROTOCOL_UDP;
+            }
+            else
+            {
+                LogWarn( ( "unknown protocol %.*s",
+                           ( int ) tokenLength, pCurr ) );
+                ret = ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_PROTOCOL;
+            }
+            break;
+        case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_PRIORITY:
+            stringResult = StringUtils_ConvertStringToUl( pCurr, tokenLength, &pCandidate->priority );
+            if( stringResult != STRING_UTILS_RESULT_OK )
+            {
+                LogWarn( ( "Invalid priority %.*s",
+                           ( int ) tokenLength, pCurr ) );
+                ret = ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_PRIORITY;
+            }
+            break;
+        case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_IP:
+            ret = IceControllerNet_ConvertIpString( pCurr, tokenLength, &pCandidate->iceEndpoint );
+            break;
+        case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_PORT:
+            stringResult = StringUtils_ConvertStringToUl( pCurr, tokenLength, &port );
 
-                if( stringResult != STRING_UTILS_RESULT_OK )
-                {
-                    LogWarn( ( "Invalid port %.*s",
-                                ( int ) tokenLength, pCurr ) );
-                    ret = ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_PORT;
-                }
-                else
-                {
-                    pCandidate->iceEndpoint.transportAddress.port = ( uint16_t ) port;
-                }
-                break;
-            case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_TYPE_ID:
-                if( tokenLength != strlen( "typ" ) || strncmp( pCurr, "typ", tokenLength ) != 0 )
-                {
-                    ret = ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_TYPE_ID;
-                }
-                break;
-            case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_TYPE_VAL:
-                isAllElementsParsed = 1;
+            if( stringResult != STRING_UTILS_RESULT_OK )
+            {
+                LogWarn( ( "Invalid port %.*s",
+                           ( int ) tokenLength, pCurr ) );
+                ret = ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_PORT;
+            }
+            else
+            {
+                pCandidate->iceEndpoint.transportAddress.port = ( uint16_t ) port;
+            }
+            break;
+        case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_TYPE_ID:
+            if( ( tokenLength != strlen( "typ" ) ) || ( strncmp( pCurr, "typ", tokenLength ) != 0 ) )
+            {
+                ret = ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_TYPE_ID;
+            }
+            break;
+        case ICE_CONTROLLER_CANDIDATE_DESERIALIZER_STATE_TYPE_VAL:
+            isAllElementsParsed = 1;
 
-                if( strncmp( pCurr, ICE_CONTROLLER_CANDIDATE_TYPE_HOST_STRING, tokenLength ) == 0 )
-                {
-                    pCandidate->candidateType = ICE_CANDIDATE_TYPE_HOST;
-                }
-                else if( strncmp( pCurr, ICE_CONTROLLER_CANDIDATE_TYPE_SRFLX_STRING, tokenLength ) == 0 )
-                {
-                    pCandidate->candidateType = ICE_CANDIDATE_TYPE_SERVER_REFLEXIVE;
-                }
-                else if( strncmp( pCurr, ICE_CONTROLLER_CANDIDATE_TYPE_PRFLX_STRING, tokenLength ) == 0 )
-                {
-                    pCandidate->candidateType = ICE_CANDIDATE_TYPE_PEER_REFLEXIVE;
-                }
-                else if( strncmp( pCurr, ICE_CONTROLLER_CANDIDATE_TYPE_RELAY_STRING, tokenLength ) == 0 )
-                {
-                    pCandidate->candidateType = ICE_CANDIDATE_TYPE_RELAYED;
-                }
-                else
-                {
-                    LogWarn( ( "unknown candidate type %.*s",
-                                ( int ) tokenLength, pCurr ) );
-                    ret = ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_TYPE;
-                }
-                break;
-            default:
-                break;
+            if( strncmp( pCurr, ICE_CONTROLLER_CANDIDATE_TYPE_HOST_STRING, tokenLength ) == 0 )
+            {
+                pCandidate->candidateType = ICE_CANDIDATE_TYPE_HOST;
+            }
+            else if( strncmp( pCurr, ICE_CONTROLLER_CANDIDATE_TYPE_SRFLX_STRING, tokenLength ) == 0 )
+            {
+                pCandidate->candidateType = ICE_CANDIDATE_TYPE_SERVER_REFLEXIVE;
+            }
+            else if( strncmp( pCurr, ICE_CONTROLLER_CANDIDATE_TYPE_PRFLX_STRING, tokenLength ) == 0 )
+            {
+                pCandidate->candidateType = ICE_CANDIDATE_TYPE_PEER_REFLEXIVE;
+            }
+            else if( strncmp( pCurr, ICE_CONTROLLER_CANDIDATE_TYPE_RELAY_STRING, tokenLength ) == 0 )
+            {
+                pCandidate->candidateType = ICE_CANDIDATE_TYPE_RELAYED;
+            }
+            else
+            {
+                LogWarn( ( "unknown candidate type %.*s",
+                           ( int ) tokenLength, pCurr ) );
+                ret = ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_TYPE;
+            }
+            break;
+        default:
+            break;
         }
 
         pCurr = pNext + 1;
@@ -930,18 +949,24 @@ IceControllerResult_t IceController_DeserializeIceCandidate( const char *pDecode
     return ret;
 }
 
-IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t *pCtx, const char *pRemoteClientId, size_t remoteClientIdLength, const char *pRemoteUserName, size_t remoteUserNameLength, const char *pRemotePassword, size_t remotePasswordLength )
+IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t * pCtx,
+                                                          const char * pRemoteClientId,
+                                                          size_t remoteClientIdLength,
+                                                          const char * pRemoteUserName,
+                                                          size_t remoteUserNameLength,
+                                                          const char * pRemotePassword,
+                                                          size_t remotePasswordLength )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     IceResult_t iceResult;
-    IceControllerRemoteInfo_t *pRemoteInfo;
+    IceControllerRemoteInfo_t * pRemoteInfo;
     TimerControllerResult_t retTimer;
     IceInitInfo_t iceInitInfo;
 
-    if( pCtx == NULL || pRemoteClientId == NULL ||
-        pRemoteUserName == NULL || pRemotePassword == NULL ||
-        remoteUserNameLength > ICE_CONTROLLER_USER_NAME_LENGTH ||
-        remotePasswordLength > ICE_CONTROLLER_PASSWORD_LENGTH )
+    if( ( pCtx == NULL ) || ( pRemoteClientId == NULL ) ||
+        ( pRemoteUserName == NULL ) || ( pRemotePassword == NULL ) ||
+        ( remoteUserNameLength > ICE_CONTROLLER_USER_NAME_LENGTH ) ||
+        ( remotePasswordLength > ICE_CONTROLLER_PASSWORD_LENGTH ) )
     {
         ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
     }
@@ -1050,7 +1075,7 @@ IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t
         if( retTimer == TIMER_CONTROLLER_RESULT_NOT_SET )
         {
             /* The timer is not set before, send the request immendiately and start connectivity check timer. */
-            LogDebug( ("Trigger connectivity check timer.") );
+            LogDebug( ( "Trigger connectivity check timer." ) );
             onConnectivityCheckTimerExpire( pCtx );
             retTimer = TimerController_SetTimer( &pCtx->connectivityCheckTimer, ICE_CONTROLLER_CONNECTIVITY_TIMER_INTERVAL_MS, ICE_CONTROLLER_CONNECTIVITY_TIMER_INTERVAL_MS );
             if( retTimer != TIMER_CONTROLLER_RESULT_OK )
@@ -1064,16 +1089,19 @@ IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t
     return ret;
 }
 
-IceControllerResult_t IceController_SendRemoteCandidateRequest( IceControllerContext_t *pCtx, const char *pRemoteClientId, size_t remoteClientIdLength, IceControllerCandidate_t *pCandidate )
+IceControllerResult_t IceController_SendRemoteCandidateRequest( IceControllerContext_t * pCtx,
+                                                                const char * pRemoteClientId,
+                                                                size_t remoteClientIdLength,
+                                                                IceControllerCandidate_t * pCandidate )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     MessageQueueResult_t retMessageQueue;
     IceControllerRequestMessage_t requestMessage = {
         .requestType = ICE_CONTROLLER_REQUEST_TYPE_ADD_REMOTE_CANDIDATE,
     };
-    IceControllerCandidate_t *pMessageContent;
+    IceControllerCandidate_t * pMessageContent;
 
-    if( pCtx == NULL || pCandidate == NULL || pRemoteClientId == NULL )
+    if( ( pCtx == NULL ) || ( pCandidate == NULL ) || ( pRemoteClientId == NULL ) )
     {
         ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
     }
@@ -1100,7 +1128,7 @@ IceControllerResult_t IceController_SendRemoteCandidateRequest( IceControllerCon
     return ret;
 }
 
-IceControllerResult_t IceController_ProcessLoop( IceControllerContext_t *pCtx )
+IceControllerResult_t IceController_ProcessLoop( IceControllerContext_t * pCtx )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
 

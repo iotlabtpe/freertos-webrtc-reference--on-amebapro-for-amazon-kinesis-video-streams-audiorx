@@ -59,11 +59,11 @@ typedef enum SdpControllerDtlsRole
  */
 typedef struct SdpControllerConnectionInformation
 {
-    const char *pNetworkType;
+    const char * pNetworkType;
     size_t networkTypeLength;
-    const char *pAddressType;
+    const char * pAddressType;
     size_t addressTypeLength;
-    const char *pConnectionAddress;
+    const char * pConnectionAddress;
     size_t connectionAddressLength;
 } SdpControllerConnectionInformation_t;
 
@@ -73,7 +73,7 @@ typedef struct SdpControllerConnectionInformation
  */
 typedef struct SdpControllerOrigin
 {
-    const char *pUserName;
+    const char * pUserName;
     size_t userNameLength;
     uint64_t sessionId;
     uint64_t sessionVersion;
@@ -97,7 +97,7 @@ typedef struct SdpControllerTiming
 typedef struct SdpControllerTimeZone
 {
     uint64_t adjustmentTime;
-    const char *pOffset;
+    const char * pOffset;
     size_t offsetLength;
 } SdpControllerTimeZone_t;
 
@@ -108,9 +108,9 @@ typedef struct SdpControllerTimeZone
  */
 typedef struct SdpControllerAttributes
 {
-    const char *pAttributeName;
+    const char * pAttributeName;
     size_t attributeNameLength;
-    const char *pAttributeValue;
+    const char * pAttributeValue;
     size_t attributeValueLength;
 } SdpControllerAttributes_t;
 
@@ -118,14 +118,14 @@ typedef struct SdpControllerMediaDescription
 {
     // m=<media> <port>/<number of ports> <proto> <fmt> ...
     // https://tools.ietf.org/html/rfc4566#section-5.14
-    const char *pMediaName;
+    const char * pMediaName;
     size_t mediaNameLength;
 
     // i=<session description>
     // https://tools.ietf.org/html/rfc4566#section-5.4. Given these are free-form strings, the length could be anything.
     // Although our SDK parses this information, the SDK does not use it. Leaving this attribute in if SDK uses it in
     // the future
-    const char *pMediaTitle;
+    const char * pMediaTitle;
     size_t mediaTitleLength;
 
     SdpControllerConnectionInformation_t connectionInformation;
@@ -144,27 +144,27 @@ typedef struct SdpControllerSdpOffer
 
     // s=<session name>
     // https://tools.ietf.org/html/rfc4566#section-5.3
-    const char *pSessionName;
+    const char * pSessionName;
     size_t sessionNameLength;
 
     // i=<session description>
     // https://tools.ietf.org/html/rfc4566#section-5.4
-    const char *pSessionInformation;
+    const char * pSessionInformation;
     size_t sessionInformationLength;
 
     // u=<uri>
     // https://tools.ietf.org/html/rfc4566#section-5.5
-    const char *pUri;
+    const char * pUri;
     size_t uriLength;
 
     // e=<email-address>
     // https://tools.ietf.org/html/rfc4566#section-5.6
-    const char *pEmailAddress;
+    const char * pEmailAddress;
     size_t emailAddressLength;
 
     // p=<phone-number>
     // https://tools.ietf.org/html/rfc4566#section-5.6
-    const char *pPhoneNumber;
+    const char * pPhoneNumber;
     size_t phoneNumberLength;
 
     SdpControllerConnectionInformation_t connectionInformation;
@@ -180,13 +180,13 @@ typedef struct SdpControllerSdpOffer
     uint16_t mediaCount;
 
     /* Below is extra info to accerlate SDP creation. */
-    const char *pFingerprint;
+    const char * pFingerprint;
     size_t fingerprintLength;
     SdpControllerDtlsRole_t dtlsRole;
     uint8_t isIceTrickle;
-    const char *pIceUfrag;
+    const char * pIceUfrag;
     size_t iceUfragLength;
-    const char *pIcePwd;
+    const char * pIcePwd;
     size_t icePwdLength;
     uint32_t twccExtId;
 } SdpControllerSdpDescription_t;
@@ -198,13 +198,33 @@ typedef enum SdpControllerMessageType
     SDP_CONTROLLER_MESSAGE_TYPE_ANSWER,
 } SdpControllerMessageType_t;
 
-SdpControllerResult_t SdpController_GetSdpOfferContent( const char *pSdpMessage, size_t sdpMessageLength, const char **ppSdpOfferContent, size_t *pSdpOfferContentLength );
-SdpControllerResult_t SdpController_DeserializeSdpContentNewline( const char *pSdpContent, size_t sdpContentLength, char **ppSdpConvertedContent, size_t *pSdpConvertedContentLength );
-SdpControllerResult_t SdpController_DeserializeSdpOffer( const char *pSdpOfferContent, size_t sdpOfferContentLength, SdpControllerSdpDescription_t *pOffer );
-SdpControllerResult_t SdpController_SerializeSdpMessage( SdpControllerMessageType_t messageType, SdpControllerSdpDescription_t *pSdpDescription, char *pSdpMessage, size_t *pSdpMessageLength );
-SdpControllerResult_t SdpController_SerializeSdpNewline( const char *pSdpContent, size_t sdpContentLength, char *pSdpConvertedContent, size_t *pSdpConvertedContentLength );
-void SdpController_PopulateSessionOrigin( char **ppBuffer, size_t *pBufferLength, SdpControllerOrigin_t *pOrigin );
-SdpControllerResult_t SdpController_PopulateMediaDescriptions( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpLocalDescription, SdpControllerSdpDescription_t *pSdpRemoteDescription, PeerConnectionContext_t *pPeerConnectionContext );
+SdpControllerResult_t SdpController_GetSdpOfferContent( const char * pSdpMessage,
+                                                        size_t sdpMessageLength,
+                                                        const char ** ppSdpOfferContent,
+                                                        size_t * pSdpOfferContentLength );
+SdpControllerResult_t SdpController_DeserializeSdpContentNewline( const char * pSdpContent,
+                                                                  size_t sdpContentLength,
+                                                                  char ** ppSdpConvertedContent,
+                                                                  size_t * pSdpConvertedContentLength );
+SdpControllerResult_t SdpController_DeserializeSdpOffer( const char * pSdpOfferContent,
+                                                         size_t sdpOfferContentLength,
+                                                         SdpControllerSdpDescription_t * pOffer );
+SdpControllerResult_t SdpController_SerializeSdpMessage( SdpControllerMessageType_t messageType,
+                                                         SdpControllerSdpDescription_t * pSdpDescription,
+                                                         char * pSdpMessage,
+                                                         size_t * pSdpMessageLength );
+SdpControllerResult_t SdpController_SerializeSdpNewline( const char * pSdpContent,
+                                                         size_t sdpContentLength,
+                                                         char * pSdpConvertedContent,
+                                                         size_t * pSdpConvertedContentLength );
+void SdpController_PopulateSessionOrigin( char ** ppBuffer,
+                                          size_t * pBufferLength,
+                                          SdpControllerOrigin_t * pOrigin );
+SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
+                                                               size_t * pBufferLength,
+                                                               SdpControllerSdpDescription_t * pSdpLocalDescription,
+                                                               SdpControllerSdpDescription_t * pSdpRemoteDescription,
+                                                               PeerConnectionContext_t * pPeerConnectionContext );
 
 #ifdef __cplusplus
 }

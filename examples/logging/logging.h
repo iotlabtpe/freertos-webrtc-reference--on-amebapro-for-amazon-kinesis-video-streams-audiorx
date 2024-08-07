@@ -49,28 +49,28 @@ extern "C" {
     #error "Please define LIBRARY_LOG_LEVEL as either LOG_NONE, LOG_ERROR, LOG_WARN, LOG_INFO, or LOG_DEBUG."
 #else
     #if LIBRARY_LOG_LEVEL == LOG_DEBUG
-        /* All log level messages will logged. */
+/* All log level messages will logged. */
         #define LogError( message )    SdkLog( ( "[ERROR]"LOG_METADATA_FORMAT, LOG_METADATA_ARGS ) ); SdkLog( message ); SdkLog( ( "\r\n" ) )
         #define LogWarn( message )     SdkLog( ( "[WARN]"LOG_METADATA_FORMAT, LOG_METADATA_ARGS ) ); SdkLog( message ); SdkLog( ( "\r\n" ) )
         #define LogInfo( message )     SdkLog( ( "[INFO]"LOG_METADATA_FORMAT, LOG_METADATA_ARGS ) ); SdkLog( message ); SdkLog( ( "\r\n" ) )
         #define LogDebug( message )    SdkLog( ( "[DEBUG]"LOG_METADATA_FORMAT, LOG_METADATA_ARGS ) ); SdkLog( message ); SdkLog( ( "\r\n" ) )
 
     #elif LIBRARY_LOG_LEVEL == LOG_INFO
-        /* Only INFO, WARNING and ERROR messages will be logged. */
+/* Only INFO, WARNING and ERROR messages will be logged. */
         #define LogError( message )    SdkLog( ( "[ERROR]"LOG_METADATA_FORMAT, LOG_METADATA_ARGS ) ); SdkLog( message ); SdkLog( ( "\r\n" ) )
         #define LogWarn( message )     SdkLog( ( "[WARN]"LOG_METADATA_FORMAT, LOG_METADATA_ARGS ) ); SdkLog( message ); SdkLog( ( "\r\n" ) )
         #define LogInfo( message )     SdkLog( ( "[INFO]"LOG_METADATA_FORMAT, LOG_METADATA_ARGS ) ); SdkLog( message ); SdkLog( ( "\r\n" ) )
         #define LogDebug( message )
 
     #elif LIBRARY_LOG_LEVEL == LOG_WARN
-        /* Only WARNING and ERROR messages will be logged.*/
+/* Only WARNING and ERROR messages will be logged.*/
         #define LogError( message )    SdkLog( ( "[ERROR]"LOG_METADATA_FORMAT, LOG_METADATA_ARGS ) ); SdkLog( message ); SdkLog( ( "\r\n" ) )
         #define LogWarn( message )     SdkLog( ( "[WARN]"LOG_METADATA_FORMAT, LOG_METADATA_ARGS ) ); SdkLog( message ); SdkLog( ( "\r\n" ) )
         #define LogInfo( message )
         #define LogDebug( message )
 
     #elif LIBRARY_LOG_LEVEL == LOG_ERROR
-        /* Only ERROR messages will be logged. */
+/* Only ERROR messages will be logged. */
         #define LogError( message )    SdkLog( ( "[ERROR]"LOG_METADATA_FORMAT, LOG_METADATA_ARGS ) ); SdkLog( message ); SdkLog( ( "\r\n" ) )
         #define LogWarn( message )
         #define LogInfo( message )
