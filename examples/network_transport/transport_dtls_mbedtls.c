@@ -58,7 +58,7 @@
 /* DTLS transport header. */
 #include "transport_dtls_mbedtls.h"
 
-/* OS specific port header*/
+/* OS specific port header. */
 #include "transport_dtls_mbedtls_port.h"
 
 /*-----------------------------------------------------------*/
@@ -1092,19 +1092,24 @@ int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslCo
 }
 /*-----------------------------------------------------------*/
 
-void mbedtls_ssl_get_dtls_srtp_negotiation_result(const mbedtls_ssl_context *ssl,
-                                                  mbedtls_dtls_srtp_info *dtls_srtp_info)
+void mbedtls_ssl_get_dtls_srtp_negotiation_result( const mbedtls_ssl_context * ssl,
+                                                   mbedtls_dtls_srtp_info * dtls_srtp_info )
 {
     dtls_srtp_info->chosen_dtls_srtp_profile = ssl->dtls_srtp_info.chosen_dtls_srtp_profile;
     /* do not copy the mki value if there is no chosen profile */
-    if (dtls_srtp_info->chosen_dtls_srtp_profile == MBEDTLS_TLS_SRTP_UNSET) {
+    if( dtls_srtp_info->chosen_dtls_srtp_profile == MBEDTLS_TLS_SRTP_UNSET )
+    {
         dtls_srtp_info->mki_len = 0;
-    } else {
+    }
+    else
+    {
         dtls_srtp_info->mki_len = ssl->dtls_srtp_info.mki_len;
-        memcpy(dtls_srtp_info->mki_value, ssl->dtls_srtp_info.mki_value,
-               ssl->dtls_srtp_info.mki_len);
+        memcpy( dtls_srtp_info->mki_value,
+                ssl->dtls_srtp_info.mki_value,
+                ssl->dtls_srtp_info.mki_len );
     }
 }
+/*-----------------------------------------------------------*/
 
 int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t * pSslContext,
                                            PDtlsKeyingMaterial pDtlsKeyingMaterial )
@@ -1245,11 +1250,11 @@ int32_t createCertificateAndKey( int32_t certificateBits,
     {
         if( ( pCertBuf = ( char * )pvPortMalloc( GENERATED_CERTIFICATE_MAX_SIZE ) ) )
         {
-            if( (NULL != (pEntropy = ( mbedtls_entropy_context * )pvPortMalloc( sizeof( mbedtls_entropy_context ) ) )))
+            if( ( NULL != ( pEntropy = ( mbedtls_entropy_context * )pvPortMalloc( sizeof( mbedtls_entropy_context ) ) ) ) )
             {
-                if( ( NULL != (pCtrDrbg = ( mbedtls_ctr_drbg_context * )pvPortMalloc( sizeof( mbedtls_ctr_drbg_context ) ) )))
+                if( ( NULL != ( pCtrDrbg = ( mbedtls_ctr_drbg_context * )pvPortMalloc( sizeof( mbedtls_ctr_drbg_context ) ) ) ) )
                 {
-                    if( ( NULL != (pWriteCert = ( mbedtls_x509write_cert * )pvPortMalloc( sizeof( mbedtls_x509write_cert ) )) ))
+                    if( ( NULL != ( pWriteCert = ( mbedtls_x509write_cert * )pvPortMalloc( sizeof( mbedtls_x509write_cert ) ) ) ) )
                     {
                         if( dtlsFillPseudoRandomBits( certSn,
                                                       sizeof( certSn ) ) == 0 )
@@ -1269,7 +1274,6 @@ int32_t createCertificateAndKey( int32_t certificateBits,
                                                        0 ) == 0 )
                             {
                                 LogDebug( ( "mbedtls_ctr_drbg_seed successful" ) );
-
 
                                 // generate a RSA key
                                 if( generateRSACertificate )
@@ -1323,10 +1327,9 @@ int32_t createCertificateAndKey( int32_t certificateBits,
                             // generate a new certificate
                             if( mbedtls_mpi_read_binary( &serial,
                                                          certSn,
-                                                         sizeof( certSn ) ) != 0 )
+                                                         sizeof( certSn ) ) == 0 )
                             {
-                                retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
-                                LogError( ( "mbedtls_mpi_read_binary STATUS_CERTIFICATE_GENERATION_FAILED" ) );
+                                LogDebug( ( "mbedtls_mpi_read_binary successful" ) );
 
 
                                 // now = GETTIME();

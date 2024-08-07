@@ -29,8 +29,8 @@
  * @brief DTLS transport interface header.
  */
 
-#ifndef USING_DTLS_MBEDTLS
-#define USING_DTLS_MBEDTLS
+#ifndef TRANSPORT_DTLS_MBEDTLS_H
+#define TRANSPORT_DTLS_MBEDTLS_H
 
 #include "mbedtls/config.h"
 #include "mbedtls/ctr_drbg.h"
@@ -334,22 +334,6 @@ typedef struct
     KVS_SRTP_PROFILE srtpProfile;
 } DtlsKeyingMaterial, *PDtlsKeyingMaterial;
 
-/**
- * @brief Create DTLS credentials for the connection.
- *
- * @param[in] pNetworkCredentials Credentials for the DTLS connection.
- *
- * @return 0 on success, non-zero value otherwise.
- */
-int32_t Crypto_CreateDtlsCredentials( DtlsNetworkCredentials_t * pNetworkCredentials );
-
-/**
- * @brief Free DTLS credentials.
- *
- * @param[in] pNetworkCredentials Credentials for the DTLS connection.
- */
-void Crypto_FreeDtlsCredentials( DtlsNetworkCredentials_t * pNetworkCredentials );
-
 
 int32_t createCertificateAndKey( int32_t,
                                  BaseType_t,
@@ -368,4 +352,4 @@ int32_t dtlsCertificateDemToPem( const unsigned char *,
                                  size_t,
                                  size_t * );
 
-#endif /* ifndef USING_DTLS_MBEDTLS */
+#endif /* ifndef TRANSPORT_DTLS_MBEDTLS_H */
