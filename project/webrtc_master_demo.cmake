@@ -85,6 +85,7 @@ set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/signaling_controller"
      "${REPO_ROOT_DIRECTORY}/examples/network_transport"
      "${REPO_ROOT_DIRECTORY}/examples/network_transport/tcp_sockets_wrapper/include"
+     "${REPO_ROOT_DIRECTORY}/examples/network_transport/udp_sockets_wrapper/include"
      "${REPO_ROOT_DIRECTORY}/examples/networking"
      "${REPO_ROOT_DIRECTORY}/examples/networking/corehttp_helper"
      "${REPO_ROOT_DIRECTORY}/examples/networking/wslay_helper"
