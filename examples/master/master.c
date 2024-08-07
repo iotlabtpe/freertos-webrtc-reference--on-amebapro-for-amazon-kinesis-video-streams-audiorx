@@ -18,9 +18,8 @@
 // The value could be different for other codecs.
 #define DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE ( 4 * 1024 * 1024 )
 
-#define DEFAULT_TRANSCEIVER_VIDEO_STREAM_ID "myKvsVideoStream"
+#define DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID "myKvsVideoStream"
 #define DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID "myVideoTrack"
-#define DEFAULT_TRANSCEIVER_AUDIO_STREAM_ID "myKvsAudioStream"
 #define DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID "myAudioTrack"
 
 #define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect
@@ -270,8 +269,8 @@ static int addTransceivers( DemoContext_t * pDemoContext )
     TRANSCEIVER_ENABLE_CODEC( transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT );
     transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
     transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE;
-    strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_VIDEO_STREAM_ID, sizeof( transceiver.streamId ) );
-    transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_STREAM_ID );
+    strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID, sizeof( transceiver.streamId ) );
+    transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
     strncpy( transceiver.trackId, DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID, sizeof( transceiver.trackId ) );
     transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID );
     peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
@@ -290,8 +289,8 @@ static int addTransceivers( DemoContext_t * pDemoContext )
         TRANSCEIVER_ENABLE_CODEC( transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT );
         transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
         transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE;
-        strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_AUDIO_STREAM_ID, sizeof( transceiver.streamId ) );
-        transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_AUDIO_STREAM_ID );
+        strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID, sizeof( transceiver.streamId ) );
+        transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
         strncpy( transceiver.trackId, DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID, sizeof( transceiver.trackId ) );
         transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID );
         peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
