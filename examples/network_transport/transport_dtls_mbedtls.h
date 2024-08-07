@@ -89,12 +89,12 @@ typedef struct DtlsSessionTimer
     mbedtls_get_delay_fptr get_delay; // Function pointer to get delay
 } DtlsSessionTimer_t;
 
-typedef struct dtls_retransmission
+typedef struct DtlsRetransmissionParams
 {
     DtlsSessionTimer_t transmissionTimer;
     uint32_t dtlsSessionStartTime;
     uint32_t dtlsSessionSetupTime;
-} dtls_retransmission_t;
+} DtlsRetransmission_t;
 
 /**
  * @brief Parameters for the network context of the transport interface
