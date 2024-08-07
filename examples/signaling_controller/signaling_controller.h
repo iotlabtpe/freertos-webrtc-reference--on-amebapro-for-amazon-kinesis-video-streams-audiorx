@@ -9,12 +9,18 @@ extern "C" {
 
 #include "signaling_controller_data_types.h"
 
-SignalingControllerResult_t SignalingController_Init( SignalingControllerContext_t *pCtx, SignalingControllerCredential_t *pCred, SignalingControllerReceiveMessageCallback receiveMessageCallback, void *pReceiveMessageCallbackContext );
-void SignalingController_Deinit( SignalingControllerContext_t *pCtx );
-SignalingControllerResult_t SignalingController_ConnectServers( SignalingControllerContext_t *pCtx );
-SignalingControllerResult_t SignalingController_ProcessLoop( SignalingControllerContext_t *pCtx );
-SignalingControllerResult_t SignalingController_SendMessage( SignalingControllerContext_t *pCtx, SignalingControllerEventMessage_t *pEventMsg );
-SignalingControllerResult_t SignalingController_QueryIceServerConfigs( SignalingControllerContext_t *pCtx, SignalingControllerIceServerConfig_t **ppIceServerConfigs, size_t *pIceServerConfigsCount );
+SignalingControllerResult_t SignalingController_Init( SignalingControllerContext_t * pCtx,
+                                                      SignalingControllerCredential_t * pCred,
+                                                      SignalingControllerReceiveMessageCallback receiveMessageCallback,
+                                                      void * pReceiveMessageCallbackContext );
+void SignalingController_Deinit( SignalingControllerContext_t * pCtx );
+SignalingControllerResult_t SignalingController_ConnectServers( SignalingControllerContext_t * pCtx );
+SignalingControllerResult_t SignalingController_ProcessLoop( SignalingControllerContext_t * pCtx );
+SignalingControllerResult_t SignalingController_SendMessage( SignalingControllerContext_t * pCtx,
+                                                             SignalingControllerEventMessage_t * pEventMsg );
+SignalingControllerResult_t SignalingController_QueryIceServerConfigs( SignalingControllerContext_t * pCtx,
+                                                                       SignalingControllerIceServerConfig_t ** ppIceServerConfigs,
+                                                                       size_t * pIceServerConfigsCount );
 
 #ifdef __cplusplus
 }

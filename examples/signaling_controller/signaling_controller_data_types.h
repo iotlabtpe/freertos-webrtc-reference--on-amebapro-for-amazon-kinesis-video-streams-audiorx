@@ -46,12 +46,12 @@ typedef enum SignalingControllerEventStatus
 
 typedef struct SignalingControllerReceiveEvent
 {
-    const char *pRemoteClientId;
+    const char * pRemoteClientId;
     size_t remoteClientIdLength;
     SignalingTypeMessage_t messageType;
-    const char *pDecodeMessage;
+    const char * pDecodeMessage;
     size_t decodeMessageLength;
-    const char *pCorrelationId;
+    const char * pCorrelationId;
     size_t correlationIdLength;
 } SignalingControllerReceiveEvent_t;
 
@@ -60,14 +60,16 @@ typedef struct SignalingControllerEventContentSend
     char remoteClientId[ SIGNALING_CONTROLLER_REMOTE_ID_MAX_LENGTH ];
     size_t remoteClientIdLength;
     SignalingTypeMessage_t messageType;
-    char *pDecodeMessage;
+    char * pDecodeMessage;
     size_t decodeMessageLength;
     char correlationId[ SIGNALING_CONTROLLER_CORRELATION_ID_MAX_LENGTH ];
     size_t correlationIdLength;
 } SignalingControllerEventContentSend_t;
 
-typedef int32_t (*SignalingControllerReceiveMessageCallback)( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext );
-typedef int32_t (*SignalingControllerCompleteSendCallback)( SignalingControllerEventStatus_t status, void *pUserContext );
+typedef int32_t (* SignalingControllerReceiveMessageCallback)( SignalingControllerReceiveEvent_t * pEvent,
+                                                               void * pUserContext );
+typedef int32_t (* SignalingControllerCompleteSendCallback)( SignalingControllerEventStatus_t status,
+                                                             void * pUserContext );
 
 typedef enum SignalingControllerResult
 {
@@ -181,7 +183,7 @@ typedef struct SignalingControllerEventMessage
     SignalingControllerEvent_t event;
     SignalingControllerEventContentSend_t eventContent;
     SignalingControllerCompleteSendCallback onCompleteCallback;
-    void *pOnCompleteCallbackContext;
+    void * pOnCompleteCallbackContext;
 } SignalingControllerEventMessage_t;
 
 typedef struct SignalingControllerContext
@@ -199,7 +201,7 @@ typedef struct SignalingControllerContext
     char httpUrlBuffer[ SIGNALING_CONTROLLER_MAX_HTTP_URI_LENGTH ];
     char httpBodyBuffer[ SIGNALING_CONTROLLER_MAX_HTTP_BODY_LENGTH ];
     char httpResponserBuffer[ SIGNALING_CONTROLLER_MAX_HTTP_BODY_LENGTH ];
-    void *pReceiveMessageCallbackContext;
+    void * pReceiveMessageCallbackContext;
     char base64Buffer[ SIGNALING_CONTROLLER_MAX_CONTENT_LENGTH ];
     size_t base64BufferLength;
     char constructedSignalingBuffer[ SIGNALING_CONTROLLER_MAX_CONTENT_LENGTH ];

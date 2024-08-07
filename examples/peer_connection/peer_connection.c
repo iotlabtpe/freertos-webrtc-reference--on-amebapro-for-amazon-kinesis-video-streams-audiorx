@@ -7,24 +7,25 @@
 #define PeerConnectionIceTaskName "IceTask"
 #define PeerConnectionIceSockListenerTaskName "IceSockLnrTask" // For Ice controller to monitor socket Rx path
 
-extern void IceControllerSocketListener_Task( void *pParameter );
+extern void IceControllerSocketListener_Task( void * pParameter );
 
-static void IceController_Task( void *pParameter )
+static void IceController_Task( void * pParameter )
 {
-    IceControllerContext_t *pIceControllerContext = (IceControllerContext_t *) pParameter;
-    
+    IceControllerContext_t * pIceControllerContext = ( IceControllerContext_t * ) pParameter;
+
     for( ;; )
     {
-        (void) IceController_ProcessLoop( pIceControllerContext );
+        ( void ) IceController_ProcessLoop( pIceControllerContext );
     }
 }
 
-static PeerConnectionResult_t InitializeIceController( PeerConnectionContext_t *pCtx, SignalingControllerContext_t *pSignalingControllerContext )
+static PeerConnectionResult_t InitializeIceController( PeerConnectionContext_t * pCtx,
+                                                       SignalingControllerContext_t * pSignalingControllerContext )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     IceControllerResult_t iceControllerResult;
 
-    if( pCtx == NULL || pSignalingControllerContext == NULL )
+    if( ( pCtx == NULL ) || ( pSignalingControllerContext == NULL ) )
     {
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
@@ -48,7 +49,7 @@ static PeerConnectionResult_t InitializeIceController( PeerConnectionContext_t *
                          tskIDLE_PRIORITY + 2,
                          NULL ) != pdPASS )
         {
-            LogError( ("xTaskCreate(%s) failed", PeerConnectionIceTaskName) );
+            LogError( ( "xTaskCreate(%s) failed", PeerConnectionIceTaskName ) );
             ret = PEER_CONNECTION_RESULT_FAIL_CREATE_TASK_ICE_CONTROLLER;
         }
     }
@@ -62,7 +63,7 @@ static PeerConnectionResult_t InitializeIceController( PeerConnectionContext_t *
                          tskIDLE_PRIORITY + 1,
                          NULL ) != pdPASS )
         {
-            LogError( ("xTaskCreate(%s) failed", PeerConnectionIceSockListenerTaskName) );
+            LogError( ( "xTaskCreate(%s) failed", PeerConnectionIceSockListenerTaskName ) );
             ret = PEER_CONNECTION_RESULT_FAIL_CREATE_TASK_ICE_SOCK_LISTENER;
         }
     }
@@ -70,7 +71,7 @@ static PeerConnectionResult_t InitializeIceController( PeerConnectionContext_t *
     return ret;
 }
 
-static PeerConnectionResult_t DestroyIceController( PeerConnectionContext_t *pCtx )
+static PeerConnectionResult_t DestroyIceController( PeerConnectionContext_t * pCtx )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     IceControllerResult_t iceControllerResult;
@@ -93,11 +94,11 @@ static PeerConnectionResult_t DestroyIceController( PeerConnectionContext_t *pCt
     return ret;
 }
 
-static Transceiver_t *AllocateFreeTransceiver( PeerConnectionContext_t *pCtx )
+static Transceiver_t * AllocateFreeTransceiver( PeerConnectionContext_t * pCtx )
 {
-    Transceiver_t *pReturn = NULL;
+    Transceiver_t * pReturn = NULL;
 
-    if( pCtx && pCtx->transceiverCount < PEER_CONNECTION_TRANSCEIVER_MAX_COUNT )
+    if( pCtx && ( pCtx->transceiverCount < PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ) )
     {
         pReturn = &pCtx->transceivers[ pCtx->transceiverCount++ ];
     }
@@ -105,11 +106,12 @@ static Transceiver_t *AllocateFreeTransceiver( PeerConnectionContext_t *pCtx )
     return pReturn;
 }
 
-PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t *pCtx, SignalingControllerContext_t *pSignalingControllerContext )
+PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t * pCtx,
+                                            SignalingControllerContext_t * pSignalingControllerContext )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
 
-    if( pCtx == NULL || pSignalingControllerContext == NULL )
+    if( ( pCtx == NULL ) || ( pSignalingControllerContext == NULL ) )
     {
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
@@ -125,7 +127,7 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t *pCtx, Signa
     return ret;
 }
 
-PeerConnectionResult_t PeerConnection_Destroy( PeerConnectionContext_t *pCtx )
+PeerConnectionResult_t PeerConnection_Destroy( PeerConnectionContext_t * pCtx )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
 
@@ -143,15 +145,16 @@ PeerConnectionResult_t PeerConnection_Destroy( PeerConnectionContext_t *pCtx )
     return ret;
 }
 
-PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContext_t *pCtx, const PeerConnectionRemoteInfo_t *pRemoteInfo )
+PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContext_t * pCtx,
+                                                            const PeerConnectionRemoteInfo_t * pRemoteInfo )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     IceControllerResult_t iceControllerResult;
 
-    if( pCtx == NULL || pRemoteInfo == NULL ||
-        pRemoteInfo->pRemoteClientId == NULL ||
-        pRemoteInfo->pRemotePassword == NULL ||
-        pRemoteInfo->pRemoteUserName == NULL )
+    if( ( pCtx == NULL ) || ( pRemoteInfo == NULL ) ||
+        ( pRemoteInfo->pRemoteClientId == NULL ) ||
+        ( pRemoteInfo->pRemotePassword == NULL ) ||
+        ( pRemoteInfo->pRemoteUserName == NULL ) )
     {
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
@@ -172,17 +175,19 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
     return ret;
 }
 
-PeerConnectionResult_t PeerConnection_AddRemoteCandidate( PeerConnectionContext_t *pCtx,
-                                                          const char *pRemoteClientId, size_t remoteClientIdLength,
-                                                          const char *pDecodeMessage, size_t decodeMessageLength )
+PeerConnectionResult_t PeerConnection_AddRemoteCandidate( PeerConnectionContext_t * pCtx,
+                                                          const char * pRemoteClientId,
+                                                          size_t remoteClientIdLength,
+                                                          const char * pDecodeMessage,
+                                                          size_t decodeMessageLength )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     IceControllerResult_t iceControllerResult;
     IceControllerCandidate_t candidate;
 
-    if( pCtx == NULL ||
-        pRemoteClientId == NULL ||
-        pDecodeMessage == NULL )
+    if( ( pCtx == NULL ) ||
+        ( pRemoteClientId == NULL ) ||
+        ( pDecodeMessage == NULL ) )
     {
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
@@ -210,7 +215,8 @@ PeerConnectionResult_t PeerConnection_AddRemoteCandidate( PeerConnectionContext_
     return ret;
 }
 
-PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t *pCtx, const Transceiver_t transceiver )
+PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t * pCtx,
+                                                      const Transceiver_t transceiver )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     Transceiver_t * pTargetTransceiver;
@@ -225,29 +231,31 @@ PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t *p
         pTargetTransceiver = AllocateFreeTransceiver( pCtx );
         if( pTargetTransceiver == NULL )
         {
-            LogWarn( ("No space to add transceiver") );
+            LogWarn( ( "No space to add transceiver" ) );
             ret = PEER_CONNECTION_RESULT_NO_FREE_TRANSCEIVER;
         }
     }
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        memcpy( pTargetTransceiver, &transceiver, sizeof(Transceiver_t) );
+        memcpy( pTargetTransceiver, &transceiver, sizeof( Transceiver_t ) );
         pTargetTransceiver->ssrc = ( uint32_t ) rand();
     }
 
     return ret;
 }
 
-PeerConnectionResult_t PeerConnection_GetTransceivers( PeerConnectionContext_t *pCtx, const Transceiver_t **ppTransceivers, size_t *pTransceiversCount )
+PeerConnectionResult_t PeerConnection_GetTransceivers( PeerConnectionContext_t * pCtx,
+                                                       const Transceiver_t ** ppTransceivers,
+                                                       size_t * pTransceiversCount )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
 
-    if( pCtx == NULL ||
-        ppTransceivers == NULL ||
-        pTransceiversCount == NULL )
+    if( ( pCtx == NULL ) ||
+        ( ppTransceivers == NULL ) ||
+        ( pTransceiversCount == NULL ) )
     {
-        LogError( ("Invalid input.") );
+        LogError( ( "Invalid input." ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
 
@@ -260,14 +268,15 @@ PeerConnectionResult_t PeerConnection_GetTransceivers( PeerConnectionContext_t *
     return ret;
 }
 
-PeerConnectionResult_t PeerConnection_GetLocalUserInfo( PeerConnectionContext_t *pCtx, PeerConnectionUserInfo_t *pLocalUserInfo )
+PeerConnectionResult_t PeerConnection_GetLocalUserInfo( PeerConnectionContext_t * pCtx,
+                                                        PeerConnectionUserInfo_t * pLocalUserInfo )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
 
-    if( pCtx == NULL ||
-        pLocalUserInfo == NULL )
+    if( ( pCtx == NULL ) ||
+        ( pLocalUserInfo == NULL ) )
     {
-        LogError( ("Invalid input.") );
+        LogError( ( "Invalid input." ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
 

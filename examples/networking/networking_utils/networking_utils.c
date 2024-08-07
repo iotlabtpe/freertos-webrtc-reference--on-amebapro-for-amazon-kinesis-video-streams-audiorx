@@ -29,24 +29,24 @@ static mbedtls_sha256_context xHashContext = { 0 };
  */
 static SigV4CryptoInterface_t cryptoInterface =
 {
-    .hashInit      = sha256Init,
-    .hashUpdate    = sha256Update,
-    .hashFinal     = sha256Final,
-    .pHashContext  = &xHashContext,
-    .hashBlockLen  = 64,
+    .hashInit = sha256Init,
+    .hashUpdate = sha256Update,
+    .hashFinal = sha256Final,
+    .pHashContext = &xHashContext,
+    .hashBlockLen = 64,
     .hashDigestLen = 32,
 };
 
 static SigV4Parameters_t sigv4Params =
 {
-    .pCredentials     = NULL,
-    .pDateIso8601     = NULL,
-    .pRegion          = NULL,
-    .regionLen        = 0,
-    .pService         = NETWORKING_UTILS_KVS_SERVICE_NAME,
-    .serviceLen       = strlen( NETWORKING_UTILS_KVS_SERVICE_NAME ),
+    .pCredentials = NULL,
+    .pDateIso8601 = NULL,
+    .pRegion = NULL,
+    .regionLen = 0,
+    .pService = NETWORKING_UTILS_KVS_SERVICE_NAME,
+    .serviceLen = strlen( NETWORKING_UTILS_KVS_SERVICE_NAME ),
     .pCryptoInterface = &cryptoInterface,
-    .pHttpParameters  = NULL
+    .pHttpParameters = NULL
 };
 
 static int32_t sha256Init( void * hashContext )
@@ -79,13 +79,16 @@ static int32_t sha256Final( void * hashContext,
     return 0;
 }
 
-NetworkingUtilsResult_t NetworkingUtils_GetUrlHost( char *pUrl, size_t urlLength, char **ppStart, size_t *pHostLength )
+NetworkingUtilsResult_t NetworkingUtils_GetUrlHost( char * pUrl,
+                                                    size_t urlLength,
+                                                    char ** ppStart,
+                                                    size_t * pHostLength )
 {
     NetworkingUtilsResult_t ret = NETWORKING_UTILS_RESULT_OK;
-    char *pStart = NULL, *pEnd = pUrl + urlLength, *pCurPtr;
+    char * pStart = NULL, * pEnd = pUrl + urlLength, * pCurPtr;
     uint8_t foundEndMark = 0;
 
-    if( pUrl == NULL || ppStart == NULL || pHostLength == NULL )
+    if( ( pUrl == NULL ) || ( ppStart == NULL ) || ( pHostLength == NULL ) )
     {
         ret = NETWORKING_UTILS_RESULT_BAD_PARAMETER;
     }
@@ -93,7 +96,7 @@ NetworkingUtilsResult_t NetworkingUtils_GetUrlHost( char *pUrl, size_t urlLength
     if( ret == NETWORKING_UTILS_RESULT_OK )
     {
         // Start from the schema delimiter
-        pStart = strstr(pUrl, NETWORKING_UTILS_STRING_SCHEMA_DELIMITER);
+        pStart = strstr( pUrl, NETWORKING_UTILS_STRING_SCHEMA_DELIMITER );
         if( pStart == NULL )
         {
             ret = NETWORKING_UTILS_RESULT_SCHEMA_DELIMITER_NOT_FOUND;
@@ -120,13 +123,13 @@ NetworkingUtilsResult_t NetworkingUtils_GetUrlHost( char *pUrl, size_t urlLength
         {
             switch( *pCurPtr )
             {
-                case '/':
-                case ':':
-                case '?':
-                    foundEndMark = 1;
-                    break;
-                default:
-                    pCurPtr++;
+            case '/':
+            case ':':
+            case '?':
+                foundEndMark = 1;
+                break;
+            default:
+                pCurPtr++;
             }
         }
     }
@@ -140,14 +143,17 @@ NetworkingUtilsResult_t NetworkingUtils_GetUrlHost( char *pUrl, size_t urlLength
     return ret;
 }
 
-NetworkingUtilsResult_t NetworkingUtils_GetPathFromUrl( char *pUrl, size_t urlLength, char **ppPath, size_t *pPathLength )
+NetworkingUtilsResult_t NetworkingUtils_GetPathFromUrl( char * pUrl,
+                                                        size_t urlLength,
+                                                        char ** ppPath,
+                                                        size_t * pPathLength )
 {
     NetworkingUtilsResult_t ret = NETWORKING_UTILS_RESULT_OK;
-    char *pHost, *pPathEnd;
+    char * pHost, * pPathEnd;
     size_t hostLength;
-    char *pStart;
+    char * pStart;
 
-    if( pUrl == NULL || ppPath == NULL )
+    if( ( pUrl == NULL ) || ( ppPath == NULL ) )
     {
         ret = NETWORKING_UTILS_RESULT_BAD_PARAMETER;
     }
@@ -182,16 +188,21 @@ NetworkingUtilsResult_t NetworkingUtils_GetPathFromUrl( char *pUrl, size_t urlLe
     return ret;
 }
 
-NetworkingUtilsResult_t NetworkingUtils_GenrerateAuthorizationHeader( NetworkingUtilsCanonicalRequest_t *pCanonicalRequest, SigV4Credentials_t *pSigv4Credential,
-                                                                      const char *pAwsRegion, size_t awsRegionLength, const char *pDate, 
-                                                                      char *pOutput, size_t *pOutputLength,
-                                                                      char **ppOutSignature, size_t *pOutSignatureLength )
+NetworkingUtilsResult_t NetworkingUtils_GenrerateAuthorizationHeader( NetworkingUtilsCanonicalRequest_t * pCanonicalRequest,
+                                                                      SigV4Credentials_t * pSigv4Credential,
+                                                                      const char * pAwsRegion,
+                                                                      size_t awsRegionLength,
+                                                                      const char * pDate,
+                                                                      char * pOutput,
+                                                                      size_t * pOutputLength,
+                                                                      char ** ppOutSignature,
+                                                                      size_t * pOutSignatureLength )
 {
     NetworkingUtilsResult_t ret = NETWORKING_UTILS_RESULT_OK;
     SigV4HttpParameters_t sigv4HttpParams;
     SigV4Status_t sigv4Status = SigV4Success;
-    
-    if( pCanonicalRequest == NULL || pAwsRegion == NULL || pDate == NULL || pOutput == NULL || pOutputLength == NULL || ppOutSignature == NULL || pOutSignatureLength == NULL )
+
+    if( ( pCanonicalRequest == NULL ) || ( pAwsRegion == NULL ) || ( pDate == NULL ) || ( pOutput == NULL ) || ( pOutputLength == NULL ) || ( ppOutSignature == NULL ) || ( pOutSignatureLength == NULL ) )
     {
         ret = NETWORKING_UTILS_RESULT_BAD_PARAMETER;
     }
@@ -219,7 +230,7 @@ NetworkingUtilsResult_t NetworkingUtils_GenrerateAuthorizationHeader( Networking
         sigv4HttpParams.headersLen = pCanonicalRequest->canonicalHeadersLength;
         sigv4HttpParams.pPayload = pCanonicalRequest->pPayload;
         sigv4HttpParams.payloadLen = pCanonicalRequest->payloadLength;
-        
+
         /* Initializing sigv4Params with Http parameters required for the HTTP request. */
         sigv4Params.pHttpParameters = &sigv4HttpParams;
         sigv4Params.pRegion = pAwsRegion;
@@ -230,7 +241,7 @@ NetworkingUtilsResult_t NetworkingUtils_GenrerateAuthorizationHeader( Networking
         /* Reset buffer length then generate authorization. */
         sigv4Status = SigV4_GenerateHTTPAuthorization( &sigv4Params, pOutput, pOutputLength,
                                                        ppOutSignature, pOutSignatureLength );
-        
+
         if( sigv4Status != SigV4Success )
         {
             LogError( ( "Fail to generate HTTP authorization with return 0x%x", sigv4Status ) );
@@ -249,7 +260,7 @@ void NetworkingUtils_GetHeaderStartLocFromHttpRequest( HTTPRequestHeaders_t * px
     char * pcHeaders = ( char * ) pxRequestHeaders->pBuffer;
     bool xNewLineFound = false;
 
-    if( pxRequestHeaders != NULL && pcStartHeaderLoc != NULL && pxHeadersDataLen != NULL )
+    if( ( pxRequestHeaders != NULL ) && ( pcStartHeaderLoc != NULL ) && ( pxHeadersDataLen != NULL ) )
     {
         while( xHeaderLen >= 2 )
         {
@@ -280,16 +291,16 @@ void NetworkingUtils_GetHeaderStartLocFromHttpRequest( HTTPRequestHeaders_t * px
 }
 
 NetworkingUtilsResult_t NetworkingUtils_ConnectToServer( NetworkContext_t * pxNetworkContext,
-                                        const char * pcServer,
-                                        uint16_t port,
-                                        NetworkCredentials_t * pxNetworkCredentials,
-                                        uint32_t sendTimeoutMs,
-                                        uint32_t recvTimeoutMs )
+                                                         const char * pcServer,
+                                                         uint16_t port,
+                                                         NetworkCredentials_t * pxNetworkCredentials,
+                                                         uint32_t sendTimeoutMs,
+                                                         uint32_t recvTimeoutMs )
 {
     NetworkingUtilsResult_t ret = NETWORKING_UTILS_RESULT_OK;
     TlsTransportStatus_t xNetworkStatus;
 
-    if( pxNetworkContext == NULL || pcServer == NULL )
+    if( ( pxNetworkContext == NULL ) || ( pcServer == NULL ) )
     {
         ret = NETWORKING_UTILS_RESULT_BAD_PARAMETER;
     }
@@ -307,10 +318,10 @@ NetworkingUtilsResult_t NetworkingUtils_ConnectToServer( NetworkContext_t * pxNe
                                                pxNetworkCredentials,
                                                sendTimeoutMs,
                                                recvTimeoutMs );
-        
+
         if( xNetworkStatus != TLS_TRANSPORT_SUCCESS )
         {
-            LogWarn( ("Fail to connect with server with return %d", xNetworkStatus) );
+            LogWarn( ( "Fail to connect with server with return %d", xNetworkStatus ) );
             ret = NETWORKING_UTILS_RESULT_FAIL_CONNECT;
         }
     }
@@ -323,24 +334,25 @@ void NetworkingUtils_CloseConnection( NetworkContext_t * pxNetworkContext )
     TLS_FreeRTOS_Disconnect( pxNetworkContext );
 }
 
-NetworkingUtilsResult_t NetworkingUtils_GetIso8601CurrentTime( char *pDate, size_t dateBufferLength )
+NetworkingUtilsResult_t NetworkingUtils_GetIso8601CurrentTime( char * pDate,
+                                                               size_t dateBufferLength )
 {
     NetworkingUtilsResult_t ret = NETWORKING_UTILS_RESULT_OK;
     struct timespec nowTime;
     time_t timeT;
     size_t timeLength = 0;
 
-    if( pDate == NULL || dateBufferLength < NETWORKING_UTILS_TIME_BUFFER_LENGTH )
+    if( ( pDate == NULL ) || ( dateBufferLength < NETWORKING_UTILS_TIME_BUFFER_LENGTH ) )
     {
         ret = NETWORKING_UTILS_RESULT_BAD_PARAMETER;
     }
 
     if( ret == NETWORKING_UTILS_RESULT_OK )
     {
-        clock_gettime(CLOCK_REALTIME, &nowTime);
+        clock_gettime( CLOCK_REALTIME, &nowTime );
         timeT = nowTime.tv_sec;
 
-        timeLength = strftime(pDate, dateBufferLength, "%Y%m%dT%H%M%SZ", gmtime(&timeT));
+        timeLength = strftime( pDate, dateBufferLength, "%Y%m%dT%H%M%SZ", gmtime( &timeT ) );
 
         if( timeLength <= 0 )
         {
@@ -348,7 +360,7 @@ NetworkingUtilsResult_t NetworkingUtils_GetIso8601CurrentTime( char *pDate, size
             ret = NETWORKING_UTILS_RESULT_TIME_BUFFER_OUT_OF_MEMORY;
         }
     }
-    
+
     if( ret == NETWORKING_UTILS_RESULT_OK )
     {
         pDate[ timeLength ] = '\0';

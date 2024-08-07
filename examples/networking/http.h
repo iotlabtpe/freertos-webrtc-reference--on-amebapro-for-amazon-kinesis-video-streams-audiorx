@@ -31,7 +31,9 @@ typedef struct HttpResponse
 } HttpResponse_t;
 
 HttpResult_t Http_Init( void * pCredential );
-HttpResult_t Http_Send( HttpRequest_t * pRequest, size_t timeoutMs, HttpResponse_t *pResponse );
+HttpResult_t Http_Send( HttpRequest_t * pRequest,
+                        size_t timeoutMs,
+                        HttpResponse_t * pResponse );
 
 #ifdef __cplusplus
 }

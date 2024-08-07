@@ -38,13 +38,13 @@ typedef enum NetworkingHttpVerb
 typedef struct NetworkingUtilsCanonicalRequest
 {
     NetworkingHttpVerb_t verb;
-    char *pPath; // For canonical URI
+    char * pPath; // For canonical URI
     size_t pathLength;
-    char *pCanonicalQueryString; // Canonical query string
+    char * pCanonicalQueryString; // Canonical query string
     size_t canonicalQueryStringLength;
-    char *pCanonicalHeaders; // Canonical headers
+    char * pCanonicalHeaders; // Canonical headers
     size_t canonicalHeadersLength;
-    char *pPayload; // Un-hashed payload
+    char * pPayload; // Un-hashed payload
     size_t payloadLength;
 } NetworkingUtilsCanonicalRequest_t;
 
@@ -53,23 +53,35 @@ struct NetworkContext
     TlsTransportParams_t * pParams;
 };
 
-NetworkingUtilsResult_t NetworkingUtils_GetUrlHost( char *pUrl, size_t urlLength, char **ppStart, size_t *pHostLength );
-NetworkingUtilsResult_t NetworkingUtils_GetPathFromUrl( char *pUrl, size_t urlLength, char **ppPath, size_t *pPathLength );
-NetworkingUtilsResult_t NetworkingUtils_GenrerateAuthorizationHeader( NetworkingUtilsCanonicalRequest_t *pCanonicalRequest, SigV4Credentials_t *pSigv4Credential,
-                                                                      const char *pAwsRegion, size_t awsRegionLength, const char *pDate, 
-                                                                      char *pOutput, size_t *pOutputLength,
-                                                                      char **ppOutSignature, size_t *pOutSignatureLength );
+NetworkingUtilsResult_t NetworkingUtils_GetUrlHost( char * pUrl,
+                                                    size_t urlLength,
+                                                    char ** ppStart,
+                                                    size_t * pHostLength );
+NetworkingUtilsResult_t NetworkingUtils_GetPathFromUrl( char * pUrl,
+                                                        size_t urlLength,
+                                                        char ** ppPath,
+                                                        size_t * pPathLength );
+NetworkingUtilsResult_t NetworkingUtils_GenrerateAuthorizationHeader( NetworkingUtilsCanonicalRequest_t * pCanonicalRequest,
+                                                                      SigV4Credentials_t * pSigv4Credential,
+                                                                      const char * pAwsRegion,
+                                                                      size_t awsRegionLength,
+                                                                      const char * pDate,
+                                                                      char * pOutput,
+                                                                      size_t * pOutputLength,
+                                                                      char ** ppOutSignature,
+                                                                      size_t * pOutSignatureLength );
 void NetworkingUtils_GetHeaderStartLocFromHttpRequest( HTTPRequestHeaders_t * pxRequestHeaders,
                                                        char ** pcStartHeaderLoc,
                                                        size_t * pxHeadersDataLen );
 NetworkingUtilsResult_t NetworkingUtils_ConnectToServer( NetworkContext_t * pxNetworkContext,
-                                        const char * pcServer,
-                                        uint16_t port,
-                                        NetworkCredentials_t * pxNetworkCredentials,
-                                        uint32_t sendTimeoutMs,
-                                        uint32_t recvTimeoutMs );
+                                                         const char * pcServer,
+                                                         uint16_t port,
+                                                         NetworkCredentials_t * pxNetworkCredentials,
+                                                         uint32_t sendTimeoutMs,
+                                                         uint32_t recvTimeoutMs );
 void NetworkingUtils_CloseConnection( NetworkContext_t * pxNetworkContext );
-NetworkingUtilsResult_t NetworkingUtils_GetIso8601CurrentTime( char *pDate, size_t dateBufferLength );
+NetworkingUtilsResult_t NetworkingUtils_GetIso8601CurrentTime( char * pDate,
+                                                               size_t dateBufferLength );
 
 #ifdef __cplusplus
 }

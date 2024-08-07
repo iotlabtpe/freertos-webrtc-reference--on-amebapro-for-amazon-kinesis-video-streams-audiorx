@@ -31,21 +31,21 @@ typedef enum PeerConnectionResult
 
 typedef struct PeerConnectionRemoteInfo
 {
-    const char *pRemoteClientId; /* From SignalingControllerReceiveEvent_t */
+    const char * pRemoteClientId; /* From SignalingControllerReceiveEvent_t */
     size_t remoteClientIdLength;
-    const char *pRemoteUserName; /* From ice-ufrag in SDP attributes */
+    const char * pRemoteUserName; /* From ice-ufrag in SDP attributes */
     size_t remoteUserNameLength;
-    const char *pRemotePassword; /* From ice-pwd in SDP attributes */
+    const char * pRemotePassword; /* From ice-pwd in SDP attributes */
     size_t remotePasswordLength;
 } PeerConnectionRemoteInfo_t;
 
 typedef struct PeerConnectionUserInfo
 {
-    const char *pCname;
+    const char * pCname;
     size_t cnameLength;
-    const char *pUserName; /* For ice-ufrag in SDP attributes */
+    const char * pUserName; /* For ice-ufrag in SDP attributes */
     size_t userNameLength;
-    const char *pPassword; /* For ice-pwd in SDP attributes */
+    const char * pPassword; /* For ice-pwd in SDP attributes */
     size_t passwordLength;
 } PeerConnectionUserInfo_t;
 

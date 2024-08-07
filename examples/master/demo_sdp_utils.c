@@ -82,21 +82,24 @@ const char videoAttribute19Value[] = "106 goog-remb";
 const char videoAttribute20Name[] = "rtcp-fb";
 const char videoAttribute20Value[] = "106 transport-cc";
 
-static SdpControllerAttributes_t *MatchAttributesValuePrefix( SdpControllerAttributes_t *pAttributes, size_t attributeNum, const char *pPattern, size_t patternLength )
+static SdpControllerAttributes_t * MatchAttributesValuePrefix( SdpControllerAttributes_t * pAttributes,
+                                                               size_t attributeNum,
+                                                               const char * pPattern,
+                                                               size_t patternLength )
 {
-    SdpControllerAttributes_t *pFound = NULL;
+    SdpControllerAttributes_t * pFound = NULL;
     int i;
 
-    if( pAttributes == NULL || pPattern == NULL )
+    if( ( pAttributes == NULL ) || ( pPattern == NULL ) )
     {
-        LogError( ("Invalid input") );
+        LogError( ( "Invalid input" ) );
     }
     else
     {
-        for( i=0 ; i<attributeNum ; i++ )
+        for( i = 0; i < attributeNum; i++ )
         {
-            if( (pAttributes + i)->attributeValueLength >= patternLength &&
-                strncmp( (pAttributes + i)->pAttributeValue, pPattern, patternLength ) == 0 )
+            if( ( ( pAttributes + i )->attributeValueLength >= patternLength ) &&
+                ( strncmp( ( pAttributes + i )->pAttributeValue, pPattern, patternLength ) == 0 ) )
             {
                 pFound = pAttributes + i;
             }
@@ -106,19 +109,22 @@ static SdpControllerAttributes_t *MatchAttributesValuePrefix( SdpControllerAttri
     return pFound;
 }
 
-static int AddSessionAttributeGroup( char *pBuffer, size_t remainSize, SdpControllerSdpDescription_t *pLocalSdpDescription, SdpControllerSdpDescription_t *pRemoteSdpDescription )
+static int AddSessionAttributeGroup( char * pBuffer,
+                                     size_t remainSize,
+                                     SdpControllerSdpDescription_t * pLocalSdpDescription,
+                                     SdpControllerSdpDescription_t * pRemoteSdpDescription )
 {
     int totalWritten = 0;
     int written = 0;
-    char *pCurBuffer = pBuffer;
+    char * pCurBuffer = pBuffer;
     int i;
-    SdpControllerAttributes_t *pRemoteAttribute = NULL;
+    SdpControllerAttributes_t * pRemoteAttribute = NULL;
 
-    if( pBuffer == NULL ||
-        pLocalSdpDescription == NULL )
+    if( ( pBuffer == NULL ) ||
+        ( pLocalSdpDescription == NULL ) )
     {
         totalWritten = -1;
-        LogError( ("Invalid input") );
+        LogError( ( "Invalid input" ) );
     }
 
     /* Append attribute name group. */
@@ -145,7 +151,7 @@ static int AddSessionAttributeGroup( char *pBuffer, size_t remainSize, SdpContro
             totalWritten += written;
         }
     }
-    
+
     /* Append attribute value BUNDLE. */
     if( totalWritten >= 0 )
     {
@@ -181,7 +187,7 @@ static int AddSessionAttributeGroup( char *pBuffer, size_t remainSize, SdpContro
     }
 
     /* Append attribute value BUNDLE if not ready from previous step. */
-    if( totalWritten >= 0 && pRemoteAttribute == NULL )
+    if( ( totalWritten >= 0 ) && ( pRemoteAttribute == NULL ) )
     {
         written = snprintf( pCurBuffer, remainSize, "BUNDLE" );
         if( written < 0 )
@@ -196,12 +202,12 @@ static int AddSessionAttributeGroup( char *pBuffer, size_t remainSize, SdpContro
         }
         else
         {
-            char *pAppendNumber = pCurBuffer + written;
+            char * pAppendNumber = pCurBuffer + written;
             int offset = 0;
 
             totalWritten += written;
 
-            for( i=0 ; i<pLocalSdpDescription->mediaCount ; i++ )
+            for( i = 0; i < pLocalSdpDescription->mediaCount; i++ )
             {
                 written = snprintf( pAppendNumber + offset, remainSize - offset, " %d", i );
                 if( written < 0 )
@@ -237,19 +243,22 @@ static int AddSessionAttributeGroup( char *pBuffer, size_t remainSize, SdpContro
     return totalWritten;
 }
 
-static int AddSessionAttributeIceOptions( char *pBuffer, size_t remainSize, SdpControllerSdpDescription_t *pLocalSdpDescription, SdpControllerSdpDescription_t *pRemoteSdpDescription )
+static int AddSessionAttributeIceOptions( char * pBuffer,
+                                          size_t remainSize,
+                                          SdpControllerSdpDescription_t * pLocalSdpDescription,
+                                          SdpControllerSdpDescription_t * pRemoteSdpDescription )
 {
     int totalWritten = 0;
     int written = 0;
-    char *pCurBuffer = pBuffer;
+    char * pCurBuffer = pBuffer;
 
     ( void ) pRemoteSdpDescription;
 
-    if( pBuffer == NULL ||
-        pLocalSdpDescription == NULL )
+    if( ( pBuffer == NULL ) ||
+        ( pLocalSdpDescription == NULL ) )
     {
         totalWritten = -1;
-        LogError( ("Invalid input") );
+        LogError( ( "Invalid input" ) );
     }
 
     if( totalWritten >= 0 )
@@ -302,19 +311,22 @@ static int AddSessionAttributeIceOptions( char *pBuffer, size_t remainSize, SdpC
     return totalWritten;
 }
 
-static int AddSessionAttributeMsidSemantic( char *pBuffer, size_t remainSize, SdpControllerSdpDescription_t *pLocalSdpDescription, SdpControllerSdpDescription_t *pRemoteSdpDescription )
+static int AddSessionAttributeMsidSemantic( char * pBuffer,
+                                            size_t remainSize,
+                                            SdpControllerSdpDescription_t * pLocalSdpDescription,
+                                            SdpControllerSdpDescription_t * pRemoteSdpDescription )
 {
     int totalWritten = 0;
     int written = 0;
-    char *pCurBuffer = pBuffer;
+    char * pCurBuffer = pBuffer;
 
     ( void ) pRemoteSdpDescription;
 
-    if( pBuffer == NULL ||
-        pLocalSdpDescription == NULL )
+    if( ( pBuffer == NULL ) ||
+        ( pLocalSdpDescription == NULL ) )
     {
         totalWritten = -1;
-        LogError( ("Invalid input") );
+        LogError( ( "Invalid input" ) );
     }
 
     if( totalWritten >= 0 )
@@ -367,14 +379,16 @@ static int AddSessionAttributeMsidSemantic( char *pBuffer, size_t remainSize, Sd
     return totalWritten;
 }
 
-static uint8_t storeAndParseSdpOffer( const char *pEventSdpOffer, size_t eventSdpOfferlength, DemoSessionInformation_t *pSessionInDescriptionOffer )
+static uint8_t storeAndParseSdpOffer( const char * pEventSdpOffer,
+                                      size_t eventSdpOfferlength,
+                                      DemoSessionInformation_t * pSessionInDescriptionOffer )
 {
     uint8_t skipProcess = 0;
     SdpControllerResult_t retSdpController;
-    const char *pSdpContent;
+    const char * pSdpContent;
     size_t sdpContentLength;
-    char *pSdpBuffer = pSessionInDescriptionOffer->sdpBuffer;
-    size_t *pSdpBufferLength = &pSessionInDescriptionOffer->sdpBufferLength;
+    char * pSdpBuffer = pSessionInDescriptionOffer->sdpBuffer;
+    size_t * pSdpBufferLength = &pSessionInDescriptionOffer->sdpBufferLength;
 
     /* Store the SDP offer then parse it in poiters structure. */
     retSdpController = SdpController_GetSdpOfferContent( pEventSdpOffer, eventSdpOfferlength, &pSdpContent, &sdpContentLength );
@@ -420,20 +434,23 @@ static uint8_t storeAndParseSdpOffer( const char *pEventSdpOffer, size_t eventSd
     return skipProcess;
 }
 
-static uint8_t populateSessionAttributes( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pRemoteSdpDescription, SdpControllerSdpDescription_t *pLocalSdpDescription )
+static uint8_t populateSessionAttributes( char ** ppBuffer,
+                                          size_t * pBufferLength,
+                                          SdpControllerSdpDescription_t * pRemoteSdpDescription,
+                                          SdpControllerSdpDescription_t * pLocalSdpDescription )
 {
     uint8_t skipProcess = 0;
     int written;
     size_t remainSize = *pBufferLength;
-    char *pCurBuffer = *ppBuffer;
+    char * pCurBuffer = *ppBuffer;
 
-    if( ppBuffer == NULL ||
-        *ppBuffer == NULL ||
-        pBufferLength == NULL ||
-        pRemoteSdpDescription == NULL ||
-        pLocalSdpDescription == NULL )
+    if( ( ppBuffer == NULL ) ||
+        ( *ppBuffer == NULL ) ||
+        ( pBufferLength == NULL ) ||
+        ( pRemoteSdpDescription == NULL ) ||
+        ( pLocalSdpDescription == NULL ) )
     {
-        LogError( ("Invalid input.") );
+        LogError( ( "Invalid input." ) );
         skipProcess = 1;
     }
 
@@ -557,7 +574,7 @@ static uint8_t populateSessionAttributes( char **ppBuffer, size_t *pBufferLength
 //                         pSessionDescription->sdpDescription.attributes[i].attributeNameLength, ( int ) pSessionDescription->sdpDescription.attributes[i].attributeNameLength, pSessionDescription->sdpDescription.attributes[i].pAttributeName,
 //                         pSessionDescription->sdpDescription.attributes[i].attributeValueLength, ( int ) pSessionDescription->sdpDescription.attributes[i].attributeValueLength, pSessionDescription->sdpDescription.attributes[i].pAttributeValue) );
 //         }
-        
+
 //         LogDebug( ("Session media number: %u", pSessionDescription->sdpDescription.mediaCount) );
 //         for( i=0; i<pSessionDescription->sdpDescription.mediaCount; i++ )
 //         {
@@ -592,17 +609,19 @@ static uint8_t populateSessionAttributes( char **ppBuffer, size_t *pBufferLength
 //     }
 // }
 
-uint8_t populateSdpContent( DemoSessionInformation_t *pRemoteSessionDescription, DemoSessionInformation_t *pLocalSessionDescription, PeerConnectionContext_t *pPeerConnectionContext )
+uint8_t populateSdpContent( DemoSessionInformation_t * pRemoteSessionDescription,
+                            DemoSessionInformation_t * pLocalSessionDescription,
+                            PeerConnectionContext_t * pPeerConnectionContext )
 {
     uint8_t skipProcess = 0;
     size_t remainLength = DEMO_SDP_BUFFER_MAX_LENGTH;
-    char *pSdpBuffer = NULL;
+    char * pSdpBuffer = NULL;
     SdpControllerResult_t retSdpController;
-    
-    if( pRemoteSessionDescription == NULL || pLocalSessionDescription == NULL || pPeerConnectionContext == NULL )
+
+    if( ( pRemoteSessionDescription == NULL ) || ( pLocalSessionDescription == NULL ) || ( pPeerConnectionContext == NULL ) )
     {
-        LogError( ("Invalid input, pRemoteSessionDescription: %p, pLocalSessionDescription: %p, pPeerConnectionContext: %p",
-                    pRemoteSessionDescription, pLocalSessionDescription, pPeerConnectionContext) );
+        LogError( ( "Invalid input, pRemoteSessionDescription: %p, pLocalSessionDescription: %p, pPeerConnectionContext: %p",
+                    pRemoteSessionDescription, pLocalSessionDescription, pPeerConnectionContext ) );
         skipProcess = 1;
     }
 
@@ -615,7 +634,7 @@ uint8_t populateSdpContent( DemoSessionInformation_t *pRemoteSessionDescription,
         retSdpController = SdpController_PopulateMediaDescriptions( &pSdpBuffer, &remainLength, &pLocalSessionDescription->sdpDescription, &pRemoteSessionDescription->sdpDescription, pPeerConnectionContext );
         if( retSdpController != SDP_CONTROLLER_RESULT_OK )
         {
-            LogError( ("Fail to populate media descriptions, return: %d", retSdpController) );
+            LogError( ( "Fail to populate media descriptions, return: %d", retSdpController ) );
             skipProcess = 1;
         }
     }
@@ -640,13 +659,14 @@ uint8_t populateSdpContent( DemoSessionInformation_t *pRemoteSessionDescription,
         pLocalSessionDescription->sdpDescription.timingDescription.stopTime = 0U;
 
         skipProcess = populateSessionAttributes( &pSdpBuffer, &remainLength, &pRemoteSessionDescription->sdpDescription, &pLocalSessionDescription->sdpDescription );
-        LogDebug( ("After populateSessionAttributes, skipProcess: %u", skipProcess) );
+        LogDebug( ( "After populateSessionAttributes, skipProcess: %u", skipProcess ) );
     }
 
     return skipProcess;
 }
 
-uint8_t serializeSdpMessage( DemoSessionInformation_t *pSessionInDescriptionAnswer, DemoContext_t *pDemoContext )
+uint8_t serializeSdpMessage( DemoSessionInformation_t * pSessionInDescriptionAnswer,
+                             DemoContext_t * pDemoContext )
 {
     uint8_t skipProcess = 0;
     SdpControllerResult_t retSdpController;
@@ -671,15 +691,17 @@ uint8_t serializeSdpMessage( DemoSessionInformation_t *pSessionInDescriptionAnsw
         else
         {
             LogDebug( ( "Serialized SDP answer (%u):\n%.*s", pSessionInDescriptionAnswer->sdpBufferLength,
-                                                             ( int ) pSessionInDescriptionAnswer->sdpBufferLength,
-                                                             pSessionInDescriptionAnswer->sdpBuffer ) );
+                        ( int ) pSessionInDescriptionAnswer->sdpBufferLength,
+                        pSessionInDescriptionAnswer->sdpBuffer ) );
         }
     }
 
     return skipProcess;
 }
 
-uint8_t addressSdpOffer( const char *pEventSdpOffer, size_t eventSdpOfferlength, DemoContext_t *pDemoContext )
+uint8_t addressSdpOffer( const char * pEventSdpOffer,
+                         size_t eventSdpOfferlength,
+                         DemoContext_t * pDemoContext )
 {
     uint8_t skipProcess = 0;
 

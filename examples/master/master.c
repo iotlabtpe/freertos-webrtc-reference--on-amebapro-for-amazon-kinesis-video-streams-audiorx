@@ -23,95 +23,109 @@
 #define DEFAULT_TRANSCEIVER_AUDIO_STREAM_ID "myKvsAudioStream"
 #define DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID "myAudioTrack"
 
-#define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect 
+#define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect
 
-static void platform_init(void);
-static void wifi_common_init(void);
-static long long GetCurrentTimeSec(void);
-static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteClientIdLength, DemoContext_t *pDemoContext );
-static uint8_t setRemoteDescription( PeerConnectionContext_t *pPeerConnectionCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength );
-static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext );
-static int initializeApplication( DemoContext_t *pDemoContext );
-static int initializePeerConnection( DemoContext_t *pDemoContext );
-static int addTransceivers( DemoContext_t *pDemoContext );
-static void Master_Task( void *pParameter );
+static void platform_init( void );
+static void wifi_common_init( void );
+static long long GetCurrentTimeSec( void );
+static uint8_t respondWithSdpAnswer( const char * pRemoteClientId,
+                                     size_t remoteClientIdLength,
+                                     DemoContext_t * pDemoContext );
+static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCtx,
+                                     DemoSessionInformation_t * pSessionInformation,
+                                     const char * pRemoteClientId,
+                                     size_t remoteClientIdLength );
+static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEvent,
+                                       void * pUserContext );
+static int initializeApplication( DemoContext_t * pDemoContext );
+static int initializePeerConnection( DemoContext_t * pDemoContext );
+static int addTransceivers( DemoContext_t * pDemoContext );
+static void Master_Task( void * pParameter );
 
-extern uint8_t populateSdpContent( DemoSessionInformation_t *pRemoteSessionDescription, DemoSessionInformation_t *pLocalSessionDescription, PeerConnectionContext_t *pPeerConnectionContext );
-extern uint8_t serializeSdpMessage( DemoSessionInformation_t *pSessionInDescriptionAnswer, DemoContext_t *pDemoContext );
-extern uint8_t addressSdpOffer( const char *pEventSdpOffer, size_t eventSdpOfferlength, DemoContext_t *pDemoContext );
+extern uint8_t populateSdpContent( DemoSessionInformation_t * pRemoteSessionDescription,
+                                   DemoSessionInformation_t * pLocalSessionDescription,
+                                   PeerConnectionContext_t * pPeerConnectionContext );
+extern uint8_t serializeSdpMessage( DemoSessionInformation_t * pSessionInDescriptionAnswer,
+                                    DemoContext_t * pDemoContext );
+extern uint8_t addressSdpOffer( const char * pEventSdpOffer,
+                                size_t eventSdpOfferlength,
+                                DemoContext_t * pDemoContext );
 
 DemoContext_t demoContext;
 
-extern int crypto_init(void);
-extern int platform_set_malloc_free( void * (*malloc_func)( size_t ), void (*free_func)( void * ) );
+extern int crypto_init( void );
+extern int platform_set_malloc_free( void * ( *malloc_func )( size_t ),
+                                     void ( * free_func )( void * ) );
 
-static void platform_init(void)
+static void platform_init( void )
 {
     long long sec;
     /* mbedtls init */
-	crypto_init();
-	platform_set_malloc_free(calloc, free);
+    crypto_init();
+    platform_set_malloc_free( calloc, free );
 
     /* Show backtrace if exception. */
     sys_backtrace_enable();
 
     /* Block until network ready. */
     wifi_common_init();
-    
+
     /* Block until get time via SNTP. */
     sntp_init();
-    while( (sec = GetCurrentTimeSec()) < 1000000000ULL )
+    while( ( sec = GetCurrentTimeSec() ) < 1000000000ULL )
     {
         vTaskDelay( pdMS_TO_TICKS( 200 ) );
-        LogInfo( ("waiting get epoch timer") );
+        LogInfo( ( "waiting get epoch timer" ) );
     }
 
     /* Seed random. */
-    LogInfo( ("srand seed: %lld", sec) );
+    LogInfo( ( "srand seed: %lld", sec ) );
     srand( sec );
 }
 
-static void wifi_common_init(void)
+static void wifi_common_init( void )
 {
-	uint32_t wifi_wait_count = 0;
+    uint32_t wifi_wait_count = 0;
 
-	while (!((wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS) && (*(u32 *)LwIP_GetIP(0) != IP_ADDR_INVALID))) {
-		vTaskDelay(10);
-		wifi_wait_count+=10;
-		if( wifi_wait_count >= wifi_wait_time_ms )
+    while( !( ( wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS ) && ( *( u32 * )LwIP_GetIP( 0 ) != IP_ADDR_INVALID ) ) ) {
+        vTaskDelay( 10 );
+        wifi_wait_count += 10;
+        if( wifi_wait_count >= wifi_wait_time_ms )
         {
-			LogInfo( ("\r\nuse ATW0, ATW1, ATWC to make wifi connection\r\n") );
-			LogInfo( ("wait for wifi connection...\r\n") );
+            LogInfo( ( "\r\nuse ATW0, ATW1, ATWC to make wifi connection\r\n" ) );
+            LogInfo( ( "wait for wifi connection...\r\n" ) );
             wifi_wait_count = 0;
-		}
-	}
+        }
+    }
 }
 
-static long long GetCurrentTimeSec(void)
+static long long GetCurrentTimeSec( void )
 {
-	long long sec;
-	long long usec;
-	unsigned int tick;
-	unsigned int tickDiff;
+    long long sec;
+    long long usec;
+    unsigned int tick;
+    unsigned int tickDiff;
 
     sntp_get_lasttime( &sec, &usec, &tick );
     tickDiff = xTaskGetTickCount() - tick;
 
-	sec += tickDiff / configTICK_RATE_HZ;
-	usec += ((tickDiff % configTICK_RATE_HZ) / portTICK_RATE_MS) * 1000;
+    sec += tickDiff / configTICK_RATE_HZ;
+    usec += ( ( tickDiff % configTICK_RATE_HZ ) / portTICK_RATE_MS ) * 1000;
 
-	while(usec >= 1000000)
+    while( usec >= 1000000 )
     {
-		usec -= 1000000;
-		sec ++;
-	}
+        usec -= 1000000;
+        sec++;
+    }
 
-    LogDebug( ("sec: %lld, usec: %lld, tick: %u", sec, usec, tick) );
+    LogDebug( ( "sec: %lld, usec: %lld, tick: %u", sec, usec, tick ) );
 
     return sec;
 }
 
-static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteClientIdLength, DemoContext_t *pDemoContext )
+static uint8_t respondWithSdpAnswer( const char * pRemoteClientId,
+                                     size_t remoteClientIdLength,
+                                     DemoContext_t * pDemoContext )
 {
     uint8_t skipProcess = 0;
     SignalingControllerResult_t signalingControllerReturn;
@@ -138,7 +152,7 @@ static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteC
         eventMessage.eventContent.decodeMessageLength = pDemoContext->sessionInformationSdpAnswer.sdpBufferLength;
         memcpy( eventMessage.eventContent.remoteClientId, pRemoteClientId, remoteClientIdLength );
         eventMessage.eventContent.remoteClientIdLength = remoteClientIdLength;
-        
+
         signalingControllerReturn = SignalingController_SendMessage( &demoContext.signalingControllerContext, &eventMessage );
         if( signalingControllerReturn != SIGNALING_CONTROLLER_RESULT_OK )
         {
@@ -150,7 +164,10 @@ static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteC
     return skipProcess;
 }
 
-static uint8_t setRemoteDescription( PeerConnectionContext_t *pPeerConnectionCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength )
+static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCtx,
+                                     DemoSessionInformation_t * pSessionInformation,
+                                     const char * pRemoteClientId,
+                                     size_t remoteClientIdLength )
 {
     uint8_t skipProcess = 0;
     PeerConnectionRemoteInfo_t remoteInfo;
@@ -176,7 +193,7 @@ static uint8_t setRemoteDescription( PeerConnectionContext_t *pPeerConnectionCtx
     return skipProcess;
 }
 
-static int initializeApplication( DemoContext_t *pDemoContext )
+static int initializeApplication( DemoContext_t * pDemoContext )
 {
     int ret = 0;
     SignalingControllerResult_t signalingControllerReturn;
@@ -184,26 +201,26 @@ static int initializeApplication( DemoContext_t *pDemoContext )
 
     if( pDemoContext == NULL )
     {
-        LogError( ("Invalid input, demo context is NULL") );
+        LogError( ( "Invalid input, demo context is NULL" ) );
         ret = -1;
     }
 
     if( ret == 0 )
     {
         memset( pDemoContext, 0, sizeof( DemoContext_t ) );
-        
+
         /* Initialize Signaling controller. */
-        memset( &signalingControllerCred, 0, sizeof(SignalingControllerCredential_t) );
+        memset( &signalingControllerCred, 0, sizeof( SignalingControllerCredential_t ) );
         signalingControllerCred.pRegion = AWS_REGION;
         signalingControllerCred.regionLength = strlen( AWS_REGION );
         signalingControllerCred.pChannelName = AWS_KVS_CHANNEL_NAME;
         signalingControllerCred.channelNameLength = strlen( AWS_KVS_CHANNEL_NAME );
         signalingControllerCred.pUserAgentName = AWS_KVS_AGENT_NAME;
-        signalingControllerCred.userAgentNameLength = strlen(AWS_KVS_AGENT_NAME);
+        signalingControllerCred.userAgentNameLength = strlen( AWS_KVS_AGENT_NAME );
         signalingControllerCred.pAccessKeyId = AWS_ACCESS_KEY_ID;
-        signalingControllerCred.accessKeyIdLength = strlen(AWS_ACCESS_KEY_ID);
+        signalingControllerCred.accessKeyIdLength = strlen( AWS_ACCESS_KEY_ID );
         signalingControllerCred.pSecretAccessKey = AWS_SECRET_ACCESS_KEY;
-        signalingControllerCred.secretAccessKeyLength = strlen(AWS_SECRET_ACCESS_KEY);
+        signalingControllerCred.secretAccessKeyLength = strlen( AWS_SECRET_ACCESS_KEY );
         signalingControllerCred.pCaCertPath = NULL;
         signalingControllerCred.pCaCertPem = AWS_CA_CERT_PEM;
         signalingControllerCred.caCertPemSize = sizeof( AWS_CA_CERT_PEM );
@@ -225,7 +242,7 @@ static int initializeApplication( DemoContext_t *pDemoContext )
     return ret;
 }
 
-static int initializePeerConnection( DemoContext_t *pDemoContext )
+static int initializePeerConnection( DemoContext_t * pDemoContext )
 {
     int ret = 0;
     PeerConnectionResult_t peerConnectionResult;
@@ -240,7 +257,7 @@ static int initializePeerConnection( DemoContext_t *pDemoContext )
     return ret;
 }
 
-static int addTransceivers( DemoContext_t *pDemoContext )
+static int addTransceivers( DemoContext_t * pDemoContext )
 {
     int ret = 0;
     PeerConnectionResult_t peerConnectionResult;
@@ -288,7 +305,8 @@ static int addTransceivers( DemoContext_t *pDemoContext )
     return ret;
 }
 
-static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext )
+static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEvent,
+                                       void * pUserContext )
 {
     uint8_t skipProcess = 0;
     PeerConnectionResult_t peerConnectionResult;
@@ -304,49 +322,49 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent
 
     switch( pEvent->messageType )
     {
-        case SIGNALING_TYPE_MESSAGE_SDP_OFFER:
-            skipProcess = addressSdpOffer( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &demoContext );
+    case SIGNALING_TYPE_MESSAGE_SDP_OFFER:
+        skipProcess = addressSdpOffer( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &demoContext );
 
-            if( !skipProcess )
-            {
-                skipProcess = respondWithSdpAnswer( pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &demoContext );
-            }
+        if( !skipProcess )
+        {
+            skipProcess = respondWithSdpAnswer( pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &demoContext );
+        }
 
-            if( !skipProcess )
-            {
-                skipProcess = setRemoteDescription( &demoContext.peerConnectionContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
-            }
-            break;
-        case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:
-            break;
-        case SIGNALING_TYPE_MESSAGE_ICE_CANDIDATE:
-            peerConnectionResult = PeerConnection_AddRemoteCandidate( &demoContext.peerConnectionContext,
-                                                                      pEvent->pRemoteClientId, pEvent->remoteClientIdLength,
-                                                                      pEvent->pDecodeMessage, pEvent->decodeMessageLength );
-            if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
-            {
-                LogWarn( ( "PeerConnection_AddRemoteCandidate fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
-            }
-            break;
-        case SIGNALING_TYPE_MESSAGE_GO_AWAY:
-            break;
-        case SIGNALING_TYPE_MESSAGE_RECONNECT_ICE_SERVER:
-            break;
-        case SIGNALING_TYPE_MESSAGE_STATUS_RESPONSE:
-            break;
-        default:
-            break;
+        if( !skipProcess )
+        {
+            skipProcess = setRemoteDescription( &demoContext.peerConnectionContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
+        }
+        break;
+    case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:
+        break;
+    case SIGNALING_TYPE_MESSAGE_ICE_CANDIDATE:
+        peerConnectionResult = PeerConnection_AddRemoteCandidate( &demoContext.peerConnectionContext,
+                                                                  pEvent->pRemoteClientId, pEvent->remoteClientIdLength,
+                                                                  pEvent->pDecodeMessage, pEvent->decodeMessageLength );
+        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+        {
+            LogWarn( ( "PeerConnection_AddRemoteCandidate fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
+        }
+        break;
+    case SIGNALING_TYPE_MESSAGE_GO_AWAY:
+        break;
+    case SIGNALING_TYPE_MESSAGE_RECONNECT_ICE_SERVER:
+        break;
+    case SIGNALING_TYPE_MESSAGE_STATUS_RESPONSE:
+        break;
+    default:
+        break;
     }
 
     return 0;
 }
 
-static void Master_Task( void *pParameter )
+static void Master_Task( void * pParameter )
 {
     int ret = 0;
     SignalingControllerResult_t signalingControllerReturn;
 
-    (void) pParameter;
+    ( void ) pParameter;
 
     LogDebug( ( "Start webrtc_master_demo_app_main." ) );
 
@@ -382,19 +400,19 @@ static void Master_Task( void *pParameter )
 
     for( ;; )
     {
-		vTaskDelay( pdMS_TO_TICKS( 200 ) );
+        vTaskDelay( pdMS_TO_TICKS( 200 ) );
     }
 }
 
-void app_example(void)
+void app_example( void )
 {
     int ret = 0;
 
     if( ret == 0 )
     {
-        if( xTaskCreate( Master_Task, ( (const char *)"MasterTask" ), 20480, NULL, tskIDLE_PRIORITY + 2, NULL ) != pdPASS )
+        if( xTaskCreate( Master_Task, ( ( const char * )"MasterTask" ), 20480, NULL, tskIDLE_PRIORITY + 2, NULL ) != pdPASS )
         {
-            LogError( ("xTaskCreate(Master_Task) failed") );
+            LogError( ( "xTaskCreate(Master_Task) failed" ) );
             ret = -1;
         }
     }

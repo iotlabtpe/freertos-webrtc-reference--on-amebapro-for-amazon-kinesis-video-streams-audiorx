@@ -41,25 +41,35 @@ NetworkingWslayContext_t networkingWslayContext;
 #define NETWORKING_WSLAY_URI_ENCODED_CHAR_SIZE ( 3 ) // We need 3 char spaces to translate symbols, such as from '/' to "%2F".
 #define NETWORKING_WSLAY_URI_ENCODED_FORWARD_SLASH "%2F"
 
-static void GenerateRandomBytes( uint8_t *pBuffer, size_t bufferLength );
-static void handleWslayControlMessage( void *pUserData, uint8_t opcode, const uint8_t *pData, size_t dataLength );
-static void handleWslayDataMessage( void *pUserData, const uint8_t *pData, size_t dataLength );
+static void GenerateRandomBytes( uint8_t * pBuffer,
+                                 size_t bufferLength );
+static void handleWslayControlMessage( void * pUserData,
+                                       uint8_t opcode,
+                                       const uint8_t * pData,
+                                       size_t dataLength );
+static void handleWslayDataMessage( void * pUserData,
+                                    const uint8_t * pData,
+                                    size_t dataLength );
 
-static ssize_t wslay_send_callback( wslay_event_context_ptr pCtx, const uint8_t *pData, size_t dataLength, int flags, void *pUserData )
+static ssize_t wslay_send_callback( wslay_event_context_ptr pCtx,
+                                    const uint8_t * pData,
+                                    size_t dataLength,
+                                    int flags,
+                                    void * pUserData )
 {
-    NetworkingWslayContext_t *pContext = ( NetworkingWslayContext_t* ) pUserData;
+    NetworkingWslayContext_t * pContext = ( NetworkingWslayContext_t * ) pUserData;
     TransportSend_t sendFunction = pContext->xTransportInterface.send;
-    ssize_t r = (ssize_t)sendFunction( &networkingWslayContext.xNetworkContext, pData, dataLength );
+    ssize_t r = ( ssize_t )sendFunction( &networkingWslayContext.xNetworkContext, pData, dataLength );
 
     if( r < 0 )
     {
         wslay_event_set_error( pCtx, WSLAY_ERR_CALLBACK_FAILURE );
-        LogError( ("wslay_send_callback failed with return %d", r) );
+        LogError( ( "wslay_send_callback failed with return %d", r ) );
     }
     else if( r == 0 )
     {
         wslay_event_set_error( pCtx, WSLAY_ERR_WOULDBLOCK );
-        LogDebug( ("wslay_send_callback returns 0") );
+        LogDebug( ( "wslay_send_callback returns 0" ) );
     }
     else
     {
@@ -69,11 +79,15 @@ static ssize_t wslay_send_callback( wslay_event_context_ptr pCtx, const uint8_t 
     return r;
 }
 
-static ssize_t wslay_recv_callback( wslay_event_context_ptr pCtx, uint8_t *pData, size_t dataLength, int flags, void *pUserData )
+static ssize_t wslay_recv_callback( wslay_event_context_ptr pCtx,
+                                    uint8_t * pData,
+                                    size_t dataLength,
+                                    int flags,
+                                    void * pUserData )
 {
-    NetworkingWslayContext_t *pContext = ( NetworkingWslayContext_t* ) pUserData;
+    NetworkingWslayContext_t * pContext = ( NetworkingWslayContext_t * ) pUserData;
     TransportRecv_t recvFunction = pContext->xTransportInterface.recv;
-    ssize_t r = (ssize_t) recvFunction( &networkingWslayContext.xNetworkContext, pData, dataLength );
+    ssize_t r = ( ssize_t ) recvFunction( &networkingWslayContext.xNetworkContext, pData, dataLength );
 
     if( r < 0 )
     {
@@ -91,7 +105,10 @@ static ssize_t wslay_recv_callback( wslay_event_context_ptr pCtx, uint8_t *pData
     return r;
 }
 
-static int wslay_genmask_callback( wslay_event_context_ptr pCtx, uint8_t *pBuf, size_t bufLength, void *pUserData )
+static int wslay_genmask_callback( wslay_event_context_ptr pCtx,
+                                   uint8_t * pBuf,
+                                   size_t bufLength,
+                                   void * pUserData )
 {
     ( void ) pCtx;
     ( void ) pUserData;
@@ -100,9 +117,11 @@ static int wslay_genmask_callback( wslay_event_context_ptr pCtx, uint8_t *pBuf, 
     return 0;
 }
 
-static void wslay_msg_recv_callback( wslay_event_context_ptr pCtx, const struct wslay_event_on_msg_recv_arg* pArg, void *pUserData )
+static void wslay_msg_recv_callback( wslay_event_context_ptr pCtx,
+                                     const struct wslay_event_on_msg_recv_arg * pArg,
+                                     void * pUserData )
 {
-    if( !wslay_is_ctrl_frame(pArg->opcode) )
+    if( !wslay_is_ctrl_frame( pArg->opcode ) )
     {
         handleWslayDataMessage( pUserData, pArg->msg, pArg->msg_length );
     }
@@ -112,45 +131,53 @@ static void wslay_msg_recv_callback( wslay_event_context_ptr pCtx, const struct 
     }
 }
 
-static void handleWslayControlMessage( void *pUserData, uint8_t opcode, const uint8_t *pData, size_t dataLength )
+static void handleWslayControlMessage( void * pUserData,
+                                       uint8_t opcode,
+                                       const uint8_t * pData,
+                                       size_t dataLength )
 {
-    NetworkingWslayContext_t *pContext = ( NetworkingWslayContext_t* ) pUserData;
+    NetworkingWslayContext_t * pContext = ( NetworkingWslayContext_t * ) pUserData;
 
     if( opcode == WSLAY_PONG )
     {
-        LogInfo( ("<== wss pong") );
+        LogInfo( ( "<== wss pong" ) );
     }
     else if( opcode == WSLAY_PING )
     {
-        LogInfo( ("<== wss ping, len: %u", dataLength) );
+        LogInfo( ( "<== wss ping, len: %u", dataLength ) );
     }
     else if( opcode == WSLAY_CONNECTION_CLOSE )
     {
-        LogInfo( ("<== connection close, msg len: %u", dataLength) );
+        LogInfo( ( "<== connection close, msg len: %u", dataLength ) );
         NetworkingUtils_CloseConnection( &pContext->xNetworkContext );
     }
     else
     {
-        LogInfo( ("<== ctrl msg(%u), len: %u", opcode, dataLength) );
+        LogInfo( ( "<== ctrl msg(%u), len: %u", opcode, dataLength ) );
     }
 }
 
-static void handleWslayDataMessage( void *pUserData, const uint8_t *pData, size_t dataLength )
+static void handleWslayDataMessage( void * pUserData,
+                                    const uint8_t * pData,
+                                    size_t dataLength )
 {
-    NetworkingWslayContext_t *pContext = ( NetworkingWslayContext_t* ) pUserData;
+    NetworkingWslayContext_t * pContext = ( NetworkingWslayContext_t * ) pUserData;
 
-    (void) pContext->websocketRxCallback( (char*) pData, dataLength, pContext->pWebsocketRxCallbackContext );
+    ( void ) pContext->websocketRxCallback( ( char * ) pData, dataLength, pContext->pWebsocketRxCallbackContext );
 }
 
-static NetworkingWslayResult_t uriEncodedString( char *pSrc, size_t srcLength, char *pDst, size_t *pDstLength )
+static NetworkingWslayResult_t uriEncodedString( char * pSrc,
+                                                 size_t srcLength,
+                                                 char * pDst,
+                                                 size_t * pDstLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     size_t encodedLength = 0, remainLength;
-    char *pCurPtr = pSrc, *pEnc = pDst;
+    char * pCurPtr = pSrc, * pEnc = pDst;
     char ch;
     const char alpha[17] = "0123456789ABCDEF";
 
-    if( pSrc == NULL || pDst == NULL || pDstLength == NULL )
+    if( ( pSrc == NULL ) || ( pDst == NULL ) || ( pDstLength == NULL ) )
     {
         ret = NETWORKING_WSLAY_RESULT_BAD_PARAMETER;
     }
@@ -160,16 +187,16 @@ static NetworkingWslayResult_t uriEncodedString( char *pSrc, size_t srcLength, c
         // Set the remainLength length
         remainLength = *pDstLength;
 
-        while( ( ( size_t ) ( pCurPtr - pSrc ) < srcLength ) && ( ( ch = *pCurPtr++ ) != '\0') )
+        while( ( ( size_t ) ( pCurPtr - pSrc ) < srcLength ) && ( ( ch = *pCurPtr++ ) != '\0' ) )
         {
-            if( ( ch >= 'A' && ch <= 'Z' ) || ( ch >= 'a' && ch <= 'z' ) || ( ch >= '0' && ch <= '9' ) || ch == '_' || ch == '-' || ch == '~' || ch == '.')
+            if( ( ( ch >= 'A' ) && ( ch <= 'Z' ) ) || ( ( ch >= 'a' ) && ( ch <= 'z' ) ) || ( ( ch >= '0' ) && ( ch <= '9' ) ) || ( ch == '_' ) || ( ch == '-' ) || ( ch == '~' ) || ( ch == '.' ) )
             {
                 if( remainLength < 1U )
                 {
                     ret = NETWORKING_WSLAY_RESULT_URI_ENCODED_BUFFER_TOO_SMALL;
                     break;
                 }
-                
+
                 encodedLength++;
                 *pEnc++ = ch;
                 remainLength--;
@@ -181,7 +208,7 @@ static NetworkingWslayResult_t uriEncodedString( char *pSrc, size_t srcLength, c
                     ret = NETWORKING_WSLAY_RESULT_URI_ENCODED_BUFFER_TOO_SMALL;
                     break;
                 }
-                
+
                 encodedLength += NETWORKING_WSLAY_URI_ENCODED_CHAR_SIZE;
                 strncpy( pEnc, NETWORKING_WSLAY_URI_ENCODED_FORWARD_SLASH, remainLength );
                 pEnc += NETWORKING_WSLAY_URI_ENCODED_CHAR_SIZE;
@@ -194,7 +221,7 @@ static NetworkingWslayResult_t uriEncodedString( char *pSrc, size_t srcLength, c
                     ret = NETWORKING_WSLAY_RESULT_URI_ENCODED_BUFFER_TOO_SMALL;
                     break;
                 }
-                
+
                 encodedLength += NETWORKING_WSLAY_URI_ENCODED_CHAR_SIZE;
                 *pEnc++ = '%';
                 *pEnc++ = alpha[ch >> 4];
@@ -212,7 +239,8 @@ static NetworkingWslayResult_t uriEncodedString( char *pSrc, size_t srcLength, c
     return ret;
 }
 
-static NetworkingWslayResult_t writeUriEncodedAlgorithm( char **ppBuffer, size_t *pBufferLength )
+static NetworkingWslayResult_t writeUriEncodedAlgorithm( char ** ppBuffer,
+                                                         size_t * pBufferLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     int32_t writtenLength;
@@ -236,7 +264,10 @@ static NetworkingWslayResult_t writeUriEncodedAlgorithm( char **ppBuffer, size_t
     return ret;
 }
 
-static NetworkingWslayResult_t writeUriEncodedChannelArn( char **ppBuffer, size_t *pBufferLength, char *pChannelArn, size_t channelArnLength )
+static NetworkingWslayResult_t writeUriEncodedChannelArn( char ** ppBuffer,
+                                                          size_t * pBufferLength,
+                                                          char * pChannelArn,
+                                                          size_t channelArnLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     int32_t writtenLength;
@@ -283,7 +314,7 @@ static NetworkingWslayResult_t writeUriEncodedChannelArn( char **ppBuffer, size_
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
         encodedLength = *pBufferLength - writtenLength;
-        ret = uriEncodedString( *ppBuffer, writtenLength, (*ppBuffer) + writtenLength, &encodedLength );
+        ret = uriEncodedString( *ppBuffer, writtenLength, ( *ppBuffer ) + writtenLength, &encodedLength );
 
         /* Move and update pointer/remain length. */
         if( ret == NETWORKING_WSLAY_RESULT_OK )
@@ -297,7 +328,9 @@ static NetworkingWslayResult_t writeUriEncodedChannelArn( char **ppBuffer, size_
     return ret;
 }
 
-static NetworkingWslayResult_t writeUriEncodedCredential( char **ppBuffer, size_t *pBufferLength, const char *pDate )
+static NetworkingWslayResult_t writeUriEncodedCredential( char ** ppBuffer,
+                                                          size_t * pBufferLength,
+                                                          const char * pDate )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     int32_t writtenLength;
@@ -360,7 +393,10 @@ static NetworkingWslayResult_t writeUriEncodedCredential( char **ppBuffer, size_
     return ret;
 }
 
-static NetworkingWslayResult_t writeUriEncodedDate( char **ppBuffer, size_t *pBufferLength, const char *pDate, size_t dateLength )
+static NetworkingWslayResult_t writeUriEncodedDate( char ** ppBuffer,
+                                                    size_t * pBufferLength,
+                                                    const char * pDate,
+                                                    size_t dateLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     int32_t writtenLength;
@@ -421,7 +457,8 @@ static NetworkingWslayResult_t writeUriEncodedDate( char **ppBuffer, size_t *pBu
     return ret;
 }
 
-static NetworkingWslayResult_t writeUriEncodedExpires( char **ppBuffer, size_t *pBufferLength )
+static NetworkingWslayResult_t writeUriEncodedExpires( char ** ppBuffer,
+                                                       size_t * pBufferLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     int32_t writtenLength;
@@ -481,7 +518,8 @@ static NetworkingWslayResult_t writeUriEncodedExpires( char **ppBuffer, size_t *
     return ret;
 }
 
-static NetworkingWslayResult_t writeUriEncodedSignedHeaders( char **ppBuffer, size_t *pBufferLength )
+static NetworkingWslayResult_t writeUriEncodedSignedHeaders( char ** ppBuffer,
+                                                             size_t * pBufferLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     int32_t writtenLength;
@@ -509,26 +547,30 @@ static NetworkingWslayResult_t writeUriEncodedSignedHeaders( char **ppBuffer, si
     return ret;
 }
 
-static WebsocketResult_t generateQueryParameters( const char *pUrl, size_t urlLength,
-                                                  const char *pHost, size_t hostLength,
-                                                  const char *pPath, size_t pathLength,
-                                                  char *pOutput, size_t *pOutputLength )
+static WebsocketResult_t generateQueryParameters( const char * pUrl,
+                                                  size_t urlLength,
+                                                  const char * pHost,
+                                                  size_t hostLength,
+                                                  const char * pPath,
+                                                  size_t pathLength,
+                                                  char * pOutput,
+                                                  size_t * pOutputLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     NetworkingUtilsResult_t retUtils;
-    const char *pQueryStart;
+    const char * pQueryStart;
     size_t queryLength;
-    char *pChannelArnValue, *pEqual;
+    char * pChannelArnValue, * pEqual;
     size_t channelArnValueLength;
-    char *pCurrentWrite = pOutput;
+    char * pCurrentWrite = pOutput;
     size_t remainLength, uriEncodedStringLength;
     int32_t writtenLength;
     char dateBuffer[ NETWORKING_UTILS_TIME_BUFFER_LENGTH ];
     NetworkingUtilsCanonicalRequest_t canonicalRequest;
-    char *pSig;
+    char * pSig;
     size_t sigLength;
 
-    if( pUrl == NULL || pHost == NULL || pPath == NULL || pOutput == NULL || pOutputLength == NULL )
+    if( ( pUrl == NULL ) || ( pHost == NULL ) || ( pPath == NULL ) || ( pOutput == NULL ) || ( pOutputLength == NULL ) )
     {
         ret = NETWORKING_WSLAY_RESULT_BAD_PARAMETER;
     }
@@ -539,7 +581,7 @@ static WebsocketResult_t generateQueryParameters( const char *pUrl, size_t urlLe
 
         if( retUtils != NETWORKING_UTILS_RESULT_OK )
         {
-            LogError( ("Fail to get current ISO8601 date") );
+            LogError( ( "Fail to get current ISO8601 date" ) );
             ret = NETWORKING_WSLAY_RESULT_FAIL_GET_DATE;
         }
     }
@@ -549,8 +591,8 @@ static WebsocketResult_t generateQueryParameters( const char *pUrl, size_t urlLe
         pQueryStart = pPath + pathLength + 1; // +1 to skip '?' mark.
         queryLength = pUrl + urlLength - pQueryStart;
 
-        if( queryLength < strlen( NETWORKING_WSLAY_STRING_CHANNEL_ARN_PARAM_NAME ) || 
-            strncmp( pQueryStart, NETWORKING_WSLAY_STRING_CHANNEL_ARN_PARAM_NAME, strlen( NETWORKING_WSLAY_STRING_CHANNEL_ARN_PARAM_NAME ) ) != 0 )
+        if( ( queryLength < strlen( NETWORKING_WSLAY_STRING_CHANNEL_ARN_PARAM_NAME ) ) ||
+            ( strncmp( pQueryStart, NETWORKING_WSLAY_STRING_CHANNEL_ARN_PARAM_NAME, strlen( NETWORKING_WSLAY_STRING_CHANNEL_ARN_PARAM_NAME ) ) != 0 ) )
         {
             /* No channel ARN exist. */
             ret = NETWORKING_WSLAY_RESULT_UNEXPECTED_WEBSOCKET_URL;
@@ -643,7 +685,7 @@ static WebsocketResult_t generateQueryParameters( const char *pUrl, size_t urlLe
     {
         memset( &canonicalRequest, 0, sizeof( canonicalRequest ) );
         canonicalRequest.verb = NETWORKING_UTILS_HTTP_VERB_GET;
-        canonicalRequest.pPath = (char*) pPath;
+        canonicalRequest.pPath = ( char * ) pPath;
         canonicalRequest.pathLength = pathLength;
         canonicalRequest.pCanonicalQueryString = pOutput;
         canonicalRequest.canonicalQueryStringLength = uriEncodedStringLength;
@@ -651,7 +693,7 @@ static WebsocketResult_t generateQueryParameters( const char *pUrl, size_t urlLe
         canonicalRequest.canonicalHeadersLength = writtenLength;
         canonicalRequest.pPayload = NULL;
         canonicalRequest.payloadLength = 0;
-        
+
         networkingWslayContext.sigv4AuthBufferLength = NETWORKING_META_BUFFER_LENGTH;
         retUtils = NetworkingUtils_GenrerateAuthorizationHeader( &canonicalRequest, &networkingWslayContext.sigv4Credential,
                                                                  networkingWslayContext.credentials.pRegion, networkingWslayContext.credentials.regionLength, dateBuffer,
@@ -660,7 +702,7 @@ static WebsocketResult_t generateQueryParameters( const char *pUrl, size_t urlLe
 
         if( retUtils != NETWORKING_UTILS_RESULT_OK )
         {
-            LogError( ("Fail to generate authorization header, return=%d", retUtils) );
+            LogError( ( "Fail to generate authorization header, return=%d", retUtils ) );
             ret = NETWORKING_WSLAY_RESULT_FAIL_CONNECT;
         }
     }
@@ -669,7 +711,7 @@ static WebsocketResult_t generateQueryParameters( const char *pUrl, size_t urlLe
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
         writtenLength = snprintf( pCurrentWrite, remainLength, "&" NETWORKING_WSLAY_STRING_SIGNATURE_PARAM_NAME "=%.*s",
-                                 ( int ) sigLength, pSig );
+                                  ( int ) sigLength, pSig );
 
         if( writtenLength < 0 )
         {
@@ -684,7 +726,7 @@ static WebsocketResult_t generateQueryParameters( const char *pUrl, size_t urlLe
             remainLength -= writtenLength;
         }
     }
-    
+
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
         *pOutputLength = *pOutputLength - remainLength;
@@ -693,16 +735,18 @@ static WebsocketResult_t generateQueryParameters( const char *pUrl, size_t urlLe
     return ret;
 }
 
-static WebsocketResult_t addHeader( HTTPRequestHeaders_t *pxRequestHeaders,
-                                    const char *pName, size_t nameLength,
-                                    const char *pValue, size_t valueLength )
+static WebsocketResult_t addHeader( HTTPRequestHeaders_t * pxRequestHeaders,
+                                    const char * pName,
+                                    size_t nameLength,
+                                    const char * pValue,
+                                    size_t valueLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     HTTPStatus_t xHttpStatus = HTTPSuccess;
 
-    if( pxRequestHeaders == NULL || pName == NULL )
+    if( ( pxRequestHeaders == NULL ) || ( pName == NULL ) )
     {
-        LogError( ("Invalid input while adding header.") );
+        LogError( ( "Invalid input while adding header." ) );
         ret = NETWORKING_WSLAY_RESULT_BAD_PARAMETER;
     }
 
@@ -717,7 +761,7 @@ static WebsocketResult_t addHeader( HTTPRequestHeaders_t *pxRequestHeaders,
         if( xHttpStatus != HTTPSuccess )
         {
             LogError( ( "Failed to add %.*s. Error=%s.",
-                        (int) nameLength, pName,
+                        ( int ) nameLength, pName,
                         HTTPClient_strerror( xHttpStatus ) ) );
             ret = NETWORKING_WSLAY_RESULT_FAIL_HTTP_ADD;
         }
@@ -726,30 +770,32 @@ static WebsocketResult_t addHeader( HTTPRequestHeaders_t *pxRequestHeaders,
     return ret;
 }
 
-static void GenerateRandomBytes( uint8_t *pBuffer, size_t bufferLength )
+static void GenerateRandomBytes( uint8_t * pBuffer,
+                                 size_t bufferLength )
 {
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
 
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    if( mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0) == 0 )
+    mbedtls_entropy_init( &entropy );
+    mbedtls_ctr_drbg_init( &ctr_drbg );
+    if( mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0 ) == 0 )
     {
-        mbedtls_ctr_drbg_random(&ctr_drbg, pBuffer, bufferLength);
+        mbedtls_ctr_drbg_random( &ctr_drbg, pBuffer, bufferLength );
     }
 
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
+    mbedtls_ctr_drbg_free( &ctr_drbg );
+    mbedtls_entropy_free( &entropy );
 }
 
-static WebsocketResult_t GenerateWebSocketClientKey( char *pClientKey, size_t clientKeyLength )
+static WebsocketResult_t GenerateWebSocketClientKey( char * pClientKey,
+                                                     size_t clientKeyLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     uint8_t randomBuffer[ NETWORKING_WSLAY_CLIENT_KEY_RANDOM_LENGTH ];
     Base64Result_t retBase64;
     size_t outputLength = clientKeyLength;
 
-    if( pClientKey == NULL || clientKeyLength < NETWORKING_WSLAY_CLIENT_KEY_LENGTH + 1 )
+    if( ( pClientKey == NULL ) || ( clientKeyLength < NETWORKING_WSLAY_CLIENT_KEY_LENGTH + 1 ) )
     {
         ret = NETWORKING_WSLAY_RESULT_BAD_PARAMETER;
     }
@@ -758,24 +804,27 @@ static WebsocketResult_t GenerateWebSocketClientKey( char *pClientKey, size_t cl
     {
         GenerateRandomBytes( randomBuffer, NETWORKING_WSLAY_CLIENT_KEY_RANDOM_LENGTH );
 
-        retBase64 = Base64_Encode( (const char*) randomBuffer, NETWORKING_WSLAY_CLIENT_KEY_RANDOM_LENGTH, pClientKey, &outputLength );
+        retBase64 = Base64_Encode( ( const char * ) randomBuffer, NETWORKING_WSLAY_CLIENT_KEY_RANDOM_LENGTH, pClientKey, &outputLength );
         if( retBase64 != BASE64_RESULT_OK )
         {
-            LogError( ("Fail to base64 encode to generate client key, return=0x%x", retBase64) );
+            LogError( ( "Fail to base64 encode to generate client key, return=0x%x", retBase64 ) );
 
             ret = NETWORKING_WSLAY_RESULT_FAIL_BASE64_ENCODE;
         }
         else
         {
-            LogInfo( ("Base64 encode output length %u, original length %u", outputLength, clientKeyLength) );
-            LogInfo( ("Last byte 0x%x", pClientKey[ clientKeyLength - 1 ]) );
+            LogInfo( ( "Base64 encode output length %u, original length %u", outputLength, clientKeyLength ) );
+            LogInfo( ( "Last byte 0x%x", pClientKey[ clientKeyLength - 1 ] ) );
         }
     }
 
     return ret;
 }
 
-static WebsocketResult_t GenerateAcceptKey( const char *pClientKey, size_t clientKeyLength, char *pOutAcceptKey, size_t outAcceptKeyLength )
+static WebsocketResult_t GenerateAcceptKey( const char * pClientKey,
+                                            size_t clientKeyLength,
+                                            char * pOutAcceptKey,
+                                            size_t outAcceptKeyLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     char tempBuffer[ clientKeyLength + NETWORKING_WSLAY_RFC6455_UUID_LENGTH ];
@@ -783,7 +832,7 @@ static WebsocketResult_t GenerateAcceptKey( const char *pClientKey, size_t clien
     Base64Result_t retBase64;
     size_t outputLength = outAcceptKeyLength;
 
-    if( pClientKey == NULL || pOutAcceptKey == NULL || outAcceptKeyLength < NETWORKING_WSLAY_ACCEPT_KEY_LENGTH + 1 )
+    if( ( pClientKey == NULL ) || ( pOutAcceptKey == NULL ) || ( outAcceptKeyLength < NETWORKING_WSLAY_ACCEPT_KEY_LENGTH + 1 ) )
     {
         ret = NETWORKING_WSLAY_RESULT_BAD_PARAMETER;
     }
@@ -797,30 +846,33 @@ static WebsocketResult_t GenerateAcceptKey( const char *pClientKey, size_t clien
         memcpy( tempBuffer + clientKeyLength, NETWORKING_WSLAY_STRING_RFC6455_UUID, NETWORKING_WSLAY_RFC6455_UUID_LENGTH );
 
         mbedtls_sha1( ( unsigned char * ) tempBuffer, clientKeyLength + NETWORKING_WSLAY_RFC6455_UUID_LENGTH, sha1Buffer );
-        retBase64 = Base64_Encode( (const char*) sha1Buffer, NETWORKING_WSLAY_SHA1_LENGTH, pOutAcceptKey, &outputLength );
+        retBase64 = Base64_Encode( ( const char * ) sha1Buffer, NETWORKING_WSLAY_SHA1_LENGTH, pOutAcceptKey, &outputLength );
         if( retBase64 != BASE64_RESULT_OK )
         {
-            LogError( ("Fail to base64 encode to generate accept key, return=0x%x", retBase64) );
+            LogError( ( "Fail to base64 encode to generate accept key, return=0x%x", retBase64 ) );
 
             ret = NETWORKING_WSLAY_RESULT_FAIL_BASE64_ENCODE;
         }
         else
         {
-            LogInfo( ("Base64 encode output length %u, original length %u", outputLength, outAcceptKeyLength) );
-            LogInfo( ("Last byte 0x%x", pOutAcceptKey[ clientKeyLength - 1 ]) );
+            LogInfo( ( "Base64 encode output length %u, original length %u", outputLength, outAcceptKeyLength ) );
+            LogInfo( ( "Last byte 0x%x", pOutAcceptKey[ clientKeyLength - 1 ] ) );
         }
     }
 
     return ret;
 }
 
-static WebsocketResult_t AcceptClientKey( const char *pAcceptKey, size_t acceptKeyLength, const char *pClientKey, size_t clientKeyLength )
+static WebsocketResult_t AcceptClientKey( const char * pAcceptKey,
+                                          size_t acceptKeyLength,
+                                          const char * pClientKey,
+                                          size_t clientKeyLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     char tempAcceptKey[ NETWORKING_WSLAY_ACCEPT_KEY_LENGTH + 1 ];
-    // 
+    //
 
-    if( pAcceptKey == NULL || pClientKey == NULL )
+    if( ( pAcceptKey == NULL ) || ( pClientKey == NULL ) )
     {
         ret = NETWORKING_WSLAY_RESULT_BAD_PARAMETER;
     }
@@ -834,9 +886,9 @@ static WebsocketResult_t AcceptClientKey( const char *pAcceptKey, size_t acceptK
     {
         if( memcmp( pAcceptKey, tempAcceptKey, acceptKeyLength ) != 0 )
         {
-            LogError( ("The accept key in response is invalid, accept key(%d)=%.*s, expected accept key(%d)=%.*s",
-                       acceptKeyLength, (int) acceptKeyLength, pAcceptKey,
-                       NETWORKING_WSLAY_ACCEPT_KEY_LENGTH, NETWORKING_WSLAY_ACCEPT_KEY_LENGTH, tempAcceptKey ) );
+            LogError( ( "The accept key in response is invalid, accept key(%d)=%.*s, expected accept key(%d)=%.*s",
+                        acceptKeyLength, ( int ) acceptKeyLength, pAcceptKey,
+                        NETWORKING_WSLAY_ACCEPT_KEY_LENGTH, NETWORKING_WSLAY_ACCEPT_KEY_LENGTH, tempAcceptKey ) );
             ret = NETWORKING_WSLAY_RESULT_FAIL_VERIFY_ACCEPT_KEY;
         }
     }
@@ -851,13 +903,13 @@ static void ParsingConnectResponseHeader( void * pContext,
                                           size_t valueLen,
                                           uint16_t statusCode )
 {
-    NetworkingWslayConnectResponseContext_t *pConnectContext = ( NetworkingWslayConnectResponseContext_t* ) pContext;
+    NetworkingWslayConnectResponseContext_t * pConnectContext = ( NetworkingWslayConnectResponseContext_t * ) pContext;
     NetworkingWslayResult_t ret;
 
-    LogDebug( ("statusCode=%u, field(%d)=%.*s, value(%d)=%.*s", statusCode,
-               fieldLen, fieldLen, fieldLoc,
-               valueLen, valueLen, valueLoc) );
-    
+    LogDebug( ( "statusCode=%u, field(%d)=%.*s, value(%d)=%.*s", statusCode,
+                fieldLen, fieldLen, fieldLoc,
+                valueLen, valueLen, valueLoc ) );
+
     pConnectContext->statusCode = statusCode;
     if( strncmp( fieldLoc, "Connection", fieldLen ) == 0 )
     {
@@ -911,13 +963,13 @@ static WebsocketResult_t InitializeWakeUpSocket( void )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     uint32_t socketTimeoutMs = 1U;
-    struct sockaddr* sockAddress = NULL;
+    struct sockaddr * sockAddress = NULL;
     socklen_t addressLength;
 
     networkingWslayContext.socketWakeUp = socket( PF_INET, SOCK_DGRAM, 0 );
     if( networkingWslayContext.socketWakeUp < 0 )
     {
-        LogError( ("Fail to create wake up socket") );
+        LogError( ( "Fail to create wake up socket" ) );
         ret = NETWORKING_WSLAY_RESULT_FAIL_CREATE_SOCKET;
     }
 
@@ -928,9 +980,9 @@ static WebsocketResult_t InitializeWakeUpSocket( void )
         networkingWslayContext.socketWakeUpAddr.sin_addr.s_addr = htonl( IPADDR_ANY );
         networkingWslayContext.socketWakeUpAddr.sin_port = 0;
 
-        if( bind( networkingWslayContext.socketWakeUp, (const struct sockaddr *)&networkingWslayContext.socketWakeUpAddr, sizeof( networkingWslayContext.socketWakeUpAddr ) ) < 0 )
+        if( bind( networkingWslayContext.socketWakeUp, ( const struct sockaddr * )&networkingWslayContext.socketWakeUpAddr, sizeof( networkingWslayContext.socketWakeUpAddr ) ) < 0 )
         {
-            LogError( ("Fail to bind wake up socket") );
+            LogError( ( "Fail to bind wake up socket" ) );
             closesocket( networkingWslayContext.socketWakeUp );
             ret = NETWORKING_WSLAY_RESULT_FAIL_BIND_SOCKET;
         }
@@ -941,8 +993,8 @@ static WebsocketResult_t InitializeWakeUpSocket( void )
         setsockopt( networkingWslayContext.socketWakeUp, SOL_SOCKET, SO_RCVTIMEO, &socketTimeoutMs, sizeof( socketTimeoutMs ) );
         setsockopt( networkingWslayContext.socketWakeUp, SOL_SOCKET, SO_SNDTIMEO, &socketTimeoutMs, sizeof( socketTimeoutMs ) );
 
-        sockAddress = (struct sockaddr*) &networkingWslayContext.socketWakeUpAddr;
-        addressLength = sizeof(struct sockaddr_in);
+        sockAddress = ( struct sockaddr * ) &networkingWslayContext.socketWakeUpAddr;
+        addressLength = sizeof( struct sockaddr_in );
         if( getsockname( networkingWslayContext.socketWakeUp, sockAddress, &addressLength ) < 0 )
         {
             LogError( ( "getsockname() failed with errno: %s", strerror( errno ) ) );
@@ -950,7 +1002,7 @@ static WebsocketResult_t InitializeWakeUpSocket( void )
         }
         else
         {
-            LogDebug( ("Creating wake up socket at port %u", ntohs( networkingWslayContext.socketWakeUpAddr.sin_port )) );
+            LogDebug( ( "Creating wake up socket at port %u", ntohs( networkingWslayContext.socketWakeUpAddr.sin_port ) ) );
         }
     }
 
@@ -967,7 +1019,7 @@ static WebsocketResult_t ReadWebsocketMessage( void )
         retWslay = wslay_event_recv( networkingWslayContext.wslayContext );
         if( retWslay != 0 )
         {
-            LogError( ("wslay_event_recv returns error 0x%X", retWslay) );
+            LogError( ( "wslay_event_recv returns error 0x%X", retWslay ) );
             ret = NETWORKING_WSLAY_RESULT_FAIL_RECV;
         }
     }
@@ -975,7 +1027,7 @@ static WebsocketResult_t ReadWebsocketMessage( void )
     return ret;
 }
 
-static WebsocketResult_t SendWebsocketMessage( struct wslay_event_msg *pArg )
+static WebsocketResult_t SendWebsocketMessage( struct wslay_event_msg * pArg )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     int retWslay;
@@ -988,7 +1040,7 @@ static WebsocketResult_t SendWebsocketMessage( struct wslay_event_msg *pArg )
         retWslay = wslay_event_queue_msg( networkingWslayContext.wslayContext, pArg );
         if( retWslay != 0 )
         {
-            LogError( ("Fail to enqueue new message.") );
+            LogError( ( "Fail to enqueue new message." ) );
             ret = NETWORKING_WSLAY_RESULT_FAIL_QUEUE;
         }
 
@@ -1001,25 +1053,26 @@ static WebsocketResult_t SendWebsocketMessage( struct wslay_event_msg *pArg )
 
             if( retWslay != 0 )
             {
-                LogInfo( ("Fail to send this message at this moment.") );
+                LogInfo( ( "Fail to send this message at this moment." ) );
             }
 
-            LogDebug( ("Monitor wslay send queue (%u, %u, %u)", prev, mid, last) );
+            LogDebug( ( "Monitor wslay send queue (%u, %u, %u)", prev, mid, last ) );
         }
     }
     else
     {
-        LogError( ("Get write enable fail.") );
+        LogError( ( "Get write enable fail." ) );
         ret = NETWORKING_WSLAY_RESULT_FAIL_WRITE_ENABLE;
     }
 
     return ret;
 }
 
-static WebsocketResult_t SendWebsocketText( uint8_t *pMessage, size_t messageLength )
+static WebsocketResult_t SendWebsocketText( uint8_t * pMessage,
+                                            size_t messageLength )
 {
     struct wslay_event_msg arg;
-    
+
     memset( &arg, 0, sizeof( struct wslay_event_msg ) );
     arg.opcode = WSLAY_TEXT_FRAME;
     arg.msg = pMessage;
@@ -1035,7 +1088,7 @@ static void SendWebsocketPing( void )
     memset( &arg, 0, sizeof( struct wslay_event_msg ) );
     arg.opcode = WSLAY_PING;
     arg.msg_length = 0;
-    LogInfo( ("wss ping ==>") );
+    LogInfo( ( "wss ping ==>" ) );
     ( void ) SendWebsocketMessage( &arg );
 }
 
@@ -1047,9 +1100,9 @@ static void ClearWakeUpSocketEvents( void )
     int recvLength;
 
     while( ( recvLength = recvfrom( networkingWslayContext.socketWakeUp, tempBuffer, sizeof( tempBuffer ), 0,
-                                    (struct sockaddr *) &addr, (socklen_t*)&addrLength ) ) > 0 )
+                                    ( struct sockaddr * ) &addr, ( socklen_t * )&addrLength ) ) > 0 )
     {
-        LogDebug( ("Clear %d byte on wake up socket", recvLength) );
+        LogDebug( ( "Clear %d byte on wake up socket", recvLength ) );
     }
 }
 
@@ -1059,17 +1112,19 @@ static void TriggerWakeUpSocket( void )
     int writtenLength;
 
     writtenLength = sendto( networkingWslayContext.socketWakeUp, &ch, 1, 0,
-                            (struct sockaddr *) &networkingWslayContext.socketWakeUpAddr, sizeof( networkingWslayContext.socketWakeUpAddr ) );
+                            ( struct sockaddr * ) &networkingWslayContext.socketWakeUpAddr, sizeof( networkingWslayContext.socketWakeUpAddr ) );
     if( writtenLength < 0 )
     {
-        LogError( ("Fail to trigger wake up socket, error=%s.", strerror( errno )) );
+        LogError( ( "Fail to trigger wake up socket, error=%s.", strerror( errno ) ) );
     }
 }
 
-WebsocketResult_t Websocket_Init( void * pCredential, WebsocketMessageCallback_t rxCallback, void *pRxCallbackContext )
+WebsocketResult_t Websocket_Init( void * pCredential,
+                                  WebsocketMessageCallback_t rxCallback,
+                                  void * pRxCallbackContext )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
-    NetworkingWslayCredentials_t *pNetworkingWslayCredentials = (NetworkingWslayCredentials_t *)pCredential;
+    NetworkingWslayCredentials_t * pNetworkingWslayCredentials = ( NetworkingWslayCredentials_t * )pCredential;
     static uint8_t first = 0U;
 
     if( pCredential == NULL )
@@ -1077,9 +1132,9 @@ WebsocketResult_t Websocket_Init( void * pCredential, WebsocketMessageCallback_t
         ret = NETWORKING_WSLAY_RESULT_BAD_PARAMETER;
     }
 
-    if( ret == NETWORKING_WSLAY_RESULT_OK && !first )
+    if( ( ret == NETWORKING_WSLAY_RESULT_OK ) && !first )
     {
-        memcpy( &networkingWslayContext.credentials, pCredential, sizeof(NetworkingWslayCredentials_t) );
+        memcpy( &networkingWslayContext.credentials, pCredential, sizeof( NetworkingWslayCredentials_t ) );
         networkingWslayContext.sigv4Credential.pAccessKeyId = pNetworkingWslayCredentials->pAccessKeyId;
         networkingWslayContext.sigv4Credential.accessKeyIdLen = pNetworkingWslayCredentials->accessKeyIdLength;
         networkingWslayContext.sigv4Credential.pSecretAccessKey = pNetworkingWslayCredentials->pSecretAccessKey;
@@ -1091,17 +1146,17 @@ WebsocketResult_t Websocket_Init( void * pCredential, WebsocketMessageCallback_t
         }
     }
 
-    if( ret == NETWORKING_WSLAY_RESULT_OK && !first )
+    if( ( ret == NETWORKING_WSLAY_RESULT_OK ) && !first )
     {
-        memset( &networkingWslayContext.xTransportInterface, 0, sizeof(TransportInterface_t) );
-        memset( &networkingWslayContext.xNetworkContext, 0, sizeof(NetworkContext_t) );
-        memset( &networkingWslayContext.xTlsTransportParams, 0, sizeof(TlsTransportParams_t) );
-        
+        memset( &networkingWslayContext.xTransportInterface, 0, sizeof( TransportInterface_t ) );
+        memset( &networkingWslayContext.xNetworkContext, 0, sizeof( NetworkContext_t ) );
+        memset( &networkingWslayContext.xTlsTransportParams, 0, sizeof( TlsTransportParams_t ) );
+
         /* Set transport interface. */
         networkingWslayContext.xTransportInterface.pNetworkContext = &networkingWslayContext.xNetworkContext;
         networkingWslayContext.xTransportInterface.send = TLS_FreeRTOS_send;
         networkingWslayContext.xTransportInterface.recv = TLS_FreeRTOS_recv;
-        
+
         /* Set the pParams member of the network context with desired transport. */
         networkingWslayContext.xNetworkContext.pParams = &networkingWslayContext.xTlsTransportParams;
 
@@ -1109,7 +1164,7 @@ WebsocketResult_t Websocket_Init( void * pCredential, WebsocketMessageCallback_t
         networkingWslayContext.pWebsocketRxCallbackContext = pRxCallbackContext;
     }
 
-    if( ret == NETWORKING_WSLAY_RESULT_OK && !first )
+    if( ( ret == NETWORKING_WSLAY_RESULT_OK ) && !first )
     {
         first = 1U;
     }
@@ -1122,7 +1177,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     NetworkCredentials_t credentials;
     NetworkingUtilsResult_t retUtils;
-    char *pHost, *pPath;
+    char * pHost, * pPath;
     size_t hostLength, pathLength;
     char host[ NETWORKING_WSLAY_HOST_NAME_MAX_LENGTH ];
     HTTPStatus_t xHttpStatus = HTTPSuccess;
@@ -1136,8 +1191,8 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
         .onHeaderCallback = ParsingConnectResponseHeader,
         .pContext = &connectResponseContext
     };
-    
-    if( pServerInfo == NULL || pServerInfo->pUrl == NULL )
+
+    if( ( pServerInfo == NULL ) || ( pServerInfo->pUrl == NULL ) )
     {
         ret = NETWORKING_WSLAY_RESULT_BAD_PARAMETER;
     }
@@ -1147,14 +1202,14 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
         /* Get host pointer & length */
         retUtils = NetworkingUtils_GetUrlHost( pServerInfo->pUrl, pServerInfo->urlLength, &pHost, &hostLength );
 
-        if( retUtils == NETWORKING_UTILS_RESULT_OK && hostLength < NETWORKING_WSLAY_HOST_NAME_MAX_LENGTH )
+        if( ( retUtils == NETWORKING_UTILS_RESULT_OK ) && ( hostLength < NETWORKING_WSLAY_HOST_NAME_MAX_LENGTH ) )
         {
             memcpy( host, pHost, hostLength );
             host[ hostLength ] = '\0';
         }
         else
         {
-            LogError( ("Fail to find valid host name from URL: %.*s", (int) pServerInfo->urlLength, pServerInfo->pUrl) );
+            LogError( ( "Fail to find valid host name from URL: %.*s", ( int ) pServerInfo->urlLength, pServerInfo->pUrl ) );
             ret = NETWORKING_WSLAY_RESULT_NO_HOST_IN_URL;
         }
     }
@@ -1165,7 +1220,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
 
         if( retUtils != NETWORKING_UTILS_RESULT_OK )
         {
-            LogError( ("Fail to find valid path from URL: %.*s", (int) pServerInfo->urlLength, pServerInfo->pUrl) );
+            LogError( ( "Fail to find valid path from URL: %.*s", ( int ) pServerInfo->urlLength, pServerInfo->pUrl ) );
             ret = NETWORKING_WSLAY_RESULT_NO_PATH_IN_URL;
         }
     }
@@ -1174,7 +1229,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
     {
         ret = GenerateWebSocketClientKey( clientKey, NETWORKING_WSLAY_CLIENT_KEY_LENGTH + 1 );
     }
-    
+
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
         memset( &credentials, 0, sizeof( NetworkCredentials_t ) );
@@ -1190,7 +1245,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
 
         if( retUtils != NETWORKING_UTILS_RESULT_OK )
         {
-            LogError( ("Fail to connect the host: %s:%u", host, 443U) );
+            LogError( ( "Fail to connect the host: %s:%u", host, 443U ) );
             ret = NETWORKING_WSLAY_RESULT_FAIL_CONNECT;
         }
     }
@@ -1223,7 +1278,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
         /* Initialize Request header buffer. */
-        xRequestHeaders.pBuffer = (uint8_t*) networkingWslayContext.websocketTxBuffer + pathLength;
+        xRequestHeaders.pBuffer = ( uint8_t * ) networkingWslayContext.websocketTxBuffer + pathLength;
         xRequestHeaders.bufferLen = NETWORKING_WEBSOCKET_BUFFER_LENGTH - pathLength;
 
         /* Set HTTP request parameters to get temporary AWS IoT credentials. */
@@ -1253,7 +1308,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
                          "Pragma",
                          strlen( "Pragma" ),
                          "no-cache",
-                         strlen("no-cache") );
+                         strlen( "no-cache" ) );
     }
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
@@ -1262,7 +1317,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
                          "Cache-Control",
                          strlen( "Cache-Control" ),
                          "no-cache",
-                         strlen("no-cache") );
+                         strlen( "no-cache" ) );
     }
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
@@ -1271,7 +1326,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
                          "upgrade",
                          strlen( "upgrade" ),
                          "WebSocket",
-                         strlen("WebSocket") );
+                         strlen( "WebSocket" ) );
     }
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
@@ -1280,7 +1335,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
                          "connection",
                          strlen( "connection" ),
                          "Upgrade",
-                         strlen("Upgrade") );
+                         strlen( "Upgrade" ) );
     }
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
@@ -1298,7 +1353,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
                          "Sec-WebSocket-Protocol",
                          strlen( "Sec-WebSocket-Protocol" ),
                          "wss",
-                         strlen("wss") );
+                         strlen( "wss" ) );
     }
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
@@ -1307,13 +1362,13 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
                          "Sec-WebSocket-Version",
                          strlen( "Sec-WebSocket-Version" ),
                          "13",
-                         strlen("13") );
+                         strlen( "13" ) );
     }
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
         memset( &corehttpResponse, 0, sizeof( HTTPResponse_t ) );
-        corehttpResponse.pBuffer = (uint8_t *) networkingWslayContext.websocketRxBuffer;
+        corehttpResponse.pBuffer = ( uint8_t * ) networkingWslayContext.websocketRxBuffer;
         corehttpResponse.bufferLen = NETWORKING_WEBSOCKET_BUFFER_LENGTH;
         corehttpResponse.pHeaderParsingCallback = &headerParsingCallback;
 
@@ -1335,7 +1390,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
         if( xHttpStatus != HTTPSuccess )
         {
             LogError( ( "Failed to send HTTP POST request to %.*s for obtaining temporary credentials: Error=%s.",
-                        (int) hostLength, pHost,
+                        ( int ) hostLength, pHost,
                         HTTPClient_strerror( xHttpStatus ) ) );
             ret = NETWORKING_WSLAY_RESULT_FAIL_HTTP_SEND;
         }
@@ -1348,17 +1403,17 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
     /* Check verified result in context. */
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        if( ( connectResponseContext.headersParsed | NETWORKING_WSLAY_HTTP_HEADER_CONNECTION ) == 0 ||
-            ( connectResponseContext.headersParsed | NETWORKING_WSLAY_HTTP_HEADER_UPGRADE ) == 0 ||
-            ( connectResponseContext.headersParsed | NETWORKING_WSLAY_HTTP_HEADER_WEBSOCKET_ACCEPT ) == 0 )
+        if( ( ( connectResponseContext.headersParsed | NETWORKING_WSLAY_HTTP_HEADER_CONNECTION ) == 0 ) ||
+            ( ( connectResponseContext.headersParsed | NETWORKING_WSLAY_HTTP_HEADER_UPGRADE ) == 0 ) ||
+            ( ( connectResponseContext.headersParsed | NETWORKING_WSLAY_HTTP_HEADER_WEBSOCKET_ACCEPT ) == 0 ) )
         {
-            LogError( ("No valid response received, headersParsed=0x%x", connectResponseContext.headersParsed) );
+            LogError( ( "No valid response received, headersParsed=0x%x", connectResponseContext.headersParsed ) );
             ret = NETWORKING_WSLAY_RESULT_FAIL_HTTP_PARSE_RESPONSE;
         }
         else
         {
-            LogInfo( ("Successfully connect with WSS endpoint %.*s.",
-                      (int) pServerInfo->urlLength, pServerInfo->pUrl ) );
+            LogInfo( ( "Successfully connect with WSS endpoint %.*s.",
+                       ( int ) pServerInfo->urlLength, pServerInfo->pUrl ) );
         }
     }
 
@@ -1377,7 +1432,8 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
     return ret;
 }
 
-WebsocketResult_t Websocket_Send( char *pMessage, size_t messageLength )
+WebsocketResult_t Websocket_Send( char * pMessage,
+                                  size_t messageLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
 
@@ -1388,7 +1444,7 @@ WebsocketResult_t Websocket_Send( char *pMessage, size_t messageLength )
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = SendWebsocketText( (uint8_t*) pMessage, messageLength );
+        ret = SendWebsocketText( ( uint8_t * ) pMessage, messageLength );
     }
 
     return ret;
@@ -1404,19 +1460,19 @@ WebsocketResult_t Websocket_Recv( void )
     TickType_t currentTick;
 
     fd = TLS_FreeRTOS_GetSocketFd( &networkingWslayContext.xNetworkContext );
-    
+
     FD_ZERO( &rfds );
     FD_SET( fd, &rfds );
     FD_SET( networkingWslayContext.socketWakeUp, &rfds );
     tv.tv_sec = 1;
     tv.tv_usec = 0;
 
-    maxFd = fd > networkingWslayContext.socketWakeUp? fd:networkingWslayContext.socketWakeUp;
+    maxFd = fd > networkingWslayContext.socketWakeUp ? fd : networkingWslayContext.socketWakeUp;
 
     retSelect = select( maxFd + 1, &rfds, NULL, NULL, &tv );
     if( retSelect < 0 )
     {
-        LogError( ("select return error value %d", retSelect) );
+        LogError( ( "select return error value %d", retSelect ) );
         ret = NETWORKING_WSLAY_RESULT_FAIL_SELECT;
     }
 
@@ -1427,7 +1483,7 @@ WebsocketResult_t Websocket_Recv( void )
             /* Have something to read. */
             ret = ReadWebsocketMessage();
         }
-        
+
         if( FD_ISSET( networkingWslayContext.socketWakeUp, &rfds ) )
         {
             ClearWakeUpSocketEvents();

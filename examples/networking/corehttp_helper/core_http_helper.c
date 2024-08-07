@@ -26,7 +26,7 @@ NetworkingCorehttpContext_t networkingCorehttpContext;
 HttpResult_t Http_Init( void * pCredential )
 {
     NetworkingCorehttpResult_t ret = NETWORKING_COREHTTP_RESULT_OK;
-    NetworkingCorehttpCredentials_t *pNetworkingCorehttpCredentials = (NetworkingCorehttpCredentials_t *)pCredential;
+    NetworkingCorehttpCredentials_t * pNetworkingCorehttpCredentials = ( NetworkingCorehttpCredentials_t * )pCredential;
     static uint8_t first = 0U;
 
     if( pCredential == NULL )
@@ -34,9 +34,9 @@ HttpResult_t Http_Init( void * pCredential )
         ret = NETWORKING_COREHTTP_RESULT_BAD_PARAMETER;
     }
 
-    if( ret == NETWORKING_COREHTTP_RESULT_OK && !first )
+    if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && !first )
     {
-        memcpy( &networkingCorehttpContext.credentials, pNetworkingCorehttpCredentials, sizeof(NetworkingCorehttpCredentials_t) );
+        memcpy( &networkingCorehttpContext.credentials, pNetworkingCorehttpCredentials, sizeof( NetworkingCorehttpCredentials_t ) );
         networkingCorehttpContext.sigv4Credential.pAccessKeyId = pNetworkingCorehttpCredentials->pAccessKeyId;
         networkingCorehttpContext.sigv4Credential.accessKeyIdLen = pNetworkingCorehttpCredentials->accessKeyIdLength;
         networkingCorehttpContext.sigv4Credential.pSecretAccessKey = pNetworkingCorehttpCredentials->pSecretAccessKey;
@@ -48,30 +48,32 @@ HttpResult_t Http_Init( void * pCredential )
         }
     }
 
-    if( ret == NETWORKING_COREHTTP_RESULT_OK && !first )
+    if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && !first )
     {
-        memset( &networkingCorehttpContext.xTransportInterface, 0, sizeof(TransportInterface_t) );
-        memset( &networkingCorehttpContext.xNetworkContext, 0, sizeof(NetworkContext_t) );
-        memset( &networkingCorehttpContext.xTlsTransportParams, 0, sizeof(TlsTransportParams_t) );
-        
+        memset( &networkingCorehttpContext.xTransportInterface, 0, sizeof( TransportInterface_t ) );
+        memset( &networkingCorehttpContext.xNetworkContext, 0, sizeof( NetworkContext_t ) );
+        memset( &networkingCorehttpContext.xTlsTransportParams, 0, sizeof( TlsTransportParams_t ) );
+
         /* Set transport interface. */
         networkingCorehttpContext.xTransportInterface.pNetworkContext = &networkingCorehttpContext.xNetworkContext;
         networkingCorehttpContext.xTransportInterface.send = TLS_FreeRTOS_send;
         networkingCorehttpContext.xTransportInterface.recv = TLS_FreeRTOS_recv;
-        
+
         /* Set the pParams member of the network context with desired transport. */
         networkingCorehttpContext.xNetworkContext.pParams = &networkingCorehttpContext.xTlsTransportParams;
     }
 
-    if( ret == NETWORKING_COREHTTP_RESULT_OK && !first )
+    if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && !first )
     {
         first = 1U;
     }
-    
+
     return ret;
 }
 
-HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_t *pResponse )
+HttpResult_t Http_Send( HttpRequest_t * pRequest,
+                        size_t timeoutMs,
+                        HttpResponse_t * pResponse )
 {
     NetworkingCorehttpResult_t ret = NETWORKING_COREHTTP_RESULT_OK;
     NetworkingUtilsResult_t retUtils;
@@ -79,9 +81,9 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
     HTTPRequestHeaders_t xRequestHeaders = { 0 };
     HTTPRequestInfo_t xRequestInfo = { 0 };
     char dateBuffer[ NETWORKING_UTILS_TIME_BUFFER_LENGTH ];
-    char *pPath;
+    char * pPath;
     size_t pathLength;
-    char *pHost;
+    char * pHost;
     size_t hostLength;
     char contentLengthBuffer[ 11 ]; /* It needs 10 bytes for 32 bit integer, +1 for NULL terminator. */
     size_t contentLengthLength;
@@ -92,10 +94,10 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
     NetworkingUtilsCanonicalRequest_t canonicalRequest;
     HTTPResponse_t corehttpResponse;
     NetworkCredentials_t credentials;
-    char *pSig;
+    char * pSig;
     size_t sigLength;
-    
-    if( pRequest == NULL || pResponse == NULL )
+
+    if( ( pRequest == NULL ) || ( pResponse == NULL ) )
     {
         ret = NETWORKING_COREHTTP_RESULT_BAD_PARAMETER;
     }
@@ -112,7 +114,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
         }
         else
         {
-            LogError( ("Fail to find valid host name from URL: %.*s", (int) pRequest->urlLength, pRequest->pUrl) );
+            LogError( ( "Fail to find valid host name from URL: %.*s", ( int ) pRequest->urlLength, pRequest->pUrl ) );
             ret = NETWORKING_COREHTTP_RESULT_NO_HOST_IN_URL;
         }
     }
@@ -123,7 +125,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
 
         if( retUtils != NETWORKING_UTILS_RESULT_OK )
         {
-            LogError( ("Fail to find valid path from URL: %.*s", (int) pRequest->urlLength, pRequest->pUrl) );
+            LogError( ( "Fail to find valid path from URL: %.*s", ( int ) pRequest->urlLength, pRequest->pUrl ) );
             ret = NETWORKING_COREHTTP_RESULT_NO_PATH_IN_URL;
         }
     }
@@ -143,7 +145,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
 
         if( retUtils != NETWORKING_UTILS_RESULT_OK )
         {
-            LogError( ("Fail to connect the host: %s:%u", networkingCorehttpContext.hostName, 443U) );
+            LogError( ( "Fail to connect the host: %s:%u", networkingCorehttpContext.hostName, 443U ) );
             ret = NETWORKING_COREHTTP_RESULT_FAIL_CONNECT;
         }
     }
@@ -197,7 +199,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
 
         if( retUtils != NETWORKING_UTILS_RESULT_OK )
         {
-            LogError( ("Fail to get current ISO8601 date") );
+            LogError( ( "Fail to get current ISO8601 date" ) );
             ret = NETWORKING_COREHTTP_RESULT_FAIL_GET_DATE;
         }
     }
@@ -234,7 +236,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
         canonicalRequest.canonicalHeadersLength = xHeadersLen;
         canonicalRequest.pPayload = pRequest->pBody;
         canonicalRequest.payloadLength = pRequest->bodyLength;
-        
+
         networkingCorehttpContext.sigv4AuthBufferLength = NETWORKING_COREHTTP_SIGV4_METADATA_BUFFER_LENGTH;
         retUtils = NetworkingUtils_GenrerateAuthorizationHeader( &canonicalRequest, &networkingCorehttpContext.sigv4Credential,
                                                                  networkingCorehttpContext.credentials.pRegion, networkingCorehttpContext.credentials.regionLength, dateBuffer,
@@ -243,7 +245,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
 
         if( retUtils != NETWORKING_UTILS_RESULT_OK )
         {
-            LogError( ("Fail to generate authorization header, return=%d", retUtils) );
+            LogError( ( "Fail to generate authorization header, return=%d", retUtils ) );
             ret = NETWORKING_COREHTTP_RESULT_FAIL_CONNECT;
         }
     }
@@ -301,7 +303,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
     if( ret == NETWORKING_COREHTTP_RESULT_OK )
     {
         memset( &corehttpResponse, 0, sizeof( HTTPResponse_t ) );
-        corehttpResponse.pBuffer = (uint8_t *) pResponse->pBuffer;
+        corehttpResponse.pBuffer = ( uint8_t * ) pResponse->pBuffer;
         corehttpResponse.bufferLen = pResponse->bufferLength;
         corehttpResponse.pHeaderParsingCallback = NULL;
 
@@ -312,7 +314,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
          * so that the demo application can access configured S3 bucket thereafter. */
         xHttpStatus = HTTPClient_Send( &networkingCorehttpContext.xTransportInterface,
                                        &xRequestHeaders,
-                                       (uint8_t *) pRequest->pBody,
+                                       ( uint8_t * ) pRequest->pBody,
                                        pRequest->bodyLength,
                                        &corehttpResponse,
                                        HTTP_SEND_DISABLE_CONTENT_LENGTH_FLAG );
@@ -320,7 +322,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
         if( xHttpStatus != HTTPSuccess )
         {
             LogError( ( "Failed to send HTTP POST request to %.*s for obtaining temporary credentials: Error=%s.",
-                        (int) pRequest->urlLength, pRequest->pUrl,
+                        ( int ) pRequest->urlLength, pRequest->pUrl,
                         HTTPClient_strerror( xHttpStatus ) ) );
             ret = NETWORKING_COREHTTP_RESULT_FAIL_HTTP_SEND;
         }
@@ -330,7 +332,7 @@ HttpResult_t Http_Send( HttpRequest_t *pRequest, size_t timeoutMs, HttpResponse_
 
             /* Return the body part for signaling controller. */
             pResponse->bufferLength = corehttpResponse.bodyLen;
-            pResponse->pBuffer = (char*) corehttpResponse.pBody;
+            pResponse->pBuffer = ( char * ) corehttpResponse.pBody;
         }
     }
 

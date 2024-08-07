@@ -4,7 +4,8 @@
 #include "logging.h"
 #include "message_queue.h"
 
-void MessageQueue_Destroy( MessageQueueHandler_t *pMessageQueueHandler, const char *pQueueName )
+void MessageQueue_Destroy( MessageQueueHandler_t * pMessageQueueHandler,
+                           const char * pQueueName )
 {
     if( pMessageQueueHandler != NULL )
     {
@@ -12,11 +13,14 @@ void MessageQueue_Destroy( MessageQueueHandler_t *pMessageQueueHandler, const ch
     }
 }
 
-MessageQueueResult_t MessageQueue_Create( MessageQueueHandler_t *pMessageQueueHandler, const char *pQueueName, size_t messageMaxLength, size_t messageQueueMaxNum )
+MessageQueueResult_t MessageQueue_Create( MessageQueueHandler_t * pMessageQueueHandler,
+                                          const char * pQueueName,
+                                          size_t messageMaxLength,
+                                          size_t messageQueueMaxNum )
 {
     MessageQueueResult_t ret = MESSAGE_QUEUE_RESULT_OK;
 
-    if( pMessageQueueHandler == NULL || pQueueName == NULL )
+    if( ( pMessageQueueHandler == NULL ) || ( pQueueName == NULL ) )
     {
         ret = MESSAGE_QUEUE_RESULT_BAD_PARAMETER;
     }
@@ -40,12 +44,14 @@ MessageQueueResult_t MessageQueue_Create( MessageQueueHandler_t *pMessageQueueHa
     return ret;
 }
 
-MessageQueueResult_t MessageQueue_Send( MessageQueueHandler_t *pMessageQueueHandler, void *pMessage, size_t messageLength )
+MessageQueueResult_t MessageQueue_Send( MessageQueueHandler_t * pMessageQueueHandler,
+                                        void * pMessage,
+                                        size_t messageLength )
 {
     MessageQueueResult_t ret = MESSAGE_QUEUE_RESULT_OK;
     BaseType_t retSend;
 
-    if( pMessageQueueHandler == NULL || pMessage == NULL || messageLength != pMessageQueueHandler->messageMaxLength )
+    if( ( pMessageQueueHandler == NULL ) || ( pMessage == NULL ) || ( messageLength != pMessageQueueHandler->messageMaxLength ) )
     {
         ret = MESSAGE_QUEUE_RESULT_BAD_PARAMETER;
     }
@@ -63,12 +69,14 @@ MessageQueueResult_t MessageQueue_Send( MessageQueueHandler_t *pMessageQueueHand
     return ret;
 }
 
-MessageQueueResult_t MessageQueue_Recv( MessageQueueHandler_t *pMessageQueueHandler, void *pMessage, size_t *pMessageLength )
+MessageQueueResult_t MessageQueue_Recv( MessageQueueHandler_t * pMessageQueueHandler,
+                                        void * pMessage,
+                                        size_t * pMessageLength )
 {
     MessageQueueResult_t ret = MESSAGE_QUEUE_RESULT_OK;
     BaseType_t retRecv;
 
-    if( pMessageQueueHandler == NULL || pMessage == NULL || *pMessageLength < pMessageQueueHandler->messageMaxLength )
+    if( ( pMessageQueueHandler == NULL ) || ( pMessage == NULL ) || ( *pMessageLength < pMessageQueueHandler->messageMaxLength ) )
     {
         ret = MESSAGE_QUEUE_RESULT_BAD_PARAMETER;
     }
@@ -92,7 +100,7 @@ MessageQueueResult_t MessageQueue_Recv( MessageQueueHandler_t *pMessageQueueHand
     return ret;
 }
 
-MessageQueueResult_t MessageQueue_IsEmpty( MessageQueueHandler_t *pMessageQueueHandler )
+MessageQueueResult_t MessageQueue_IsEmpty( MessageQueueHandler_t * pMessageQueueHandler )
 {
     MessageQueueResult_t ret = MESSAGE_QUEUE_RESULT_OK;
     UBaseType_t pendingMessageNumber;

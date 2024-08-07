@@ -46,7 +46,7 @@ typedef enum NetworkingCorehttpResult
 typedef struct NetworkingCorehttpCredentials
 {
     /* user-agent */
-    char *pUserAgent;
+    char * pUserAgent;
     size_t userAgentLength;
 
     /* Region */
