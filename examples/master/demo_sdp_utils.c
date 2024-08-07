@@ -497,100 +497,100 @@ static uint8_t populateSessionAttributes( char **ppBuffer, size_t *pBufferLength
     return skipProcess;
 }
 
-static void PrintPopulatedSessionDesceiption( DemoSessionInformation_t *pSessionDescription )
-{
-    int i, j;
+// static void PrintPopulatedSessionDesceiption( DemoSessionInformation_t *pSessionDescription )
+// {
+//     int i, j;
 
-    if( pSessionDescription )
-    {
-        LogDebug( ("Version: %lu", pSessionDescription->sdpDescription.version) );
+//     if( pSessionDescription )
+//     {
+//         LogDebug( ("Version: %lu", pSessionDescription->sdpDescription.version) );
 
-        LogDebug( ("Origin - user name(%u): %.*s", pSessionDescription->sdpDescription.origin.userNameLength,
-                                            ( int ) pSessionDescription->sdpDescription.origin.userNameLength,
-                                            pSessionDescription->sdpDescription.origin.pUserName) );
-        LogDebug( ("Origin - session ID: %lu", pSessionDescription->sdpDescription.origin.sessionId) );
-        LogDebug( ("Origin - session version: %lu", pSessionDescription->sdpDescription.origin.sessionVersion) );
+//         LogDebug( ("Origin - user name(%u): %.*s", pSessionDescription->sdpDescription.origin.userNameLength,
+//                                             ( int ) pSessionDescription->sdpDescription.origin.userNameLength,
+//                                             pSessionDescription->sdpDescription.origin.pUserName) );
+//         LogDebug( ("Origin - session ID: %lu", pSessionDescription->sdpDescription.origin.sessionId) );
+//         LogDebug( ("Origin - session version: %lu", pSessionDescription->sdpDescription.origin.sessionVersion) );
 
-        LogDebug( ("Origin - connection info - network type(%u): %.*s", pSessionDescription->sdpDescription.origin.sdpConnectionInformation.networkTypeLength,
-                                                                      ( int ) pSessionDescription->sdpDescription.origin.sdpConnectionInformation.networkTypeLength,
-                                                                      pSessionDescription->sdpDescription.origin.sdpConnectionInformation.pNetworkType) );
-        LogDebug( ("Origin - connection info - address type(%u): %.*s", pSessionDescription->sdpDescription.origin.sdpConnectionInformation.addressTypeLength,
-                                                                      ( int ) pSessionDescription->sdpDescription.origin.sdpConnectionInformation.addressTypeLength,
-                                                                      pSessionDescription->sdpDescription.origin.sdpConnectionInformation.pAddressType) );
-        LogDebug( ("Origin - connection info - address(%u): %.*s", pSessionDescription->sdpDescription.origin.sdpConnectionInformation.connectionAddressLength,
-                                                                      ( int ) pSessionDescription->sdpDescription.origin.sdpConnectionInformation.connectionAddressLength,
-                                                                      pSessionDescription->sdpDescription.origin.sdpConnectionInformation.pConnectionAddress) );
+//         LogDebug( ("Origin - connection info - network type(%u): %.*s", pSessionDescription->sdpDescription.origin.sdpConnectionInformation.networkTypeLength,
+//                                                                       ( int ) pSessionDescription->sdpDescription.origin.sdpConnectionInformation.networkTypeLength,
+//                                                                       pSessionDescription->sdpDescription.origin.sdpConnectionInformation.pNetworkType) );
+//         LogDebug( ("Origin - connection info - address type(%u): %.*s", pSessionDescription->sdpDescription.origin.sdpConnectionInformation.addressTypeLength,
+//                                                                       ( int ) pSessionDescription->sdpDescription.origin.sdpConnectionInformation.addressTypeLength,
+//                                                                       pSessionDescription->sdpDescription.origin.sdpConnectionInformation.pAddressType) );
+//         LogDebug( ("Origin - connection info - address(%u): %.*s", pSessionDescription->sdpDescription.origin.sdpConnectionInformation.connectionAddressLength,
+//                                                                       ( int ) pSessionDescription->sdpDescription.origin.sdpConnectionInformation.connectionAddressLength,
+//                                                                       pSessionDescription->sdpDescription.origin.sdpConnectionInformation.pConnectionAddress) );
 
-        LogDebug( ("Session name(%u): %.*s", pSessionDescription->sdpDescription.sessionNameLength,
-                                             ( int ) pSessionDescription->sdpDescription.sessionNameLength,
-                                             pSessionDescription->sdpDescription.pSessionName) );
-        LogDebug( ("Session description(%u): %.*s", pSessionDescription->sdpDescription.sessionInformationLength,
-                                             ( int ) pSessionDescription->sdpDescription.sessionInformationLength,
-                                             pSessionDescription->sdpDescription.pSessionInformation) );
-        LogDebug( ("URI(%u): %.*s", pSessionDescription->sdpDescription.uriLength,
-                                             ( int ) pSessionDescription->sdpDescription.uriLength,
-                                             pSessionDescription->sdpDescription.pUri) );
-        LogDebug( ("Email address(%u): %.*s", pSessionDescription->sdpDescription.emailAddressLength,
-                                             ( int ) pSessionDescription->sdpDescription.emailAddressLength,
-                                             pSessionDescription->sdpDescription.pEmailAddress) );
-        LogDebug( ("Phone number(%u): %.*s", pSessionDescription->sdpDescription.phoneNumberLength,
-                                             ( int ) pSessionDescription->sdpDescription.phoneNumberLength,
-                                             pSessionDescription->sdpDescription.pPhoneNumber) );
+//         LogDebug( ("Session name(%u): %.*s", pSessionDescription->sdpDescription.sessionNameLength,
+//                                              ( int ) pSessionDescription->sdpDescription.sessionNameLength,
+//                                              pSessionDescription->sdpDescription.pSessionName) );
+//         LogDebug( ("Session description(%u): %.*s", pSessionDescription->sdpDescription.sessionInformationLength,
+//                                              ( int ) pSessionDescription->sdpDescription.sessionInformationLength,
+//                                              pSessionDescription->sdpDescription.pSessionInformation) );
+//         LogDebug( ("URI(%u): %.*s", pSessionDescription->sdpDescription.uriLength,
+//                                              ( int ) pSessionDescription->sdpDescription.uriLength,
+//                                              pSessionDescription->sdpDescription.pUri) );
+//         LogDebug( ("Email address(%u): %.*s", pSessionDescription->sdpDescription.emailAddressLength,
+//                                              ( int ) pSessionDescription->sdpDescription.emailAddressLength,
+//                                              pSessionDescription->sdpDescription.pEmailAddress) );
+//         LogDebug( ("Phone number(%u): %.*s", pSessionDescription->sdpDescription.phoneNumberLength,
+//                                              ( int ) pSessionDescription->sdpDescription.phoneNumberLength,
+//                                              pSessionDescription->sdpDescription.pPhoneNumber) );
 
-        LogDebug( ("Session - connection info - network type(%u): %.*s", pSessionDescription->sdpDescription.connectionInformation.networkTypeLength,
-                                                                      ( int ) pSessionDescription->sdpDescription.connectionInformation.networkTypeLength,
-                                                                      pSessionDescription->sdpDescription.connectionInformation.pNetworkType) );
-        LogDebug( ("Session - connection info - address type(%u): %.*s", pSessionDescription->sdpDescription.connectionInformation.addressTypeLength,
-                                                                      ( int ) pSessionDescription->sdpDescription.connectionInformation.addressTypeLength,
-                                                                      pSessionDescription->sdpDescription.connectionInformation.pAddressType) );
-        LogDebug( ("Session - connection info - address(%u): %.*s", pSessionDescription->sdpDescription.connectionInformation.connectionAddressLength,
-                                                                      ( int ) pSessionDescription->sdpDescription.connectionInformation.connectionAddressLength,
-                                                                      pSessionDescription->sdpDescription.connectionInformation.pConnectionAddress) );
+//         LogDebug( ("Session - connection info - network type(%u): %.*s", pSessionDescription->sdpDescription.connectionInformation.networkTypeLength,
+//                                                                       ( int ) pSessionDescription->sdpDescription.connectionInformation.networkTypeLength,
+//                                                                       pSessionDescription->sdpDescription.connectionInformation.pNetworkType) );
+//         LogDebug( ("Session - connection info - address type(%u): %.*s", pSessionDescription->sdpDescription.connectionInformation.addressTypeLength,
+//                                                                       ( int ) pSessionDescription->sdpDescription.connectionInformation.addressTypeLength,
+//                                                                       pSessionDescription->sdpDescription.connectionInformation.pAddressType) );
+//         LogDebug( ("Session - connection info - address(%u): %.*s", pSessionDescription->sdpDescription.connectionInformation.connectionAddressLength,
+//                                                                       ( int ) pSessionDescription->sdpDescription.connectionInformation.connectionAddressLength,
+//                                                                       pSessionDescription->sdpDescription.connectionInformation.pConnectionAddress) );
 
-        LogDebug( ("Time description, start time: %lu, stop time: %lu", pSessionDescription->sdpDescription.timingDescription.startTime,
-                                                                        pSessionDescription->sdpDescription.timingDescription.stopTime) );
+//         LogDebug( ("Time description, start time: %lu, stop time: %lu", pSessionDescription->sdpDescription.timingDescription.startTime,
+//                                                                         pSessionDescription->sdpDescription.timingDescription.stopTime) );
 
-        LogDebug( ("Session attributes number: %u", pSessionDescription->sdpDescription.sessionAttributesCount) );
-        for( i=0; i<pSessionDescription->sdpDescription.sessionAttributesCount; i++ )
-        {
-            LogDebug( ("Session attribute idx(%d), name(%d): %.*s, value(%d): %.*s", i,
-                        pSessionDescription->sdpDescription.attributes[i].attributeNameLength, ( int ) pSessionDescription->sdpDescription.attributes[i].attributeNameLength, pSessionDescription->sdpDescription.attributes[i].pAttributeName,
-                        pSessionDescription->sdpDescription.attributes[i].attributeValueLength, ( int ) pSessionDescription->sdpDescription.attributes[i].attributeValueLength, pSessionDescription->sdpDescription.attributes[i].pAttributeValue) );
-        }
+//         LogDebug( ("Session attributes number: %u", pSessionDescription->sdpDescription.sessionAttributesCount) );
+//         for( i=0; i<pSessionDescription->sdpDescription.sessionAttributesCount; i++ )
+//         {
+//             LogDebug( ("Session attribute idx(%d), name(%d): %.*s, value(%d): %.*s", i,
+//                         pSessionDescription->sdpDescription.attributes[i].attributeNameLength, ( int ) pSessionDescription->sdpDescription.attributes[i].attributeNameLength, pSessionDescription->sdpDescription.attributes[i].pAttributeName,
+//                         pSessionDescription->sdpDescription.attributes[i].attributeValueLength, ( int ) pSessionDescription->sdpDescription.attributes[i].attributeValueLength, pSessionDescription->sdpDescription.attributes[i].pAttributeValue) );
+//         }
         
-        LogDebug( ("Session media number: %u", pSessionDescription->sdpDescription.mediaCount) );
-        for( i=0; i<pSessionDescription->sdpDescription.mediaCount; i++ )
-        {
-            // SdpControllerAttributes_t attributes[ SDP_CONTROLLER_MAX_SDP_ATTRIBUTES_COUNT ];
+//         LogDebug( ("Session media number: %u", pSessionDescription->sdpDescription.mediaCount) );
+//         for( i=0; i<pSessionDescription->sdpDescription.mediaCount; i++ )
+//         {
+//             // SdpControllerAttributes_t attributes[ SDP_CONTROLLER_MAX_SDP_ATTRIBUTES_COUNT ];
 
-            // uint8_t mediaAttributesCount;
-            LogDebug( ("Media name(%d): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].mediaNameLength,
-                                               ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].mediaNameLength,
-                                               pSessionDescription->sdpDescription.mediaDescriptions[i].pMediaName) );
-            LogDebug( ("Media title(%d): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].mediaTitleLength,
-                                               ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].mediaTitleLength,
-                                               pSessionDescription->sdpDescription.mediaDescriptions[i].pMediaTitle) );
+//             // uint8_t mediaAttributesCount;
+//             LogDebug( ("Media name(%d): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].mediaNameLength,
+//                                                ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].mediaNameLength,
+//                                                pSessionDescription->sdpDescription.mediaDescriptions[i].pMediaName) );
+//             LogDebug( ("Media title(%d): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].mediaTitleLength,
+//                                                ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].mediaTitleLength,
+//                                                pSessionDescription->sdpDescription.mediaDescriptions[i].pMediaTitle) );
 
-            LogDebug( ("Media - connection info - network type(%u): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.networkTypeLength,
-                                                                        ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.networkTypeLength,
-                                                                        pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.pNetworkType) );
-            LogDebug( ("Media - connection info - address type(%u): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.addressTypeLength,
-                                                                        ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.addressTypeLength,
-                                                                        pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.pAddressType) );
-            LogDebug( ("Media - connection info - address(%u): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.connectionAddressLength,
-                                                                        ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.connectionAddressLength,
-                                                                        pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.pConnectionAddress) );
+//             LogDebug( ("Media - connection info - network type(%u): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.networkTypeLength,
+//                                                                         ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.networkTypeLength,
+//                                                                         pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.pNetworkType) );
+//             LogDebug( ("Media - connection info - address type(%u): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.addressTypeLength,
+//                                                                         ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.addressTypeLength,
+//                                                                         pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.pAddressType) );
+//             LogDebug( ("Media - connection info - address(%u): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.connectionAddressLength,
+//                                                                         ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.connectionAddressLength,
+//                                                                         pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.pConnectionAddress) );
 
-            LogDebug( ("Media attributes number: %u", pSessionDescription->sdpDescription.mediaDescriptions[i].mediaAttributesCount) );
-            for( j=0; j<pSessionDescription->sdpDescription.mediaDescriptions[i].mediaAttributesCount; j++ )
-            {
-                LogDebug( ("Media attribute idx(%d), name(%d): %.*s, value(%d): %.*s", i,
-                            pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].attributeNameLength, ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].attributeNameLength, pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].pAttributeName,
-                            pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].attributeValueLength, ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].attributeValueLength, pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].pAttributeValue) );
-            }
-        }
-    }
-}
+//             LogDebug( ("Media attributes number: %u", pSessionDescription->sdpDescription.mediaDescriptions[i].mediaAttributesCount) );
+//             for( j=0; j<pSessionDescription->sdpDescription.mediaDescriptions[i].mediaAttributesCount; j++ )
+//             {
+//                 LogDebug( ("Media attribute idx(%d), name(%d): %.*s, value(%d): %.*s", i,
+//                             pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].attributeNameLength, ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].attributeNameLength, pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].pAttributeName,
+//                             pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].attributeValueLength, ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].attributeValueLength, pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].pAttributeValue) );
+//             }
+//         }
+//     }
+// }
 
 uint8_t populateSdpContent( DemoSessionInformation_t *pRemoteSessionDescription, DemoSessionInformation_t *pLocalSessionDescription, PeerConnectionContext_t *pPeerConnectionContext )
 {
@@ -641,11 +641,6 @@ uint8_t populateSdpContent( DemoSessionInformation_t *pRemoteSessionDescription,
 
         skipProcess = populateSessionAttributes( &pSdpBuffer, &remainLength, &pRemoteSessionDescription->sdpDescription, &pLocalSessionDescription->sdpDescription );
         LogDebug( ("After populateSessionAttributes, skipProcess: %u", skipProcess) );
-    }
-
-    if( !skipProcess )
-    {
-        PrintPopulatedSessionDesceiption( pLocalSessionDescription );
     }
 
     return skipProcess;

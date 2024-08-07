@@ -145,7 +145,7 @@ static SdpControllerResult_t serializeAttributes( SdpSerializerContext_t *pCtx, 
 static SdpControllerResult_t serializeConnectionInfo( SdpSerializerContext_t *pCtx, SdpControllerConnectionInformation_t *pConnectionInfo );
 static SdpControllerResult_t serializeMedias( SdpSerializerContext_t *pCtx, SdpControllerMediaDescription_t *pMediaDescriptions, uint16_t mediaCount );
 static SdpControllerResult_t serializeSdpMessage( SdpControllerSdpDescription_t *pSdpDescription, char *pOutputBuffer, size_t *pOutputBufferSize );
-static SdpControllerResult_t PopulateTransceiverSsrc( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpLocalDescription, Transceiver_t *pTransceiver, const char *pCname, size_t cnameLength );
+static SdpControllerResult_t PopulateTransceiverSsrc( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpLocalDescription, const Transceiver_t *pTransceiver, const char *pCname, size_t cnameLength );
 static SdpControllerResult_t PopulateRtcpFb( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpLocalDescription, uint32_t codec, uint16_t twccId );
 static SdpControllerResult_t PopulateCodecAttributesH264Profile42E01FLevelAsymmetryAllowedPacketization( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpLocalDescription, SdpControllerSdpDescription_t *pSdpRemoteDescription, const Transceiver_t *pTransceiver, uint32_t codec );
 static SdpControllerResult_t PopulateCodecAttributesOpus( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpLocalDescription, SdpControllerSdpDescription_t *pSdpRemoteDescription, const Transceiver_t *pTransceiver, uint32_t codec );
@@ -187,7 +187,7 @@ static SdpControllerResult_t ParseExtraAttributes( SdpControllerSdpDescription_t
                  strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SETUP, pAttribute->pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SETUP_LENGTH ) == 0 )
         {
             /* Found setup, store it as extra info. */
-            if( pAttribute->attributeValueLength == SDP_CONTROLLER_MEDIA_DTLS_ROLE_ACTIVE &&
+            if( pAttribute->attributeValueLength == SDP_CONTROLLER_MEDIA_DTLS_ROLE_ACTIVE_LENGTH &&
                 strncmp( SDP_CONTROLLER_MEDIA_DTLS_ROLE_ACTIVE, pAttribute->pAttributeName, SDP_CONTROLLER_MEDIA_DTLS_ROLE_ACTIVE_LENGTH ) == 0 )
             {
                 pOffer->dtlsRole = SDP_CONTROLLER_DTLS_ROLE_ACTIVE;
@@ -543,7 +543,7 @@ static SdpControllerResult_t serializeSdpMessage( SdpControllerSdpDescription_t 
     return ret;
 }
 
-static SdpControllerResult_t PopulateTransceiverSsrc( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpLocalDescription, Transceiver_t *pTransceiver, const char *pCname, size_t cnameLength )
+static SdpControllerResult_t PopulateTransceiverSsrc( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpLocalDescription, const Transceiver_t *pTransceiver, const char *pCname, size_t cnameLength )
 {
     SdpControllerResult_t ret = SDP_CONTROLLER_RESULT_OK;
     SdpControllerAttributes_t *pTargetAttribute = NULL;
@@ -1471,7 +1471,8 @@ static SdpControllerResult_t PopulateSingleMedia( char **ppBuffer, size_t *pBuff
     int written = 0;
     char *pCurBuffer = NULL;
     size_t remainSize = 0;
-    SdpControllerAttributes_t *pTargetAttribute = NULL, *pSourceAttribute = NULL;
+    SdpControllerAttributes_t *pTargetAttribute = NULL;
+    const SdpControllerAttributes_t *pSourceAttribute = NULL;
     uint8_t *pTargetAttributeCount = NULL;
     PeerConnectionResult_t peerConnectionResult;
     PeerConnectionUserInfo_t localUserInfo;
@@ -1689,7 +1690,7 @@ static SdpControllerResult_t PopulateSingleMedia( char **ppBuffer, size_t *pBuff
         }
         else
         {
-            written = snprintf( pCurBuffer, remainSize, "%lu",
+            written = snprintf( pCurBuffer, remainSize, "%u",
                                 pSdpLocalDescription->mediaCount );
 
             if( written < 0 )
@@ -1874,7 +1875,7 @@ static SdpControllerAttributes_t *FindH264FmtpAttribute( SdpControllerAttributes
 static uint32_t CalculateH264ScoreByFmtp( SdpControllerAttributes_t *pTargetFmtpAttribute )
 {
     uint32_t score = 0;
-    char *pProfileLevelIdStart = NULL;
+    const char *pProfileLevelIdStart = NULL;
     uint32_t profileLevelId = 0;
     StringUtilsResult_t stringResult;
     size_t remainLength = 0;
@@ -1968,7 +1969,7 @@ static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t *pAttrib
                         else
                         {
                             TRANSCEIVER_ENABLE_CODEC( codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT );
-                            LogDebug( ("Found H264 codec: %d", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ]) );
+                            LogDebug( ("Found H264 codec: %lu", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ]) );
                             highestH264Score = h264Score;
                         }
                     }
@@ -1987,7 +1988,7 @@ static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t *pAttrib
                     else
                     {
                         TRANSCEIVER_ENABLE_CODEC( codecBitMap, TRANSCEIVER_RTC_CODEC_VP8_BIT );
-                        LogDebug( ("Found VP8 codec: %d", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_VP8_BIT ]) );
+                        LogDebug( ("Found VP8 codec: %lu", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_VP8_BIT ]) );
                     }
                 }
                 else if( !TRANSCEIVER_IS_CODEC_ENABLED( codecBitMap, TRANSCEIVER_RTC_CODEC_H265_BIT ) && pAttributes[i].attributeValueLength >= SDP_CONTROLLER_CODEC_H265_VALUE_LENGTH &&
@@ -2004,7 +2005,7 @@ static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t *pAttrib
                     else
                     {
                         TRANSCEIVER_ENABLE_CODEC( codecBitMap, TRANSCEIVER_RTC_CODEC_H265_BIT );
-                        LogDebug( ("Found H265 codec: %d", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_H265_BIT ]) );
+                        LogDebug( ("Found H265 codec: %lu", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_H265_BIT ]) );
                     }
                 }
                 else if( !TRANSCEIVER_IS_CODEC_ENABLED( codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT ) && pAttributes[i].attributeValueLength >= SDP_CONTROLLER_CODEC_OPUS_VALUE_LENGTH &&
@@ -2021,7 +2022,7 @@ static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t *pAttrib
                     else
                     {
                         TRANSCEIVER_ENABLE_CODEC( codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT );
-                        LogDebug( ("Found OPUS codec: %d", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_OPUS_BIT ]) );
+                        LogDebug( ("Found OPUS codec: %lu", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_OPUS_BIT ]) );
                     }
                 }
                 else if( !TRANSCEIVER_IS_CODEC_ENABLED( codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT ) && pAttributes[i].attributeValueLength >= SDP_CONTROLLER_CODEC_MULAW_VALUE_LENGTH &&
@@ -2038,7 +2039,7 @@ static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t *pAttrib
                     else
                     {
                         TRANSCEIVER_ENABLE_CODEC( codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT );
-                        LogDebug( ("Found MULAW codec: %d", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_MULAW_BIT ]) );
+                        LogDebug( ("Found MULAW codec: %lu", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_MULAW_BIT ]) );
                     }
                 }
                 else if( !TRANSCEIVER_IS_CODEC_ENABLED( codecBitMap, TRANSCEIVER_RTC_CODEC_ALAW_BIT ) && pAttributes[i].attributeValueLength >= SDP_CONTROLLER_CODEC_ALAW_VALUE_LENGTH &&
@@ -2055,7 +2056,7 @@ static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t *pAttrib
                     else
                     {
                         TRANSCEIVER_ENABLE_CODEC( codecBitMap, TRANSCEIVER_RTC_CODEC_ALAW_BIT );
-                        LogDebug( ("Found ALAW codec: %d", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_ALAW_BIT ]) );
+                        LogDebug( ("Found ALAW codec: %lu", pCodecPayloads[ TRANSCEIVER_RTC_CODEC_ALAW_BIT ]) );
                     }
                 }
                 else
@@ -2163,7 +2164,7 @@ static const Transceiver_t *OccupyProperTransceiver( SdpControllerMediaDescripti
         /* Find proper codec bit map by looking for rtpmap. */
         mediaCodecBitMap |= CollectAttributesCodecBitMap( pRemoteMediaDescription->attributes, pRemoteMediaDescription->mediaAttributesCount,
                                                           codecPayloads, TRANSCEIVER_RTC_CODEC_NUM );
-        LogDebug( ("Scanned codec from remote media description, mediaCodecBitMap: %x", mediaCodecBitMap) );
+        LogDebug( ("Scanned codec from remote media description, mediaCodecBitMap: %lx", mediaCodecBitMap) );
     }
 
     if( !skipProcess )
@@ -2173,7 +2174,7 @@ static const Transceiver_t *OccupyProperTransceiver( SdpControllerMediaDescripti
             if( pIsTransceiverPopulated[currentTransceiverIdx] != 0 || pTransceivers[currentTransceiverIdx].trackKind != trackKind ||
                 ( mediaCodecBitMap & pTransceivers[currentTransceiverIdx].codecBitMap ) == 0 )
             {
-                LogDebug( ("Skip transceiver index: %d, pIsTransceiverPopulated[%d]: %d, pTransceivers[%d].trackKind: %d, pTransceivers[%d].codecBitMap: %x",
+                LogDebug( ("Skip transceiver index: %d, pIsTransceiverPopulated[%d]: %d, pTransceivers[%d].trackKind: %d, pTransceivers[%d].codecBitMap: %lx",
                             currentTransceiverIdx, currentTransceiverIdx, pIsTransceiverPopulated[currentTransceiverIdx], currentTransceiverIdx, pTransceivers[currentTransceiverIdx].trackKind, currentTransceiverIdx, pTransceivers[currentTransceiverIdx].codecBitMap) );
                 continue;
             }
@@ -2232,7 +2233,7 @@ static const Transceiver_t *OccupyProperTransceiver( SdpControllerMediaDescripti
         }
         else
         {
-            LogWarn( ("Transceiver not found, mediaCodecBitMap: %x", mediaCodecBitMap) );
+            LogWarn( ("Transceiver not found, mediaCodecBitMap: %lx", mediaCodecBitMap) );
         }
     }
     

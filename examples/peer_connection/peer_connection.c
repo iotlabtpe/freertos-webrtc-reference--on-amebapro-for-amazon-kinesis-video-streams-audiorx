@@ -19,7 +19,7 @@ static void IceController_Task( void *pParameter )
     }
 }
 
-static PeerConnectionResult_t InitializeIceController( PeerConnectionContext_t *pCtx, const SignalingControllerContext_t *pSignalingControllerContext )
+static PeerConnectionResult_t InitializeIceController( PeerConnectionContext_t *pCtx, SignalingControllerContext_t *pSignalingControllerContext )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     IceControllerResult_t iceControllerResult;
@@ -105,7 +105,7 @@ static Transceiver_t *AllocateFreeTransceiver( PeerConnectionContext_t *pCtx )
     return pReturn;
 }
 
-PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t *pCtx, const SignalingControllerContext_t *pSignalingControllerContext )
+PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t *pCtx, SignalingControllerContext_t *pSignalingControllerContext )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
 

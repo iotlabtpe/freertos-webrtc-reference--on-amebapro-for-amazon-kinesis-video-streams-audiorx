@@ -13,7 +13,7 @@ extern "C" {
 #include "peer_connection_data_types.h"
 #include "signaling_controller_data_types.h"
 
-PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t *pCtx, const SignalingControllerContext_t *pSignalingControllerContext );
+PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t *pCtx, SignalingControllerContext_t *pSignalingControllerContext );
 PeerConnectionResult_t PeerConnection_Destroy( PeerConnectionContext_t *pCtx );
 PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t *pCtx, const Transceiver_t transceiver );
 PeerConnectionResult_t PeerConnection_SetLocalDescription( PeerConnectionContext_t *pCtx );

@@ -50,7 +50,7 @@ StringUtilsResult_t StringUtils_ConvertStringToHex( const char *pStr, size_t str
 
     if( ret == STRING_UTILS_RESULT_OK )
     {
-        result = sscanf(pStr, "%x", pOutUl);
+        result = sscanf(pStr, "%lx", pOutUl);
         if( result < 1 )
         {
             ret = STRING_UTILS_RESULT_NON_NUMBERIC_STRING;
@@ -60,9 +60,9 @@ StringUtilsResult_t StringUtils_ConvertStringToHex( const char *pStr, size_t str
     return ret;
 }
 
-char *StringUtils_StrStr( const char *pStr, size_t strLength, uint32_t *pPattern, size_t patternLength )
+const char *StringUtils_StrStr( const char *pStr, size_t strLength, const char *pPattern, size_t patternLength )
 {
-    char *pRet = NULL;
+    const char *pRet = NULL;
     const char *pCurrentStr, *pCurrentPattern;
     int i;
     size_t checkedLength = 0;

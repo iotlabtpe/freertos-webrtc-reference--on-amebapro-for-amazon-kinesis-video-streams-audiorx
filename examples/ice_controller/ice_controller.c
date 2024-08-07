@@ -249,11 +249,6 @@ static IceControllerRemoteInfo_t *allocateRemoteInfo( IceControllerContext_t *pC
     return pRet;
 }
 
-static void freeRemoteInfo( IceControllerContext_t *pCtx, int32_t index )
-{
-    pCtx->remoteInfo[index].isUsed = 0;
-}
-
 static IceControllerResult_t findRemoteInfo( IceControllerContext_t *pCtx, const char *pRemoteClientId, size_t remoteClientIdLength, IceControllerRemoteInfo_t **ppRemoteInfo )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
@@ -997,7 +992,7 @@ IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t
             memcpy( pRemoteInfo->remotePassword, pRemotePassword, remotePasswordLength );
             pRemoteInfo->remotePassword[ remotePasswordLength ] = '\0';
             snprintf( pRemoteInfo->combinedName, ( ICE_CONTROLLER_USER_NAME_LENGTH << 1 ) + 2, "%.*s:%.*s",
-                      remotePasswordLength, pRemoteInfo->remoteUserName,
+                      remoteUserNameLength, pRemoteUserName,
                       ICE_CONTROLLER_USER_NAME_LENGTH, pCtx->localUserName );
 
             TransactionIdStore_Init( &pRemoteInfo->transactionIdStore, pRemoteInfo->transactionIdsBuffer, ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT );

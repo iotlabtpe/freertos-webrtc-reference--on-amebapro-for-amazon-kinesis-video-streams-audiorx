@@ -27,7 +27,7 @@
 
 static void platform_init(void);
 static void wifi_common_init(void);
-static uint8_t IsUpdatedCurrentTime(void);
+static long long GetCurrentTimeSec(void);
 static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteClientIdLength, DemoContext_t *pDemoContext );
 static uint8_t setRemoteDescription( PeerConnectionContext_t *pPeerConnectionCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength );
 static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext );
@@ -44,8 +44,10 @@ DemoContext_t demoContext;
 
 extern int crypto_init(void);
 extern int platform_set_malloc_free( void * (*malloc_func)( size_t ), void (*free_func)( void * ) );
+
 static void platform_init(void)
 {
+    long long sec;
     /* mbedtls init */
 	crypto_init();
 	platform_set_malloc_free(calloc, free);
@@ -58,11 +60,15 @@ static void platform_init(void)
     
     /* Block until get time via SNTP. */
     sntp_init();
-    while( IsUpdatedCurrentTime() )
+    while( (sec = GetCurrentTimeSec()) < 1000000000ULL )
     {
         vTaskDelay( pdMS_TO_TICKS( 200 ) );
         LogInfo( ("waiting get epoch timer") );
     }
+
+    /* Seed random. */
+    LogInfo( ("srand seed: %lld", sec) );
+    srand( sec );
 }
 
 static void wifi_common_init(void)
@@ -81,20 +87,28 @@ static void wifi_common_init(void)
 	}
 }
 
-static uint8_t IsUpdatedCurrentTime(void)
+static long long GetCurrentTimeSec(void)
 {
-    uint8_t ret = 0;
 	long long sec;
 	long long usec;
 	unsigned int tick;
+	unsigned int tickDiff;
 
     sntp_get_lasttime( &sec, &usec, &tick );
-    if( sec > 10000000000000000ULL )
-    {
-        ret = 1;
-    }
+    tickDiff = xTaskGetTickCount() - tick;
 
-    return ret;
+	sec += tickDiff / configTICK_RATE_HZ;
+	usec += ((tickDiff % configTICK_RATE_HZ) / portTICK_RATE_MS) * 1000;
+
+	while(usec >= 1000000)
+    {
+		usec -= 1000000;
+		sec ++;
+	}
+
+    LogDebug( ("sec: %lld, usec: %lld, tick: %u", sec, usec, tick) );
+
+    return sec;
 }
 
 static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteClientIdLength, DemoContext_t *pDemoContext )
@@ -278,7 +292,6 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent
 {
     uint8_t skipProcess = 0;
     PeerConnectionResult_t peerConnectionResult;
-    PeerConnectionRemoteInfo_t remoteInfo;
 
     ( void ) pUserContext;
 
