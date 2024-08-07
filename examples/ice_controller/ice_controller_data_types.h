@@ -22,6 +22,7 @@ extern "C" {
 #define ICE_CONTROLLER_IP_ADDR_STRING_BUFFER_LENGTH ( 39 )
 #define ICE_CONTROLLER_USER_NAME_LENGTH ( 4 )
 #define ICE_CONTROLLER_PASSWORD_LENGTH ( 24 )
+#define ICE_CONTROLLER_CNAME_LENGTH ( 16 )
 #define ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE ( 1024 )
 
 /**
@@ -248,6 +249,7 @@ typedef struct IceControllerContext
 
     char localUserName[ ICE_CONTROLLER_USER_NAME_LENGTH + 1 ];
     char localPassword[ ICE_CONTROLLER_PASSWORD_LENGTH + 1 ];
+    char localCname[ ICE_CONTROLLER_CNAME_LENGTH + 1 ];
 
     IceControllerRemoteInfo_t remoteInfo[ AWS_MAX_VIEWER_NUM ];
     IceEndpoint_t localEndpoints[ ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ];

@@ -249,11 +249,6 @@ static IceControllerRemoteInfo_t *allocateRemoteInfo( IceControllerContext_t *pC
     return pRet;
 }
 
-static void freeRemoteInfo( IceControllerContext_t *pCtx, int32_t index )
-{
-    pCtx->remoteInfo[index].isUsed = 0;
-}
-
 static IceControllerResult_t findRemoteInfo( IceControllerContext_t *pCtx, const char *pRemoteClientId, size_t remoteClientIdLength, IceControllerRemoteInfo_t **ppRemoteInfo )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
@@ -718,7 +713,7 @@ void IceController_PrintMetrics( IceControllerContext_t * pCtx )
     LogInfo( ( "Duration of entire Ice flow: %lld ms", duration_ms ) );
 }
 
-IceControllerResult_t IceController_Deinit( IceControllerContext_t *pCtx )
+IceControllerResult_t IceController_Destroy( IceControllerContext_t *pCtx )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
 
@@ -752,15 +747,12 @@ IceControllerResult_t IceController_Init( IceControllerContext_t *pCtx, Signalin
         memset( pCtx, 0, sizeof( IceControllerContext_t ) );
 
         /* Generate local name/password. */
-        // generateJSONValidString( pCtx->localUserName, ICE_CONTROLLER_USER_NAME_LENGTH );
-        // pCtx->localUserName[ ICE_CONTROLLER_USER_NAME_LENGTH ] = '\0';
-        // generateJSONValidString( pCtx->localPassword, ICE_CONTROLLER_PASSWORD_LENGTH );
-        // pCtx->localPassword[ ICE_CONTROLLER_PASSWORD_LENGTH ] = '\0';
-        // TODO
-        memcpy( pCtx->localUserName, "GnjB", ICE_CONTROLLER_USER_NAME_LENGTH );
+        generateJSONValidString( pCtx->localUserName, ICE_CONTROLLER_USER_NAME_LENGTH );
         pCtx->localUserName[ ICE_CONTROLLER_USER_NAME_LENGTH ] = '\0';
-        memcpy( pCtx->localPassword, "eu8hMmfpUkEU3t1DfJb+/J3e", ICE_CONTROLLER_PASSWORD_LENGTH );
+        generateJSONValidString( pCtx->localPassword, ICE_CONTROLLER_PASSWORD_LENGTH );
         pCtx->localPassword[ ICE_CONTROLLER_PASSWORD_LENGTH ] = '\0';
+        generateJSONValidString( pCtx->localCname, ICE_CONTROLLER_CNAME_LENGTH );
+        pCtx->localCname[ ICE_CONTROLLER_CNAME_LENGTH ] = '\0';
 
         pCtx->pSignalingControllerContext = pSignalingControllerContext;
 
@@ -1000,7 +992,7 @@ IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t
             memcpy( pRemoteInfo->remotePassword, pRemotePassword, remotePasswordLength );
             pRemoteInfo->remotePassword[ remotePasswordLength ] = '\0';
             snprintf( pRemoteInfo->combinedName, ( ICE_CONTROLLER_USER_NAME_LENGTH << 1 ) + 2, "%.*s:%.*s",
-                      remotePasswordLength, pRemoteInfo->remoteUserName,
+                      remoteUserNameLength, pRemoteUserName,
                       ICE_CONTROLLER_USER_NAME_LENGTH, pCtx->localUserName );
 
             TransactionIdStore_Init( &pRemoteInfo->transactionIdStore, pRemoteInfo->transactionIdsBuffer, ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT );

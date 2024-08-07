@@ -82,6 +82,291 @@ const char videoAttribute19Value[] = "106 goog-remb";
 const char videoAttribute20Name[] = "rtcp-fb";
 const char videoAttribute20Value[] = "106 transport-cc";
 
+static SdpControllerAttributes_t *MatchAttributesValuePrefix( SdpControllerAttributes_t *pAttributes, size_t attributeNum, const char *pPattern, size_t patternLength )
+{
+    SdpControllerAttributes_t *pFound = NULL;
+    int i;
+
+    if( pAttributes == NULL || pPattern == NULL )
+    {
+        LogError( ("Invalid input") );
+    }
+    else
+    {
+        for( i=0 ; i<attributeNum ; i++ )
+        {
+            if( (pAttributes + i)->attributeValueLength >= patternLength &&
+                strncmp( (pAttributes + i)->pAttributeValue, pPattern, patternLength ) == 0 )
+            {
+                pFound = pAttributes + i;
+            }
+        }
+    }
+
+    return pFound;
+}
+
+static int AddSessionAttributeGroup( char *pBuffer, size_t remainSize, SdpControllerSdpDescription_t *pLocalSdpDescription, SdpControllerSdpDescription_t *pRemoteSdpDescription )
+{
+    int totalWritten = 0;
+    int written = 0;
+    char *pCurBuffer = pBuffer;
+    int i;
+    SdpControllerAttributes_t *pRemoteAttribute = NULL;
+
+    if( pBuffer == NULL ||
+        pLocalSdpDescription == NULL )
+    {
+        totalWritten = -1;
+        LogError( ("Invalid input") );
+    }
+
+    /* Append attribute name group. */
+    if( totalWritten >= 0 )
+    {
+        written = snprintf( pCurBuffer, remainSize, "group" );
+        if( written < 0 )
+        {
+            totalWritten = -1;
+            LogError( ( "snprintf return unexpected value %d", written ) );
+        }
+        else if( written == remainSize )
+        {
+            totalWritten = -2;
+            LogError( ( "buffer has no space for attribute name" ) );
+        }
+        else
+        {
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeName = pCurBuffer;
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeNameLength = strlen( pCurBuffer );
+
+            pCurBuffer += written;
+            remainSize -= written;
+            totalWritten += written;
+        }
+    }
+    
+    /* Append attribute value BUNDLE. */
+    if( totalWritten >= 0 )
+    {
+        /* If we have SDP offer, reuse the BUNDLE string from it. */
+        if( pRemoteSdpDescription != NULL )
+        {
+            pRemoteAttribute = MatchAttributesValuePrefix( pRemoteSdpDescription->attributes, SDP_CONTROLLER_MAX_SDP_ATTRIBUTES_COUNT, "BUNDLE", strlen( "BUNDLE" ) );
+        }
+
+        if( pRemoteAttribute )
+        {
+            written = snprintf( pCurBuffer, remainSize, "%.*s",
+                                ( int ) pRemoteAttribute->attributeValueLength,
+                                pRemoteAttribute->pAttributeValue );
+            if( written < 0 )
+            {
+                totalWritten = -1;
+                LogError( ( "snprintf return unexpected value %d", written ) );
+            }
+            else if( written == remainSize )
+            {
+                totalWritten = -2;
+                LogError( ( "buffer has no space for attribute value" ) );
+            }
+            else
+            {
+                pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
+                pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
+
+                totalWritten += written;
+            }
+        }
+    }
+
+    /* Append attribute value BUNDLE if not ready from previous step. */
+    if( totalWritten >= 0 && pRemoteAttribute == NULL )
+    {
+        written = snprintf( pCurBuffer, remainSize, "BUNDLE" );
+        if( written < 0 )
+        {
+            totalWritten = -1;
+            LogError( ( "snprintf return unexpected value %d", written ) );
+        }
+        else if( written == remainSize )
+        {
+            totalWritten = -2;
+            LogError( ( "buffer has no space for attribute value" ) );
+        }
+        else
+        {
+            char *pAppendNumber = pCurBuffer + written;
+            int offset = 0;
+
+            totalWritten += written;
+
+            for( i=0 ; i<pLocalSdpDescription->mediaCount ; i++ )
+            {
+                written = snprintf( pAppendNumber + offset, remainSize - offset, " %d", i );
+                if( written < 0 )
+                {
+                    totalWritten = -1;
+                    LogError( ( "snprintf return unexpected value %d", written ) );
+                    break;
+                }
+                else if( written == remainSize - offset )
+                {
+                    totalWritten = -2;
+                    LogError( ( "buffer has no space for attribute value" ) );
+                    break;
+                }
+                else
+                {
+                    offset += written;
+                }
+            }
+
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
+            totalWritten += offset;
+        }
+    }
+
+    /* Update session attribute count. */
+    if( totalWritten >= 0 )
+    {
+        pLocalSdpDescription->sessionAttributesCount++;
+    }
+
+    return totalWritten;
+}
+
+static int AddSessionAttributeIceOptions( char *pBuffer, size_t remainSize, SdpControllerSdpDescription_t *pLocalSdpDescription, SdpControllerSdpDescription_t *pRemoteSdpDescription )
+{
+    int totalWritten = 0;
+    int written = 0;
+    char *pCurBuffer = pBuffer;
+
+    ( void ) pRemoteSdpDescription;
+
+    if( pBuffer == NULL ||
+        pLocalSdpDescription == NULL )
+    {
+        totalWritten = -1;
+        LogError( ("Invalid input") );
+    }
+
+    if( totalWritten >= 0 )
+    {
+        written = snprintf( pCurBuffer, remainSize, "ice-options" );
+        if( written < 0 )
+        {
+            totalWritten = -1;
+            LogError( ( "snprintf return unexpected value %d", written ) );
+        }
+        else if( written == remainSize )
+        {
+            totalWritten = -2;
+            LogError( ( "buffer has no space for session attributes" ) );
+        }
+        else
+        {
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeName = pCurBuffer;
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeNameLength = strlen( pCurBuffer );
+
+            pCurBuffer += written;
+            remainSize -= written;
+            totalWritten += written;
+        }
+    }
+
+    if( totalWritten >= 0 )
+    {
+        written = snprintf( pCurBuffer, remainSize, "trickle" );
+        if( written < 0 )
+        {
+            totalWritten = -1;
+            LogError( ( "snprintf return unexpected value %d", written ) );
+        }
+        else if( written == remainSize )
+        {
+            totalWritten = -2;
+            LogError( ( "buffer has no space for session attributes" ) );
+        }
+        else
+        {
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
+
+            totalWritten += written;
+            pLocalSdpDescription->sessionAttributesCount++;
+        }
+    }
+
+    return totalWritten;
+}
+
+static int AddSessionAttributeMsidSemantic( char *pBuffer, size_t remainSize, SdpControllerSdpDescription_t *pLocalSdpDescription, SdpControllerSdpDescription_t *pRemoteSdpDescription )
+{
+    int totalWritten = 0;
+    int written = 0;
+    char *pCurBuffer = pBuffer;
+
+    ( void ) pRemoteSdpDescription;
+
+    if( pBuffer == NULL ||
+        pLocalSdpDescription == NULL )
+    {
+        totalWritten = -1;
+        LogError( ("Invalid input") );
+    }
+
+    if( totalWritten >= 0 )
+    {
+        written = snprintf( pCurBuffer, remainSize, "msid-semantic" );
+        if( written < 0 )
+        {
+            totalWritten = -1;
+            LogError( ( "snprintf return unexpected value %d", written ) );
+        }
+        else if( written == remainSize )
+        {
+            totalWritten = -2;
+            LogError( ( "buffer has no space for session attributes" ) );
+        }
+        else
+        {
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeName = pCurBuffer;
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeNameLength = strlen( pCurBuffer );
+
+            pCurBuffer += written;
+            remainSize -= written;
+            totalWritten += written;
+        }
+    }
+
+    if( totalWritten >= 0 )
+    {
+        written = snprintf( pCurBuffer, remainSize, " WMS myKvsVideoStream" );
+        if( written < 0 )
+        {
+            totalWritten = -1;
+            LogError( ( "snprintf return unexpected value %d", written ) );
+        }
+        else if( written == remainSize )
+        {
+            totalWritten = -2;
+            LogError( ( "buffer has no space for session attributes" ) );
+        }
+        else
+        {
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
+            pLocalSdpDescription->attributes[ pLocalSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
+
+            totalWritten += written;
+            pLocalSdpDescription->sessionAttributesCount++;
+        }
+    }
+
+    return totalWritten;
+}
+
 static uint8_t storeAndParseSdpOffer( const char *pEventSdpOffer, size_t eventSdpOfferlength, DemoSessionInformation_t *pSessionInDescriptionOffer )
 {
     uint8_t skipProcess = 0;
@@ -135,168 +420,71 @@ static uint8_t storeAndParseSdpOffer( const char *pEventSdpOffer, size_t eventSd
     return skipProcess;
 }
 
-static void populateSessionOrigin( char **ppBuffer, size_t *pBufferLength, SdpControllerOrigin_t *pOrigin )
-{
-    pOrigin->pUserName = SDP_CONTROLLER_ORIGIN_DEFAULT_USER_NAME;
-    pOrigin->userNameLength = strlen( SDP_CONTROLLER_ORIGIN_DEFAULT_USER_NAME );
-    pOrigin->sessionId = rand();
-    pOrigin->sessionVersion = SDP_CONTROLLER_ORIGIN_DEFAULT_SESSION_VERSION;
-    pOrigin->sdpConnectionInformation.pNetworkType = SDP_CONTROLLER_ORIGIN_DEFAULT_NET_TYPE;
-    pOrigin->sdpConnectionInformation.networkTypeLength = strlen( SDP_CONTROLLER_ORIGIN_DEFAULT_NET_TYPE );
-    pOrigin->sdpConnectionInformation.pAddressType = SDP_CONTROLLER_ORIGIN_IPV4_TYPE;
-    pOrigin->sdpConnectionInformation.addressTypeLength = strlen( SDP_CONTROLLER_ORIGIN_IPV4_TYPE );
-    pOrigin->sdpConnectionInformation.pConnectionAddress = SDP_CONTROLLER_ORIGIN_DEFAULT_IP_ADDRESS;
-    pOrigin->sdpConnectionInformation.connectionAddressLength = strlen( SDP_CONTROLLER_ORIGIN_DEFAULT_IP_ADDRESS );
-}
-
-static uint8_t populateSessionAttributes( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpDescription )
+static uint8_t populateSessionAttributes( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pRemoteSdpDescription, SdpControllerSdpDescription_t *pLocalSdpDescription )
 {
     uint8_t skipProcess = 0;
     int written;
     size_t remainSize = *pBufferLength;
     char *pCurBuffer = *ppBuffer;
 
-    /* group. */
-    written = snprintf( pCurBuffer, remainSize, "group" );
-    if( written < 0 )
+    if( ppBuffer == NULL ||
+        *ppBuffer == NULL ||
+        pBufferLength == NULL ||
+        pRemoteSdpDescription == NULL ||
+        pLocalSdpDescription == NULL )
     {
+        LogError( ("Invalid input.") );
         skipProcess = 1;
-        LogError( ( "snprintf return unexpected value %d", written ) );
-    }
-    else if( written == remainSize )
-    {
-        skipProcess = 1;
-        LogError( ( "buffer has no space for session attributes" ) );
-    }
-    else
-    {
-        pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].pAttributeName = pCurBuffer;
-        pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].attributeNameLength = strlen( pCurBuffer );
-
-        pCurBuffer += written;
-        remainSize -= written;
     }
 
-    if( !skipProcess )
+    if( skipProcess == 0 )
     {
-        written = snprintf( pCurBuffer, remainSize, "BUNDLE 0 1" );
+        /* a=group:BINDLE 0 1 ...
+         * Note that we need to session media count to populate this value. */
+        written = AddSessionAttributeGroup( pCurBuffer, remainSize, pLocalSdpDescription, pRemoteSdpDescription );
         if( written < 0 )
         {
             skipProcess = 1;
-            LogError( ( "snprintf return unexpected value %d", written ) );
-        }
-        else if( written == remainSize )
-        {
-            skipProcess = 1;
-            LogError( ( "buffer has no space for session attributes" ) );
+            LogError( ( "Fail to add group to session attribute with return %d", written ) );
         }
         else
         {
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
-
             pCurBuffer += written;
             remainSize -= written;
-
-            pSdpDescription->sessionAttributesCount++;
         }
     }
 
     /* ice-options. */
     if( !skipProcess )
     {
-        written = snprintf( pCurBuffer, remainSize, "ice-options" );
+        /* a=ice-options:trickle */
+        written = AddSessionAttributeIceOptions( pCurBuffer, remainSize, pLocalSdpDescription, pRemoteSdpDescription );
         if( written < 0 )
         {
             skipProcess = 1;
-            LogError( ( "snprintf return unexpected value %d", written ) );
-        }
-        else if( written == remainSize )
-        {
-            skipProcess = 1;
-            LogError( ( "buffer has no space for session attributes" ) );
+            LogError( ( "Fail to add ice-options to session attribute with return %d", written ) );
         }
         else
         {
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].pAttributeName = pCurBuffer;
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].attributeNameLength = strlen( pCurBuffer );
-
             pCurBuffer += written;
             remainSize -= written;
-        }
-    }
-
-    if( !skipProcess )
-    {
-        written = snprintf( pCurBuffer, remainSize, "trickle" );
-        if( written < 0 )
-        {
-            skipProcess = 1;
-            LogError( ( "snprintf return unexpected value %d", written ) );
-        }
-        else if( written == remainSize )
-        {
-            skipProcess = 1;
-            LogError( ( "buffer has no space for session attributes" ) );
-        }
-        else
-        {
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
-
-            pCurBuffer += written;
-            remainSize -= written;
-
-            pSdpDescription->sessionAttributesCount++;
         }
     }
 
     /* msid-semantic */
     if( !skipProcess )
     {
-        written = snprintf( pCurBuffer, remainSize, "msid-semantic" );
+        /* a=msid-semantic: WMS myKvsVideoStream */
+        written = AddSessionAttributeMsidSemantic( pCurBuffer, remainSize, pLocalSdpDescription, pRemoteSdpDescription );
         if( written < 0 )
         {
             skipProcess = 1;
-            LogError( ( "snprintf return unexpected value %d", written ) );
-        }
-        else if( written == remainSize )
-        {
-            skipProcess = 1;
-            LogError( ( "buffer has no space for session attributes" ) );
+            LogError( ( "Fail to add ice-options to session attribute with return %d", written ) );
         }
         else
         {
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].pAttributeName = pCurBuffer;
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].attributeNameLength = strlen( pCurBuffer );
-
             pCurBuffer += written;
             remainSize -= written;
-        }
-    }
-
-    if( !skipProcess )
-    {
-        written = snprintf( pCurBuffer, remainSize, " WMS myKvsVideoStream" );
-        if( written < 0 )
-        {
-            skipProcess = 1;
-            LogError( ( "snprintf return unexpected value %d", written ) );
-        }
-        else if( written == remainSize )
-        {
-            skipProcess = 1;
-            LogError( ( "buffer has no space for session attributes" ) );
-        }
-        else
-        {
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].pAttributeValue = pCurBuffer;
-            pSdpDescription->attributes[ pSdpDescription->sessionAttributesCount ].attributeValueLength = strlen( pCurBuffer );
-
-            pCurBuffer += written;
-            remainSize -= written;
-
-            pSdpDescription->sessionAttributesCount++;
         }
     }
 
@@ -309,316 +497,150 @@ static uint8_t populateSessionAttributes( char **ppBuffer, size_t *pBufferLength
     return skipProcess;
 }
 
-static void populateVideoAttributes( SdpControllerSdpDescription_t *pSdpDescription )
-{
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].pMediaName = "video 9 UDP/TLS/RTP/SAVPF 106";
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaNameLength = strlen( "video 9 UDP/TLS/RTP/SAVPF 106" );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].pMediaTitle = NULL;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaTitleLength = 0;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].connectionInformation.pNetworkType = SDP_CONTROLLER_ORIGIN_DEFAULT_NET_TYPE;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].connectionInformation.networkTypeLength = strlen( SDP_CONTROLLER_ORIGIN_DEFAULT_NET_TYPE );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].connectionInformation.pAddressType = SDP_CONTROLLER_ORIGIN_IPV4_TYPE;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].connectionInformation.addressTypeLength = strlen( SDP_CONTROLLER_ORIGIN_IPV4_TYPE );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].connectionInformation.pConnectionAddress = SDP_CONTROLLER_ORIGIN_DEFAULT_IP_ADDRESS;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].connectionInformation.connectionAddressLength = strlen( SDP_CONTROLLER_ORIGIN_DEFAULT_IP_ADDRESS );
-    // pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute0Name;
-    // pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute0Name );
-    // pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute0Value;
-    // pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute0Value );
-    // pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute1Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute1Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute1Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute1Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute2Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute2Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute2Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute2Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute3Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute3Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute3Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute3Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute4Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute4Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute4Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute4Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute5Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute5Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute5Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute5Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute6Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute6Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute6Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute6Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute7Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute7Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute7Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute7Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute8Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute8Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute8Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute8Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute9Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute9Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute9Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute9Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute10Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute10Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute10Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute10Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute11Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute11Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute11Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute11Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute12Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute12Name );
-    if( pSdpDescription->mediaCount == 0 )
-    {
-        pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = attributeMidValue0;
-        pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen(attributeMidValue0);
-    }
-    else
-    {
-        pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = attributeMidValue1;
-        pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen(attributeMidValue1);
-    }
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute13Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute13Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute14Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute14Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute15Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute15Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute16Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute16Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute16Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute16Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute17Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute17Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute17Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute17Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute18Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute18Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute18Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute18Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute19Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute19Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute19Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute19Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = videoAttribute20Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( videoAttribute20Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = videoAttribute20Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( videoAttribute20Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
+// static void PrintPopulatedSessionDesceiption( DemoSessionInformation_t *pSessionDescription )
+// {
+//     int i, j;
 
-    pSdpDescription->mediaCount++;
-}
+//     if( pSessionDescription )
+//     {
+//         LogDebug( ("Version: %lu", pSessionDescription->sdpDescription.version) );
 
-static void populateAudioAttributes( SdpControllerSdpDescription_t *pSdpDescription )
-{
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].pMediaName = "audio 9 UDP/TLS/RTP/SAVPF 111";
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaNameLength = strlen( "audio 9 UDP/TLS/RTP/SAVPF 111" );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].pMediaTitle = NULL;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaTitleLength = 0;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].connectionInformation.pNetworkType = SDP_CONTROLLER_ORIGIN_DEFAULT_NET_TYPE;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].connectionInformation.networkTypeLength = strlen( SDP_CONTROLLER_ORIGIN_DEFAULT_NET_TYPE );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].connectionInformation.pAddressType = SDP_CONTROLLER_ORIGIN_IPV4_TYPE;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].connectionInformation.addressTypeLength = strlen( SDP_CONTROLLER_ORIGIN_IPV4_TYPE );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].connectionInformation.pConnectionAddress = SDP_CONTROLLER_ORIGIN_DEFAULT_IP_ADDRESS;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].connectionInformation.connectionAddressLength = strlen( SDP_CONTROLLER_ORIGIN_DEFAULT_IP_ADDRESS );
+//         LogDebug( ("Origin - user name(%u): %.*s", pSessionDescription->sdpDescription.origin.userNameLength,
+//                                             ( int ) pSessionDescription->sdpDescription.origin.userNameLength,
+//                                             pSessionDescription->sdpDescription.origin.pUserName) );
+//         LogDebug( ("Origin - session ID: %lu", pSessionDescription->sdpDescription.origin.sessionId) );
+//         LogDebug( ("Origin - session version: %lu", pSessionDescription->sdpDescription.origin.sessionVersion) );
 
-    // pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute0Name;
-    // pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute0Name );
-    // pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute0Value;
-    // pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute0Value );
-    // pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute1Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute1Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute1Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute1Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute2Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute2Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute2Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute2Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute3Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute3Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute3Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute3Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute4Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute4Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute4Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute4Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute5Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute5Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute5Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute5Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute6Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute6Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute6Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute6Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute7Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute7Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute7Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute7Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute8Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute8Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute8Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute8Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute9Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute9Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute9Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute9Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute10Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute10Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute10Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute10Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute11Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute11Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute11Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute11Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute12Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute12Name );
-    if( pSdpDescription->mediaCount == 0 )
-    {
-        pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = attributeMidValue0;
-        pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen(attributeMidValue0);
-    }
-    else
-    {
-        pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = attributeMidValue1;
-        pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen(attributeMidValue1);
-    }
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute13Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute13Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute14Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute14Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute15Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute15Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute15Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute15Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute16Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute16Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute16Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute16Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute17Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute17Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute17Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute17Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeName = audioAttribute18Name;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeNameLength = strlen( audioAttribute18Name );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].pAttributeValue = audioAttribute18Value;
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].attributes[ pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount ].attributeValueLength = strlen( audioAttribute18Value );
-    pSdpDescription->mediaDescriptions[ pSdpDescription->mediaCount ].mediaAttributesCount++;
+//         LogDebug( ("Origin - connection info - network type(%u): %.*s", pSessionDescription->sdpDescription.origin.sdpConnectionInformation.networkTypeLength,
+//                                                                       ( int ) pSessionDescription->sdpDescription.origin.sdpConnectionInformation.networkTypeLength,
+//                                                                       pSessionDescription->sdpDescription.origin.sdpConnectionInformation.pNetworkType) );
+//         LogDebug( ("Origin - connection info - address type(%u): %.*s", pSessionDescription->sdpDescription.origin.sdpConnectionInformation.addressTypeLength,
+//                                                                       ( int ) pSessionDescription->sdpDescription.origin.sdpConnectionInformation.addressTypeLength,
+//                                                                       pSessionDescription->sdpDescription.origin.sdpConnectionInformation.pAddressType) );
+//         LogDebug( ("Origin - connection info - address(%u): %.*s", pSessionDescription->sdpDescription.origin.sdpConnectionInformation.connectionAddressLength,
+//                                                                       ( int ) pSessionDescription->sdpDescription.origin.sdpConnectionInformation.connectionAddressLength,
+//                                                                       pSessionDescription->sdpDescription.origin.sdpConnectionInformation.pConnectionAddress) );
 
-    pSdpDescription->mediaCount++;
-}
+//         LogDebug( ("Session name(%u): %.*s", pSessionDescription->sdpDescription.sessionNameLength,
+//                                              ( int ) pSessionDescription->sdpDescription.sessionNameLength,
+//                                              pSessionDescription->sdpDescription.pSessionName) );
+//         LogDebug( ("Session description(%u): %.*s", pSessionDescription->sdpDescription.sessionInformationLength,
+//                                              ( int ) pSessionDescription->sdpDescription.sessionInformationLength,
+//                                              pSessionDescription->sdpDescription.pSessionInformation) );
+//         LogDebug( ("URI(%u): %.*s", pSessionDescription->sdpDescription.uriLength,
+//                                              ( int ) pSessionDescription->sdpDescription.uriLength,
+//                                              pSessionDescription->sdpDescription.pUri) );
+//         LogDebug( ("Email address(%u): %.*s", pSessionDescription->sdpDescription.emailAddressLength,
+//                                              ( int ) pSessionDescription->sdpDescription.emailAddressLength,
+//                                              pSessionDescription->sdpDescription.pEmailAddress) );
+//         LogDebug( ("Phone number(%u): %.*s", pSessionDescription->sdpDescription.phoneNumberLength,
+//                                              ( int ) pSessionDescription->sdpDescription.phoneNumberLength,
+//                                              pSessionDescription->sdpDescription.pPhoneNumber) );
 
-static uint8_t populateMediaAttributes( char **ppBuffer, size_t *pBufferLength, SdpControllerSdpDescription_t *pSdpLocalDescription, SdpControllerSdpDescription_t *pSdpRemoteDescription )
-{
-    uint8_t skipProcess = 0;
-    int i;
+//         LogDebug( ("Session - connection info - network type(%u): %.*s", pSessionDescription->sdpDescription.connectionInformation.networkTypeLength,
+//                                                                       ( int ) pSessionDescription->sdpDescription.connectionInformation.networkTypeLength,
+//                                                                       pSessionDescription->sdpDescription.connectionInformation.pNetworkType) );
+//         LogDebug( ("Session - connection info - address type(%u): %.*s", pSessionDescription->sdpDescription.connectionInformation.addressTypeLength,
+//                                                                       ( int ) pSessionDescription->sdpDescription.connectionInformation.addressTypeLength,
+//                                                                       pSessionDescription->sdpDescription.connectionInformation.pAddressType) );
+//         LogDebug( ("Session - connection info - address(%u): %.*s", pSessionDescription->sdpDescription.connectionInformation.connectionAddressLength,
+//                                                                       ( int ) pSessionDescription->sdpDescription.connectionInformation.connectionAddressLength,
+//                                                                       pSessionDescription->sdpDescription.connectionInformation.pConnectionAddress) );
 
-    if( pSdpRemoteDescription )
-    {
-        for( i=0; i<pSdpRemoteDescription->mediaCount; i++ )
-        {
-            if( strncmp( pSdpRemoteDescription->mediaDescriptions[i].pMediaName, "video", 5 ) == 0 )
-            {
-                populateVideoAttributes( pSdpLocalDescription );
-            }
-            else if( strncmp( pSdpRemoteDescription->mediaDescriptions[i].pMediaName, "audio", 5 ) == 0 )
-            {
-                populateAudioAttributes( pSdpLocalDescription );
-            }
-            else
-            {
-                /* Ignore unknown media type. */
-                LogWarn( ("Ignore unknown media type, media name: %.*s",
-                          ( int ) pSdpRemoteDescription->mediaDescriptions[i].mediaNameLength, pSdpRemoteDescription->mediaDescriptions[i].pMediaName ) );
-            }
-        }
-    }
-    else
-    {
-        populateVideoAttributes( pSdpLocalDescription );
-        populateAudioAttributes( pSdpLocalDescription );
-    }
+//         LogDebug( ("Time description, start time: %lu, stop time: %lu", pSessionDescription->sdpDescription.timingDescription.startTime,
+//                                                                         pSessionDescription->sdpDescription.timingDescription.stopTime) );
 
-    return skipProcess;
-}
+//         LogDebug( ("Session attributes number: %u", pSessionDescription->sdpDescription.sessionAttributesCount) );
+//         for( i=0; i<pSessionDescription->sdpDescription.sessionAttributesCount; i++ )
+//         {
+//             LogDebug( ("Session attribute idx(%d), name(%d): %.*s, value(%d): %.*s", i,
+//                         pSessionDescription->sdpDescription.attributes[i].attributeNameLength, ( int ) pSessionDescription->sdpDescription.attributes[i].attributeNameLength, pSessionDescription->sdpDescription.attributes[i].pAttributeName,
+//                         pSessionDescription->sdpDescription.attributes[i].attributeValueLength, ( int ) pSessionDescription->sdpDescription.attributes[i].attributeValueLength, pSessionDescription->sdpDescription.attributes[i].pAttributeValue) );
+//         }
+        
+//         LogDebug( ("Session media number: %u", pSessionDescription->sdpDescription.mediaCount) );
+//         for( i=0; i<pSessionDescription->sdpDescription.mediaCount; i++ )
+//         {
+//             // SdpControllerAttributes_t attributes[ SDP_CONTROLLER_MAX_SDP_ATTRIBUTES_COUNT ];
 
-uint8_t prepareSdpAnswer( DemoSessionInformation_t *pSessionInDescriptionOffer, DemoSessionInformation_t *pSessionInDescriptionAnswer )
+//             // uint8_t mediaAttributesCount;
+//             LogDebug( ("Media name(%d): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].mediaNameLength,
+//                                                ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].mediaNameLength,
+//                                                pSessionDescription->sdpDescription.mediaDescriptions[i].pMediaName) );
+//             LogDebug( ("Media title(%d): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].mediaTitleLength,
+//                                                ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].mediaTitleLength,
+//                                                pSessionDescription->sdpDescription.mediaDescriptions[i].pMediaTitle) );
+
+//             LogDebug( ("Media - connection info - network type(%u): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.networkTypeLength,
+//                                                                         ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.networkTypeLength,
+//                                                                         pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.pNetworkType) );
+//             LogDebug( ("Media - connection info - address type(%u): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.addressTypeLength,
+//                                                                         ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.addressTypeLength,
+//                                                                         pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.pAddressType) );
+//             LogDebug( ("Media - connection info - address(%u): %.*s", pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.connectionAddressLength,
+//                                                                         ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.connectionAddressLength,
+//                                                                         pSessionDescription->sdpDescription.mediaDescriptions[i].connectionInformation.pConnectionAddress) );
+
+//             LogDebug( ("Media attributes number: %u", pSessionDescription->sdpDescription.mediaDescriptions[i].mediaAttributesCount) );
+//             for( j=0; j<pSessionDescription->sdpDescription.mediaDescriptions[i].mediaAttributesCount; j++ )
+//             {
+//                 LogDebug( ("Media attribute idx(%d), name(%d): %.*s, value(%d): %.*s", i,
+//                             pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].attributeNameLength, ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].attributeNameLength, pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].pAttributeName,
+//                             pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].attributeValueLength, ( int ) pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].attributeValueLength, pSessionDescription->sdpDescription.mediaDescriptions[i].attributes[j].pAttributeValue) );
+//             }
+//         }
+//     }
+// }
+
+uint8_t populateSdpContent( DemoSessionInformation_t *pRemoteSessionDescription, DemoSessionInformation_t *pLocalSessionDescription, PeerConnectionContext_t *pPeerConnectionContext )
 {
     uint8_t skipProcess = 0;
     size_t remainLength = DEMO_SDP_BUFFER_MAX_LENGTH;
-    char *pSdpBuffer = &pSessionInDescriptionAnswer->sdpBuffer[0];
+    char *pSdpBuffer = NULL;
+    SdpControllerResult_t retSdpController;
     
-    if( pSessionInDescriptionOffer == NULL || pSessionInDescriptionAnswer == NULL )
+    if( pRemoteSessionDescription == NULL || pLocalSessionDescription == NULL || pPeerConnectionContext == NULL )
     {
+        LogError( ("Invalid input, pRemoteSessionDescription: %p, pLocalSessionDescription: %p, pPeerConnectionContext: %p",
+                    pRemoteSessionDescription, pLocalSessionDescription, pPeerConnectionContext) );
         skipProcess = 1;
     }
 
     if( !skipProcess )
     {
-        memset( pSessionInDescriptionAnswer, 0, sizeof( DemoSessionInformation_t ) );
+        pSdpBuffer = &pLocalSessionDescription->sdpBuffer[0];
+        memset( pLocalSessionDescription, 0, sizeof( DemoSessionInformation_t ) );
 
-        /* Session version. */
-        pSessionInDescriptionAnswer->sdpDescription.version = 0U;
-
-        /* Session origin. */
-        populateSessionOrigin( &pSdpBuffer, &remainLength, &pSessionInDescriptionAnswer->sdpDescription.origin );
-
-        /* Session name. */
-        pSessionInDescriptionAnswer->sdpDescription.pSessionName = SDP_CONTROLLER_ORIGIN_DEFAULT_SESSION_NAME;
-        pSessionInDescriptionAnswer->sdpDescription.sessionNameLength = strlen( SDP_CONTROLLER_ORIGIN_DEFAULT_SESSION_NAME );
-
-        /* Session timing description. */
-        pSessionInDescriptionAnswer->sdpDescription.timingDescription.startTime = 0U;
-        pSessionInDescriptionAnswer->sdpDescription.timingDescription.stopTime = 0U;
-
-        /* Session attributes. */
-        skipProcess = populateSessionAttributes( &pSdpBuffer, &remainLength, &pSessionInDescriptionAnswer->sdpDescription );
+        /* Add media descriptions. */
+        retSdpController = SdpController_PopulateMediaDescriptions( &pSdpBuffer, &remainLength, &pLocalSessionDescription->sdpDescription, &pRemoteSessionDescription->sdpDescription, pPeerConnectionContext );
+        if( retSdpController != SDP_CONTROLLER_RESULT_OK )
+        {
+            LogError( ("Fail to populate media descriptions, return: %d", retSdpController) );
+            skipProcess = 1;
+        }
     }
 
     if( !skipProcess )
     {
-        /* Media attributes. */
-        skipProcess = populateMediaAttributes( &pSdpBuffer, &remainLength, &pSessionInDescriptionAnswer->sdpDescription, &pSessionInDescriptionOffer->sdpDescription );
+        /* Add session descriptions.
+         * Note that we need to session media count to populate session group attribute,
+         * so this have to do after populate media sessions. */
+        /* Session version. */
+        pLocalSessionDescription->sdpDescription.version = 0U;
+
+        /* Session origin. */
+        SdpController_PopulateSessionOrigin( &pSdpBuffer, &remainLength, &pLocalSessionDescription->sdpDescription.origin );
+
+        /* Session name. */
+        pLocalSessionDescription->sdpDescription.pSessionName = SDP_CONTROLLER_ORIGIN_DEFAULT_SESSION_NAME;
+        pLocalSessionDescription->sdpDescription.sessionNameLength = strlen( SDP_CONTROLLER_ORIGIN_DEFAULT_SESSION_NAME );
+
+        /* Session timing description. */
+        pLocalSessionDescription->sdpDescription.timingDescription.startTime = 0U;
+        pLocalSessionDescription->sdpDescription.timingDescription.stopTime = 0U;
+
+        skipProcess = populateSessionAttributes( &pSdpBuffer, &remainLength, &pRemoteSessionDescription->sdpDescription, &pLocalSessionDescription->sdpDescription );
+        LogDebug( ("After populateSessionAttributes, skipProcess: %u", skipProcess) );
     }
 
     return skipProcess;

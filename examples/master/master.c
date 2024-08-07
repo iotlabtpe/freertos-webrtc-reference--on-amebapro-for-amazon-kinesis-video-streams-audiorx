@@ -12,30 +12,31 @@
 #include "demo_config.h"
 #include "demo_data_types.h"
 
-#define IS_USERNAME_FOUND_BIT ( 1 << 0 )
-#define IS_PASSWORD_FOUND_BIT ( 1 << 1 )
-#define SET_REMOTE_INFO_USERNAME_FOUND( isFoundBit ) ( isFoundBit |= IS_USERNAME_FOUND_BIT )
-#define SET_REMOTE_INFO_PASSWORD_FOUND( isFoundBit ) ( isFoundBit |= IS_PASSWORD_FOUND_BIT )
-#define IS_REMOTE_INFO_ALL_FOUND( isFoundBit ) ( isFoundBit & IS_USERNAME_FOUND_BIT && isFoundBit & IS_PASSWORD_FOUND_BIT )
+#define DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND ( 3 )
+
+// Considering 4 Mbps for 720p (which is what our samples use). This is for H.264.
+// The value could be different for other codecs.
+#define DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE ( 4 * 1024 * 1024 )
+
+#define DEFAULT_TRANSCEIVER_VIDEO_STREAM_ID "myKvsVideoStream"
+#define DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID "myVideoTrack"
+#define DEFAULT_TRANSCEIVER_AUDIO_STREAM_ID "myKvsAudioStream"
+#define DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID "myAudioTrack"
 
 #define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect 
 
-extern void IceControllerSocketListener_Task( void *pParameter );
 static void platform_init(void);
 static void wifi_common_init(void);
-static uint8_t IsUpdatedCurrentTime(void);
+static long long GetCurrentTimeSec(void);
 static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteClientIdLength, DemoContext_t *pDemoContext );
-static uint8_t searchUserNamePassWord( SdpControllerAttributes_t *pAttributes, size_t attributesCount,
-                                       const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength );
-static uint8_t getRemoteInfo( DemoSessionInformation_t *pSessionInformation, const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength );
-static uint8_t setRemoteDescription( IceControllerContext_t *pIceControllerCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength );
+static uint8_t setRemoteDescription( PeerConnectionContext_t *pPeerConnectionCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength );
 static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext );
 static int initializeApplication( DemoContext_t *pDemoContext );
-static int initializeIceController( DemoContext_t *pDemoContext );
-static void IceController_Task( void *pParameter );
+static int initializePeerConnection( DemoContext_t *pDemoContext );
+static int addTransceivers( DemoContext_t *pDemoContext );
 static void Master_Task( void *pParameter );
 
-extern uint8_t prepareSdpAnswer( DemoSessionInformation_t *pSessionInDescriptionOffer, DemoSessionInformation_t *pSessionInDescriptionAnswer );
+extern uint8_t populateSdpContent( DemoSessionInformation_t *pRemoteSessionDescription, DemoSessionInformation_t *pLocalSessionDescription, PeerConnectionContext_t *pPeerConnectionContext );
 extern uint8_t serializeSdpMessage( DemoSessionInformation_t *pSessionInDescriptionAnswer, DemoContext_t *pDemoContext );
 extern uint8_t addressSdpOffer( const char *pEventSdpOffer, size_t eventSdpOfferlength, DemoContext_t *pDemoContext );
 
@@ -43,8 +44,10 @@ DemoContext_t demoContext;
 
 extern int crypto_init(void);
 extern int platform_set_malloc_free( void * (*malloc_func)( size_t ), void (*free_func)( void * ) );
+
 static void platform_init(void)
 {
+    long long sec;
     /* mbedtls init */
 	crypto_init();
 	platform_set_malloc_free(calloc, free);
@@ -57,11 +60,15 @@ static void platform_init(void)
     
     /* Block until get time via SNTP. */
     sntp_init();
-    while( IsUpdatedCurrentTime() )
+    while( (sec = GetCurrentTimeSec()) < 1000000000ULL )
     {
         vTaskDelay( pdMS_TO_TICKS( 200 ) );
         LogInfo( ("waiting get epoch timer") );
     }
+
+    /* Seed random. */
+    LogInfo( ("srand seed: %lld", sec) );
+    srand( sec );
 }
 
 static void wifi_common_init(void)
@@ -80,20 +87,28 @@ static void wifi_common_init(void)
 	}
 }
 
-static uint8_t IsUpdatedCurrentTime(void)
+static long long GetCurrentTimeSec(void)
 {
-    uint8_t ret = 0;
 	long long sec;
 	long long usec;
 	unsigned int tick;
+	unsigned int tickDiff;
 
     sntp_get_lasttime( &sec, &usec, &tick );
-    if( sec > 10000000000000000ULL )
-    {
-        ret = 1;
-    }
+    tickDiff = xTaskGetTickCount() - tick;
 
-    return ret;
+	sec += tickDiff / configTICK_RATE_HZ;
+	usec += ((tickDiff % configTICK_RATE_HZ) / portTICK_RATE_MS) * 1000;
+
+	while(usec >= 1000000)
+    {
+		usec -= 1000000;
+		sec ++;
+	}
+
+    LogDebug( ("sec: %lld, usec: %lld, tick: %u", sec, usec, tick) );
+
+    return sec;
 }
 
 static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteClientIdLength, DemoContext_t *pDemoContext )
@@ -107,7 +122,7 @@ static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteC
     };
 
     /* Prepare SDP answer and send it back to remote peer. */
-    skipProcess = prepareSdpAnswer( &pDemoContext->sessionInformationSdpOffer, &pDemoContext->sessionInformationSdpAnswer );
+    skipProcess = populateSdpContent( &pDemoContext->sessionInformationSdpOffer, &pDemoContext->sessionInformationSdpAnswer, &pDemoContext->peerConnectionContext );
 
     if( !skipProcess )
     {
@@ -135,100 +150,25 @@ static uint8_t respondWithSdpAnswer( const char *pRemoteClientId, size_t remoteC
     return skipProcess;
 }
 
-static uint8_t searchUserNamePassWord( SdpControllerAttributes_t *pAttributes, size_t attributesCount,
-                                       const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength )
-{
-    uint8_t isFound = 0;
-    size_t i;
-
-    for( i=0 ; i<attributesCount ; i++ )
-    {
-        if( pAttributes[i].attributeNameLength == strlen( "ice-ufrag" ) &&
-            strncmp( pAttributes[i].pAttributeName, "ice-ufrag", pAttributes[i].attributeNameLength ) == 0 )
-        {
-            /* Found user name. */
-            SET_REMOTE_INFO_USERNAME_FOUND( isFound );
-            *ppRemoteUserName = pAttributes[i].pAttributeValue;
-            *pRemoteUserNameLength = pAttributes[i].attributeValueLength;
-        }
-        else if( pAttributes[i].attributeNameLength == strlen( "ice-pwd" ) &&
-                 strncmp( pAttributes[i].pAttributeName, "ice-pwd", pAttributes[i].attributeNameLength ) == 0 )
-        {
-            /* Found password. */
-            SET_REMOTE_INFO_PASSWORD_FOUND( isFound );
-            *ppRemotePassword = pAttributes[i].pAttributeValue;
-            *pRemotePasswordLength = pAttributes[i].attributeValueLength;
-        }
-        else
-        {
-            continue;
-        }
-
-        if( IS_REMOTE_INFO_ALL_FOUND( isFound ) )
-        {
-            break;
-        }
-    }
-
-    return isFound;
-}
-
-static uint8_t getRemoteInfo( DemoSessionInformation_t *pSessionInformation, const char **ppRemoteUserName, size_t *pRemoteUserNameLength, const char **ppRemotePassword, size_t *pRemotePasswordLength )
+static uint8_t setRemoteDescription( PeerConnectionContext_t *pPeerConnectionCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength )
 {
     uint8_t skipProcess = 0;
-    SdpControllerSdpDescription_t *pSessionDescription = &pSessionInformation->sdpDescription;
-    size_t i;
-    uint8_t isFound;
-
-    /* Assuming that the username & password in a single session description is same. */
-    /* Search session attributes first. */
-    isFound = searchUserNamePassWord( pSessionDescription->attributes, pSessionDescription->sessionAttributesCount,
-                                      ppRemoteUserName, pRemoteUserNameLength,
-                                      ppRemotePassword, pRemotePasswordLength );
-
-    if( !IS_REMOTE_INFO_ALL_FOUND( isFound ) )
-    {
-        /* Search media attributes if not found in session attributes. */
-        for( i=0 ; i<pSessionDescription->mediaCount ; i++ )
-        {
-            isFound = 0;
-            isFound = searchUserNamePassWord( pSessionDescription->mediaDescriptions[i].attributes, pSessionDescription->mediaDescriptions[i].mediaAttributesCount,
-                                              ppRemoteUserName, pRemoteUserNameLength,
-                                              ppRemotePassword, pRemotePasswordLength );
-            if( IS_REMOTE_INFO_ALL_FOUND( isFound ) )
-            {
-                break;
-            }
-        }
-    }
-
-    if( !IS_REMOTE_INFO_ALL_FOUND( isFound ) )
-    {
-        /* Can't find user name & pass word, drop this remote description. */
-        LogWarn( ( "No remote username & password found in session description, drop this message" ) );
-        skipProcess = 1;
-    }
-
-    return skipProcess;
-}
-
-static uint8_t setRemoteDescription( IceControllerContext_t *pIceControllerCtx, DemoSessionInformation_t *pSessionInformation, const char *pRemoteClientId, size_t remoteClientIdLength )
-{
-    uint8_t skipProcess = 0;
-    const char *pRemoteUserName;
-    size_t remoteUserNameLength;
-    const char *pRemotePassword;
-    size_t remotePasswordLength;
-    IceControllerResult_t iceControllerResult;
-
-    skipProcess = getRemoteInfo( pSessionInformation, &pRemoteUserName, &remoteUserNameLength, &pRemotePassword, &remotePasswordLength );
+    PeerConnectionRemoteInfo_t remoteInfo;
+    PeerConnectionResult_t peerConnectionResult;
 
     if( skipProcess == 0 )
     {
-        iceControllerResult = IceController_SetRemoteDescription( pIceControllerCtx, pRemoteClientId, remoteClientIdLength, pRemoteUserName, remoteUserNameLength, pRemotePassword, remotePasswordLength );
-        if( iceControllerResult != 0 )
+        remoteInfo.pRemoteClientId = pRemoteClientId;
+        remoteInfo.remoteClientIdLength = remoteClientIdLength;
+        remoteInfo.pRemoteUserName = demoContext.sessionInformationSdpOffer.sdpDescription.pIceUfrag;
+        remoteInfo.remoteUserNameLength = demoContext.sessionInformationSdpOffer.sdpDescription.iceUfragLength;
+        remoteInfo.pRemotePassword = demoContext.sessionInformationSdpOffer.sdpDescription.pIcePwd;
+        remoteInfo.remotePasswordLength = demoContext.sessionInformationSdpOffer.sdpDescription.icePwdLength;
+
+        peerConnectionResult = PeerConnection_SetRemoteDescription( pPeerConnectionCtx, &remoteInfo );
+        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
-            LogError( ( "Fail to set remote description, result: %d", iceControllerResult ) );
+            LogError( ( "Fail to set remote description, result: %d", peerConnectionResult ) );
             skipProcess = 1;
         }
     }
@@ -278,23 +218,71 @@ static int initializeApplication( DemoContext_t *pDemoContext )
 
     if( ret == 0 )
     {
-        /* Initialize Ice controller. */
-        ret = initializeIceController( pDemoContext );
+        /* Initialize Peer Connection. */
+        ret = initializePeerConnection( pDemoContext );
     }
 
     return ret;
 }
 
-static int initializeIceController( DemoContext_t *pDemoContext )
+static int initializePeerConnection( DemoContext_t *pDemoContext )
 {
     int ret = 0;
-    IceControllerResult_t iceControllerReturn;
+    PeerConnectionResult_t peerConnectionResult;
 
-    iceControllerReturn = IceController_Init( &pDemoContext->iceControllerContext, &pDemoContext->signalingControllerContext );
-    if( iceControllerReturn != ICE_CONTROLLER_RESULT_OK )
+    peerConnectionResult = PeerConnection_Init( &pDemoContext->peerConnectionContext, &pDemoContext->signalingControllerContext );
+    if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
     {
-        LogError( ( "Fail to initialize ice controller." ) );
+        LogError( ( "Fail to initialize Peer Connection." ) );
         ret = -1;
+    }
+
+    return ret;
+}
+
+static int addTransceivers( DemoContext_t *pDemoContext )
+{
+    int ret = 0;
+    PeerConnectionResult_t peerConnectionResult;
+    Transceiver_t transceiver;
+
+    /* Add video transceiver. */
+    memset( &transceiver, 0, sizeof( Transceiver_t ) );
+    transceiver.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
+    transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
+    TRANSCEIVER_ENABLE_CODEC( transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT );
+    transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
+    transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE;
+    strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_VIDEO_STREAM_ID, sizeof( transceiver.streamId ) );
+    transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_STREAM_ID );
+    strncpy( transceiver.trackId, DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID, sizeof( transceiver.trackId ) );
+    transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID );
+    peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
+    if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+    {
+        LogError( ( "Fail to add video transceiver, result = %d.", peerConnectionResult ) );
+        ret = -1;
+    }
+
+    if( ret == 0 )
+    {
+        /* Add audio transceiver. */
+        memset( &transceiver, 0, sizeof( Transceiver_t ) );
+        transceiver.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
+        transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
+        TRANSCEIVER_ENABLE_CODEC( transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT );
+        transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
+        transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE;
+        strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_AUDIO_STREAM_ID, sizeof( transceiver.streamId ) );
+        transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_AUDIO_STREAM_ID );
+        strncpy( transceiver.trackId, DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID, sizeof( transceiver.trackId ) );
+        transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID );
+        peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
+        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+        {
+            LogError( ( "Fail to add audio transceiver, result = %d.", peerConnectionResult ) );
+            ret = -1;
+        }
     }
 
     return ret;
@@ -303,8 +291,7 @@ static int initializeIceController( DemoContext_t *pDemoContext )
 static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent, void *pUserContext )
 {
     uint8_t skipProcess = 0;
-    IceControllerResult_t iceControllerResult;
-    IceControllerCandidate_t candidate;
+    PeerConnectionResult_t peerConnectionResult;
 
     ( void ) pUserContext;
 
@@ -327,27 +314,18 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent
 
             if( !skipProcess )
             {
-                skipProcess = setRemoteDescription( &demoContext.iceControllerContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
+                skipProcess = setRemoteDescription( &demoContext.peerConnectionContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
             }
             break;
         case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:
             break;
         case SIGNALING_TYPE_MESSAGE_ICE_CANDIDATE:
-            iceControllerResult = IceController_DeserializeIceCandidate( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &candidate );
-            if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
+            peerConnectionResult = PeerConnection_AddRemoteCandidate( &demoContext.peerConnectionContext,
+                                                                      pEvent->pRemoteClientId, pEvent->remoteClientIdLength,
+                                                                      pEvent->pDecodeMessage, pEvent->decodeMessageLength );
+            if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
             {
-                LogWarn( ( "IceController_DeserializeIceCandidate fail, result: %d, dropping ICE candidate.", iceControllerResult ) );
-                skipProcess = 1;
-            }
-
-            if( !skipProcess )
-            {
-                iceControllerResult = IceController_SendRemoteCandidateRequest( &demoContext.iceControllerContext, pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &candidate );
-                if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
-                {
-                    LogWarn( ( "IceController_SendRemoteCandidateRequest fail, result: %d, dropping ICE candidate.", iceControllerResult ) );
-                    skipProcess = 1;
-                }
+                LogWarn( ( "PeerConnection_AddRemoteCandidate fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
             }
             break;
         case SIGNALING_TYPE_MESSAGE_GO_AWAY:
@@ -361,16 +339,6 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t *pEvent
     }
 
     return 0;
-}
-
-static void IceController_Task( void *pParameter )
-{
-    IceControllerContext_t *pIceControllerContext = (IceControllerContext_t *) pParameter;
-    
-    for( ;; )
-    {
-        (void) IceController_ProcessLoop( pIceControllerContext );
-    }
 }
 
 static void Master_Task( void *pParameter )
@@ -388,20 +356,7 @@ static void Master_Task( void *pParameter )
 
     if( ret == 0 )
     {
-        if( xTaskCreate( IceControllerSocketListener_Task, ( (const char *)"IcSockListenerTask" ), 1024, &demoContext.iceControllerContext, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
-        {
-            LogError( ("xTaskCreate(IceControllerSocketListener_Task) failed") );
-            ret = -1;
-        }
-    }
-
-    if( ret == 0 )
-    {
-        if( xTaskCreate( IceController_Task, ( (const char *)"IcTask" ), 10240, &demoContext.iceControllerContext, tskIDLE_PRIORITY + 2, NULL ) != pdPASS )
-        {
-            LogError( ("xTaskCreate(IceController_Task) failed") );
-            ret = -1;
-        }
+        ret = addTransceivers( &demoContext );
     }
 
     if( ret == 0 )
