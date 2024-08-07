@@ -40,6 +40,10 @@
 #include "mbedtls/threading.h"
 #include "mbedtls/x509.h"
 
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(array) (sizeof(array) / sizeof *(array))
+#endif
+
 #define MBEDTLS_ERROR_STRING_BUFFER_SIZE 512
 
 #define MBEDTLS_ERROR_DESCRIPTION( err ) \
@@ -302,6 +306,9 @@ void dtls_mbedtls_string_printf( void * dtlsSslContext,
 
 #define KEYING_EXTRACTOR_LABEL "EXTRACTOR-dtls_srtp"
 
+/* This one is not iana defined, but for code readability. */
+#define MBEDTLS_TLS_SRTP_UNSET                      ((uint16_t) 0x0000)
+
 typedef enum
 {
     KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_80 = MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80,
@@ -310,9 +317,9 @@ typedef enum
 
 typedef struct
 {
-    int8_t masterSecret[MAX_DTLS_MASTER_KEY_LEN];
+    uint8_t masterSecret[MAX_DTLS_MASTER_KEY_LEN];
     // client random bytes + server random bytes
-    int8_t randBytes[2 * MAX_DTLS_RANDOM_BYTES_LEN];
+    uint8_t randBytes[2 * MAX_DTLS_RANDOM_BYTES_LEN];
     mbedtls_tls_prf_types tlsProfile;
 } TlsKeys, *PTlsKeys;
 
@@ -335,6 +342,14 @@ typedef struct
  * @return 0 on success, non-zero value otherwise.
  */
 int32_t Crypto_CreateDtlsCredentials( DtlsNetworkCredentials_t * pNetworkCredentials );
+
+/**
+ * @brief Free DTLS credentials.
+ *
+ * @param[in] pNetworkCredentials Credentials for the DTLS connection.
+ */
+void Crypto_FreeDtlsCredentials( DtlsNetworkCredentials_t * pNetworkCredentials );
+
 
 int32_t createCertificateAndKey( int32_t,
                                  BaseType_t,
