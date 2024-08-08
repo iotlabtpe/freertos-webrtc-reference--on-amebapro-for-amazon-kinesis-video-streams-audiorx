@@ -61,20 +61,6 @@
 /* OS specific port header. */
 #include "transport_dtls_mbedtls_port.h"
 
-/*-----------------------------------------------------------*/
-
-/**
- * @brief Each compilation unit that consumes the NetworkContext must define it.
- * It should contain a single pointer as seen below whenever the header file
- * of this transport implementation is included to your project.
- *
- * @note When using multiple transports in the same compilation unit,
- *       define this pointer as void *.
- */
-struct NetworkContext
-{
-    DtlsTransportParams_t * pParams;
-};
 
 /*-----------------------------------------------------------*/
 
@@ -187,27 +173,27 @@ static void setOptionalConfigurations( DtlsSSLContext_t * pSslContext,
 /**
  * @brief Setup DTLS by initializing contexts and setting configurations.
  *
- * @param[in] pNetworkContext Network context.
+ * @param[in] pDtlsNetworkContext Network context.
  * @param[in] pHostName Remote host name, used for server name indication.
  * @param[in] pNetworkCredentials DTLS setup parameters.
  *
  * @return #DTLS_TRANSPORT_SUCCESS, #DTLS_TRANSPORT_INSUFFICIENT_MEMORY,
  * #DTLS_TRANSPORT_INVALID_CREDENTIALS, or #DTLS_TRANSPORT_INTERNAL_ERROR.
  */
-static DtlsTransportStatus_t dtlsSetup( NetworkContext_t * pNetworkContext,
+static DtlsTransportStatus_t dtlsSetup( DtlsNetworkContext_t * pDtlsNetworkContext,
                                         const char * pHostName,
                                         const DtlsNetworkCredentials_t * pNetworkCredentials );
 
 /**
  * @brief Perform the DTLS handshake on a UDP connection.
  *
- * @param[in] pNetworkContext Network context.
+ * @param[in] pDtlsNetworkContext Network context.
  * @param[in] pNetworkCredentials DTLS setup parameters.
  *
  * @return #DTLS_TRANSPORT_SUCCESS, #DTLS_TRANSPORT_HANDSHAKE_FAILED, or
  * #DTLS_TRANSPORT_INTERNAL_ERROR.
  */
-static DtlsTransportStatus_t dtlsHandshake( NetworkContext_t * pNetworkContext,
+static DtlsTransportStatus_t dtlsHandshake( DtlsNetworkContext_t * pNetworkContext,
                                             const DtlsNetworkCredentials_t * pNetworkCredentials );
 
 /**
@@ -489,7 +475,7 @@ static void setOptionalConfigurations( DtlsSSLContext_t * pSslContext,
 }
 /*-----------------------------------------------------------*/
 
-static DtlsTransportStatus_t dtlsSetup( NetworkContext_t * pNetworkContext,
+static DtlsTransportStatus_t dtlsSetup( DtlsNetworkContext_t * pNetworkContext,
                                         const char * pHostName,
                                         const DtlsNetworkCredentials_t * pNetworkCredentials )
 {
@@ -545,7 +531,7 @@ static DtlsTransportStatus_t dtlsSetup( NetworkContext_t * pNetworkContext,
 }
 /*-----------------------------------------------------------*/
 
-static DtlsTransportStatus_t dtlsHandshake( NetworkContext_t * pNetworkContext,
+static DtlsTransportStatus_t dtlsHandshake( DtlsNetworkContext_t * pNetworkContext,
                                             const DtlsNetworkCredentials_t * pNetworkCredentials )
 {
     DtlsTransportParams_t * pDtlsTransportParams = NULL;
@@ -672,7 +658,7 @@ static DtlsTransportStatus_t initMbedtls( mbedtls_entropy_context * pEntropyCont
 /*-----------------------------------------------------------*/
 
 DtlsTransportStatus_t
-DTLS_Connect( NetworkContext_t * pNetworkContext,
+DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
               const char * pHostName,
               uint16_t port,
               const DtlsNetworkCredentials_t * pNetworkCredentials,
@@ -792,7 +778,7 @@ DTLS_Connect( NetworkContext_t * pNetworkContext,
 }
 /*-----------------------------------------------------------*/
 
-void DTLS_Disconnect( NetworkContext_t * pNetworkContext )
+void DTLS_Disconnect( DtlsNetworkContext_t * pNetworkContext )
 {
     DtlsTransportParams_t * pTlsTransportParams = NULL;
     BaseType_t dtlsStatus = 0;
@@ -838,7 +824,7 @@ void DTLS_Disconnect( NetworkContext_t * pNetworkContext )
 }
 /*-----------------------------------------------------------*/
 
-int32_t DTLS_recv( NetworkContext_t * pNetworkContext,
+int32_t DTLS_recv( DtlsNetworkContext_t * pNetworkContext,
                    void * pBuffer,
                    size_t bytesToRecv )
 {
@@ -894,7 +880,7 @@ int32_t DTLS_recv( NetworkContext_t * pNetworkContext,
 }
 /*-----------------------------------------------------------*/
 
-int32_t DTLS_send( NetworkContext_t * pNetworkContext,
+int32_t DTLS_send( DtlsNetworkContext_t * pNetworkContext,
                    const void * pBuffer,
                    size_t bytesToSend )
 {

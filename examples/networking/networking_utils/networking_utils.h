@@ -9,6 +9,7 @@ extern "C" {
 
 #include <stdio.h>
 #include "transport_mbedtls.h"
+#include "transport_dtls_mbedtls.h"
 #include "core_http_client.h"
 #include "sigv4.h"
 
@@ -51,7 +52,6 @@ typedef struct NetworkingUtilsCanonicalRequest
 struct NetworkContext
 {
     TlsTransportParams_t * pParams;
-    DtlsTransportParams_t * pParams;
 };
 
 NetworkingUtilsResult_t NetworkingUtils_GetUrlHost( char * pUrl,

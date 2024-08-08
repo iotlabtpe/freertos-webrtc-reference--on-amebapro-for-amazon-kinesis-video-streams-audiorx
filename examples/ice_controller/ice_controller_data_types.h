@@ -198,7 +198,7 @@ typedef struct DtlsTestContext {
     TransportInterface_t xTransportInterface;
     /* The network context for the transport layer interface. */
 
-    NetworkContext_t xNetworkContext;
+    DtlsNetworkContext_t xNetworkContext;
     DtlsTransportParams_t xDtlsTransportParams;
     DtlsNetworkCredentials_t xNetworkCredentials;
 } DtlsTestContext_t;

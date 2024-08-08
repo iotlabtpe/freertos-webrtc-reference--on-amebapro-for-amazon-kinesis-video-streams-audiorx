@@ -69,6 +69,7 @@ file(
   "${REPO_ROOT_DIRECTORY}/examples/signaling_controller/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/network_transport/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/network_transport/tcp_sockets_wrapper/ports/lwip/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/network_transport/udp_sockets_wrapper/ports/lwip/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/networking/corehttp_helper/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/networking/networking_utils/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/networking/wslay_helper/*.c"

@@ -111,6 +111,21 @@ typedef struct DtlsTransportParams
     DtlsSessionTimer_t * xSessionTimer;
 } DtlsTransportParams_t;
 
+
+/**
+ * @brief Each compilation unit that consumes the NetworkContext must define it.
+ * It should contain a single pointer as seen below whenever the header file
+ * of this transport implementation is included to your project.
+ *
+ * @note When using multiple transports in the same compilation unit,
+ *       define this pointer as void *.
+ */
+struct DtlsNetworkContext
+{
+    DtlsTransportParams_t * pParams;
+};
+typedef struct DtlsNetworkContext DtlsNetworkContext_t;
+
 /**
  * @brief Contains the credentials necessary for tls connection setup.
  */
@@ -168,7 +183,7 @@ typedef enum DtlsTransportStatus
  * #DTLS_TRANSPORT_HANDSHAKE_FAILED, #DTLS_TRANSPORT_INTERNAL_ERROR, or #DTLS_TRANSPORT_CONNECT_FAILURE.
  */
 DtlsTransportStatus_t
-DTLS_Connect( NetworkContext_t * pNetworkContext,
+DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
               const char * pHostName,
               uint16_t port,
               const DtlsNetworkCredentials_t * pNetworkCredentials,
@@ -180,7 +195,7 @@ DTLS_Connect( NetworkContext_t * pNetworkContext,
  *
  * @param[in] pNetworkContext Network context.
  */
-void DTLS_Disconnect( NetworkContext_t * pNetworkContext );
+void DTLS_Disconnect( DtlsNetworkContext_t * pNetworkContext );
 
 /**
  * @brief Receives data from an established DTLS connection.
@@ -196,7 +211,7 @@ void DTLS_Disconnect( NetworkContext_t * pNetworkContext );
  * 0 if the socket times out without reading any bytes;
  * negative value on error.
  */
-int32_t DTLS_recv( NetworkContext_t * pNetworkContext,
+int32_t DTLS_recv( DtlsNetworkContext_t * pNetworkContext,
                    void * pBuffer,
                    size_t bytesToRecv );
 
@@ -214,7 +229,7 @@ int32_t DTLS_recv( NetworkContext_t * pNetworkContext,
  * 0 if the socket times out without sending any bytes;
  * else a negative value to represent error.
  */
-int32_t DTLS_send( NetworkContext_t * pNetworkContext,
+int32_t DTLS_send( DtlsNetworkContext_t * pNetworkContext,
                    const void * pBuffer,
                    size_t bytesToSend );
 /**
@@ -224,7 +239,7 @@ int32_t DTLS_send( NetworkContext_t * pNetworkContext,
  *
  * @return The socket descriptor if value >= 0. It returns -1 when failure.
  */
-int32_t DTLS_GetSocketFd( NetworkContext_t * pNetworkContext );
+int32_t DTLS_GetSocketFd( DtlsNetworkContext_t * pNetworkContext );
 
 #ifdef MBEDTLS_DTLS_DEBUG_C
 
