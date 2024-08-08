@@ -41,7 +41,7 @@
 #include "mbedtls/x509.h"
 
 #ifndef ARRAY_SIZE
-#define ARRAY_SIZE(array) (sizeof(array) / sizeof *(array))
+#define ARRAY_SIZE( array ) ( sizeof( array ) / sizeof *( array ) )
 #endif
 
 #define MBEDTLS_ERROR_STRING_BUFFER_SIZE 512
@@ -248,7 +248,7 @@ void dtls_mbedtls_string_printf( void * dtlsSslContext,
 
 /* DTLS*/
 
-#define KVS_RSA_F4 0x10001L
+#define DTLS_RSA_F4 0x10001L
 
 #define PRIVATE_KEY_PCS_PEM_SIZE  228
 
@@ -307,7 +307,7 @@ void dtls_mbedtls_string_printf( void * dtlsSslContext,
 #define KEYING_EXTRACTOR_LABEL "EXTRACTOR-dtls_srtp"
 
 /* This one is not iana defined, but for code readability. */
-#define MBEDTLS_TLS_SRTP_UNSET                      ((uint16_t) 0x0000)
+#define MBEDTLS_TLS_SRTP_UNSET                      ( ( uint16_t ) 0x0000 )
 
 typedef enum
 {
@@ -321,7 +321,7 @@ typedef struct
     // client random bytes + server random bytes
     uint8_t randBytes[2 * MAX_DTLS_RANDOM_BYTES_LEN];
     mbedtls_tls_prf_types tlsProfile;
-} TlsKeys, *PTlsKeys;
+} TlsKeys, *pTlsKeys;
 
 // DtlsKeyingMaterial is information extracted via https://tools.ietf.org/html/rfc5705
 // also includes the use_srtp value from Handshake
@@ -343,8 +343,13 @@ int32_t createCertificateAndKey( int32_t,
 int32_t freeCertificateAndKey( mbedtls_x509_crt *,
                                mbedtls_pk_context * );
 
-int32_t dtlsCertificateFingerprint( mbedtls_x509_crt *,
-                                    char * );
+int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt *,
+                                          char *,
+                                          const size_t );
+
+int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t *,
+                                                       char *,
+                                                       const size_t );
 
 int32_t dtlsCertificateDemToPem( const unsigned char *,
                                  size_t,

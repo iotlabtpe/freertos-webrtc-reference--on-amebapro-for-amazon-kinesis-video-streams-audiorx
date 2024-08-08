@@ -951,8 +951,9 @@ int32_t DTLS_send( NetworkContext_t * pNetworkContext,
 /*-----------------------------------------------------------*/
 
 /* SRTP functions */
-int32_t dtlsCertificateFingerprint( mbedtls_x509_crt * pCert,
-                                    char * pBuff )
+int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt * pCert,
+                                          char * pBuff,
+                                          const size_t bufLen )
 {
     int32_t retStatus = 0;
     uint8_t fingerprint[MBEDTLS_MD_MAX_SIZE];
@@ -970,6 +971,17 @@ int32_t dtlsCertificateFingerprint( mbedtls_x509_crt * pCert,
     {
         /* Empty else marker. */
     }
+
+    if( bufLen < CERTIFICATE_FINGERPRINT_LENGTH )
+    {
+        LogError( ( "bufLen < CERTIFICATE_FINGERPRINT_LENGTH " ) );
+        retStatus = -1;
+    }
+    else
+    {
+        /* Empty else marker. */
+    }
+
 
     pMdInfo = mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 );
     if( ( pMdInfo == NULL ) )
@@ -1020,9 +1032,9 @@ int32_t dtlsSessionGetLocalCertificateFingerprint( DtlsSSLContext_t * pSslContex
         LogError( ( "invalid input, pSslContext || pBuff == NULL " ) );
         retStatus = -1;
     }
-    else if( buffLen >= CERTIFICATE_FINGERPRINT_LENGTH )
+    else if( buffLen < CERTIFICATE_FINGERPRINT_LENGTH )
     {
-        LogError( ( "buffLen >= CERTIFICATE_FINGERPRINT_LENGTH " ) );
+        LogError( ( "buffLen < CERTIFICATE_FINGERPRINT_LENGTH " ) );
         retStatus = -1;
     }
     else
@@ -1030,24 +1042,24 @@ int32_t dtlsSessionGetLocalCertificateFingerprint( DtlsSSLContext_t * pSslContex
         /* Empty else marker. */
     }
 
-    // TODO: Use the 0th certificate for now
-    dtlsCertificateFingerprint( &pSslContext->clientCert,
-                                pBuff );
+    dtlsCreateCertificateFingerprint( &pSslContext->clientCert,
+                                      pBuff,
+                                      buffLen );
 
     return retStatus;
 }
 /*-----------------------------------------------------------*/
 
 int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslContext,
-                                                       char * pExpectedFingerprint )
+                                                       char * pExpectedFingerprint, const size_t fingerprintMaxLen )
 {
     int32_t retStatus = 0;
-    char actualFingerprint[CERTIFICATE_FINGERPRINT_LENGTH];
+    char actualFingerprint[fingerprintMaxLen];
     mbedtls_x509_crt * pRemoteCertificate = NULL;
 
-    if( ( pSslContext == NULL ) || ( pExpectedFingerprint == NULL ) )
+    if( ( pSslContext == NULL ) || ( pExpectedFingerprint == NULL ) || fingerprintMaxLen < sizeof(actualFingerprint))
     {
-        LogError( ( "invalid input, pSslContext || pExpectedFingerprint == NULL " ) );
+        LogError( ( "invalid input, pSslContext || pExpectedFingerprint == NULL || fingerprintMaxLen < sizeof(actualFingerprint) " ) );
         retStatus = -1;
     }
     else
@@ -1066,8 +1078,8 @@ int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslCo
         /* Empty else marker. */
     }
 
-    if( dtlsCertificateFingerprint( pRemoteCertificate,
-                                    actualFingerprint ) != 0 )
+    if( dtlsCreateCertificateFingerprint( pRemoteCertificate,
+                                    actualFingerprint, sizeof(actualFingerprint)) != 0 )
     {
         LogError( ( "Failed to calculate certificate fingerprint" ) );
         retStatus = -1;
@@ -1077,8 +1089,9 @@ int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslCo
         /* Empty else marker. */
     }
 
-    if( strcmp( pExpectedFingerprint,
-                actualFingerprint ) != 0 )
+    if( strncmp( pExpectedFingerprint,
+                 actualFingerprint,
+                 fingerprintMaxLen ) != 0 )
     {
         LogError( ( "STATUS_SSL_REMOTE_CERTIFICATE_VERIFICATION_FAILED" ) );
         retStatus = -1;
@@ -1092,8 +1105,8 @@ int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslCo
 }
 /*-----------------------------------------------------------*/
 
-void mbedtls_ssl_get_dtls_srtp_negotiation_result( const mbedtls_ssl_context * ssl,
-                                                   mbedtls_dtls_srtp_info * dtls_srtp_info )
+static void mbedtls_ssl_get_dtls_srtp_negotiation_result( const mbedtls_ssl_context * ssl,
+                                                          mbedtls_dtls_srtp_info * dtls_srtp_info )
 {
     dtls_srtp_info->chosen_dtls_srtp_profile = ssl->dtls_srtp_info.chosen_dtls_srtp_profile;
     /* do not copy the mki value if there is no chosen profile */
@@ -1117,7 +1130,7 @@ int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t * pSslContext,
     int32_t retStatus = 0;
     uint32_t offset = 0;
 
-    PTlsKeys pKeys;
+    pTlsKeys pKeys;
     uint8_t keyingMaterialBuffer[MAX_SRTP_MASTER_KEY_LEN * 2 + MAX_SRTP_SALT_KEY_LEN * 2];
     mbedtls_dtls_srtp_info negotiatedSRTPProfile;
 
@@ -1131,7 +1144,7 @@ int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t * pSslContext,
         /* Empty else marker. */
     }
 
-    pKeys = ( PTlsKeys ) & pSslContext->privKey;
+    pKeys = ( pTlsKeys ) & pSslContext->privKey;
 
     if( mbedtls_ssl_tls_prf( pKeys->tlsProfile,
                              pKeys->masterSecret,
@@ -1288,7 +1301,7 @@ int32_t createCertificateAndKey( int32_t certificateBits,
                                                                  mbedtls_ctr_drbg_random,
                                                                  pCtrDrbg,
                                                                  certificateBits,
-                                                                 KVS_RSA_F4 ) == 0 )
+                                                                 DTLS_RSA_F4 ) == 0 )
                                         {
                                             LogDebug( ( "mbedtls_rsa_gen_key successful" ) );
                                         }
