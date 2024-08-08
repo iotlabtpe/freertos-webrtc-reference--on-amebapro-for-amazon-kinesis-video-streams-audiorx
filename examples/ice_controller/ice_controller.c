@@ -429,6 +429,130 @@ static IceControllerResult_t handleConnectivityCheckRequest( IceControllerContex
     return ret;
 }
 
+static void DtlsHandshake( IceControllerContext_t * pCtx,
+                           IceControllerRemoteInfo_t * pRemoteInfo )
+{
+    DtlsTransportStatus_t xNetworkStatus = DTLS_TRANSPORT_SUCCESS;
+    DtlsTestContext_t * pDtlsTestContext = &pRemoteInfo->dtlsTestContext;
+    char remoteIpAddr[ INET_ADDRSTRLEN ];
+    char *pRemoteIpPos;
+    mbedtls_x509_crt answerCert;
+    mbedtls_pk_context answerKey;
+    char answerCertFingerprint[CERTIFICATE_FINGERPRINT_LENGTH];
+    unsigned char private_key_pcs_pem[PRIVATE_KEY_PCS_PEM_SIZE];
+    int ret;
+
+    memset( &pDtlsTestContext->xNetworkContext,
+            0,
+            sizeof( NetworkContext_t ) );
+    memset( &pDtlsTestContext->xDtlsTransportParams,
+            0,
+            sizeof( DtlsTransportParams_t ) );
+    memset( &pDtlsTestContext->xNetworkCredentials,
+            0,
+            sizeof( DtlsNetworkCredentials_t ) );
+    memset( &pDtlsTestContext->xTransportInterface,
+            0,
+            sizeof( TransportInterface_t ) );
+    
+    /* Set the pParams member of the network context with desired transport. */
+    pDtlsTestContext->xNetworkContext.pParams = &pDtlsTestContext->xDtlsTransportParams;
+
+    /* Set transport interface. */
+    pDtlsTestContext->xTransportInterface.pNetworkContext = &pDtlsTestContext->xNetworkContext;
+    pDtlsTestContext->xTransportInterface.send = DTLS_send;
+    pDtlsTestContext->xTransportInterface.recv = DTLS_recv;
+
+    // /* Set the network credentials. */
+    pDtlsTestContext->xNetworkCredentials.rootCaSize = sizeof( AWS_CA_CERT_PEM );
+    pDtlsTestContext->xNetworkCredentials.pRootCa = ( uint8_t * )AWS_CA_CERT_PEM;
+
+    /* Disable SNI server name indication*/
+    // https://mbed-tls.readthedocs.io/en/latest/kb/how-to/use-sni/
+    pDtlsTestContext->xNetworkCredentials.disableSni = pdTRUE;
+
+    pRemoteIpPos = inet_ntop( AF_INET, pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.address, remoteIpAddr, INET_ADDRSTRLEN );
+    LogInfo( ("Start DTLS handshaking with %s:%d", pRemoteIpPos? pRemoteIpPos:"UNKNOWN", pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.port) );
+
+    /* Attempt to create a DTLS connection. */
+    // Generate answer cert // DER format
+    do {
+        xNetworkStatus = createCertificateAndKey( GENERATED_CERTIFICATE_BITS,
+                                                pdFALSE,
+                                                &answerCert,
+                                                &answerKey );
+        if( xNetworkStatus == DTLS_TRANSPORT_SUCCESS )
+        {
+            LogInfo( ( "Success to createCertificateAndKey" ) );
+        }
+        else
+        {
+            LogError( ( "Fail to createCertificateAndKey, return %d", xNetworkStatus ) );
+            break;
+        }
+
+        // Generate answer fingerprint
+        xNetworkStatus = dtlsCreateCertificateFingerprint( &answerCert,
+                                                     answerCertFingerprint );
+        if( xNetworkStatus == DTLS_TRANSPORT_SUCCESS )
+        {
+            LogInfo( ( "Success to dtlsCertificateFingerprint answer cert %s", answerCertFingerprint ) );
+        }
+        else
+        {
+            LogError( ( "Fail to dtlsCertificateFingerprint answer cert, return %d", xNetworkStatus ) );
+            break;
+        }
+        
+        pDtlsTestContext->xNetworkCredentials.clientCertSize = answerCert.raw.len;
+        pDtlsTestContext->xNetworkCredentials.pClientCert = answerCert.raw.p;
+        pDtlsTestContext->xNetworkCredentials.privateKeySize = PRIVATE_KEY_PCS_PEM_SIZE;
+
+        if( ( ret = mbedtls_pk_write_key_pem( &answerKey,
+                                            private_key_pcs_pem,
+                                            PRIVATE_KEY_PCS_PEM_SIZE ) ) == 0 )
+        {
+            LogInfo( ( "Success to mbedtls_pk_write_key_pem" ) );
+            LogInfo( ( "Key:\n%s", ( char * ) private_key_pcs_pem ) );
+        }
+        else
+        {
+            LogError( ( "Fail to mbedtls_pk_write_key_pem, return %d", ret ) );
+            MBEDTLS_ERROR_DESCRIPTION( ret );
+            break;
+        }
+
+        pDtlsTestContext->xNetworkCredentials.pPrivateKey = ( uint8_t * ) private_key_pcs_pem;
+
+        /*
+            done:
+            int Crypto_CreateDtlsCredentials( *pNetworkCredentials );
+            int Crypto_GetFingerPrint( *pNetworkCredentials, char *pFingerPrint, size_t length );
+
+            todo:
+            int Crypto_DtlsHandshake( *pNetworkCredentials );
+            1.
+            - Crypto_DtlsClientHello( *pNetworkCredentials );
+            - ...
+            2.
+            - int Crypto_DtlsHandshake( *socket, *pNetworkCredentials );
+        */
+        xNetworkStatus = DTLS_Connect( &pDtlsTestContext->xNetworkContext,
+                                    remoteIpAddr,
+                                    pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.port,
+                                    &pDtlsTestContext->xNetworkCredentials,
+                                    1000,
+                                    1000 );
+
+        if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
+        {
+            LogError( ( "Fail to connect with server with return % d ", xNetworkStatus ) );
+            break;
+        }
+    } while( 0 );
+
+}
+
 static IceControllerResult_t handleRequest( IceControllerContext_t * pCtx,
                                             MessageQueueHandler_t * pRequestQueue )
 {
@@ -458,9 +582,20 @@ static IceControllerResult_t handleRequest( IceControllerContext_t * pCtx,
                 ret = IceControllerNet_HandleRxPacket( pCtx, requestMsg.requestContent.detectRxPacket.pSocketContext );
             }
 
-            if( ret == ICE_CONTROLLER_RESULT_NO_MORE_RX_PACKET )
+            if( ret == ICE_CONTROLLER_RESULT_FOUND_CONNECTION )
             {
                 ret = MESSAGE_QUEUE_RESULT_OK;
+
+                /* Do DTLS handshake. */
+                DtlsHandshake( pCtx, requestMsg.requestContent.detectRxPacket.pSocketContext->pRemoteInfo );
+            }
+            else if( ret == ICE_CONTROLLER_RESULT_NO_MORE_RX_PACKET )
+            {
+                ret = MESSAGE_QUEUE_RESULT_OK;
+            }
+            else
+            {
+                /* Do nothing. */
             }
             break;
         default:

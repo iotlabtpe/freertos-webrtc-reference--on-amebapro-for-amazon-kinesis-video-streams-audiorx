@@ -51,6 +51,7 @@ typedef struct NetworkingUtilsCanonicalRequest
 struct NetworkContext
 {
     TlsTransportParams_t * pParams;
+    DtlsTransportParams_t * pParams;
 };
 
 NetworkingUtilsResult_t NetworkingUtils_GetUrlHost( char * pUrl,

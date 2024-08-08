@@ -14,6 +14,8 @@ extern "C" {
 #include "signaling_controller_data_types.h"
 #include "timer_controller.h"
 #include "lwip/sockets.h"
+#include "transport_dtls_mbedtls.h"
+#include "transport_interface.h"
 
 /* FreeRTOS includes. */
 #include "semphr.h"
@@ -107,6 +109,7 @@ typedef enum IceControllerResult
     ICE_CONTROLLER_RESULT_JSON_CANDIDATE_LACK_OF_ELEMENT,
     ICE_CONTROLLER_RESULT_EXCEED_REMOTE_PEER,
     ICE_CONTROLLER_RESULT_NO_MORE_RX_PACKET,
+    ICE_CONTROLLER_RESULT_FOUND_CONNECTION,
 } IceControllerResult_t;
 
 /* https://developer.mozilla.org/en-US/docs/Web/API/RTCIceCandidate/candidate
@@ -162,6 +165,44 @@ typedef struct IceControllerSocketContext
     IceControllerRemoteInfo_t * pRemoteInfo;
 } IceControllerSocketContext_t;
 
+typedef struct DtlsTestCredentials
+{
+    /* user-agent */
+    char *pUserAgent;
+    size_t userAgentLength;
+
+    /* Region */
+    char * pRegion;
+    size_t regionLength;
+
+    /* AKSK */
+    char * pAccessKeyId;
+    size_t accessKeyIdLength;
+    char * pSecretAccessKey;
+    size_t secretAccessKeyLength;
+
+    /* CA Cert Path */
+    char * pCaCertPath;
+    char * pCaCertPem;
+
+    /* Or CA PEM */
+    const uint8_t * pRootCa;
+    size_t rootCaSize;
+
+} DtlsTestCredentials_t;
+
+typedef struct DtlsTestContext {
+    DtlsTestCredentials_t credentials;
+
+    /* The transport layer interface used by the HTTP Client library. */
+    TransportInterface_t xTransportInterface;
+    /* The network context for the transport layer interface. */
+
+    NetworkContext_t xNetworkContext;
+    DtlsTransportParams_t xDtlsTransportParams;
+    DtlsNetworkCredentials_t xNetworkCredentials;
+} DtlsTestContext_t;
+
 typedef struct IceControllerSignalingRemoteInfo
 {
     /* Remote client ID is used to provide the destination of Signaling message. */
@@ -182,6 +223,10 @@ typedef struct IceControllerSignalingRemoteInfo
     IceCandidatePair_t candidatePairsBuffer[ ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT ];
     TransactionIdStore_t transactionIdStore;
     TransactionIdSlot_t transactionIdsBuffer[ ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT ];
+    IceCandidatePair_t * pNominationPair;
+
+    /* For DTLS. */
+    DtlsTestContext_t dtlsTestContext;
 } IceControllerRemoteInfo_t;
 
 typedef struct IceControllerDetectRxPacket

@@ -767,6 +767,8 @@ IceControllerResult_t IceControllerNet_HandleRxPacket( IceControllerContext_t * 
                             IceController_PrintMetrics( pCtx );
                             ( void ) IceControllerSocketListener_StopPolling( pCtx );
                         }
+                        ret = ICE_CONTROLLER_RESULT_FOUND_CONNECTION;
+                        pSocketContext->pRemoteInfo->pNominationPair = pCandidatePair;
                     }
                 }
             }
