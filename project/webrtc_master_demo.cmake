@@ -85,6 +85,7 @@ set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/signaling_controller"
      "${REPO_ROOT_DIRECTORY}/examples/network_transport"
      "${REPO_ROOT_DIRECTORY}/examples/network_transport/tcp_sockets_wrapper/include"
+     "${REPO_ROOT_DIRECTORY}/examples/network_transport/udp_sockets_wrapper/include"
      "${REPO_ROOT_DIRECTORY}/examples/networking"
      "${REPO_ROOT_DIRECTORY}/examples/networking/corehttp_helper"
      "${REPO_ROOT_DIRECTORY}/examples/networking/wslay_helper"
@@ -159,7 +160,40 @@ set( webrtc_master_demo_include
      ${SIGV4_INCLUDE_PUBLIC_DIRS}
      ${SIGNALING_INCLUDE_PUBLIC_DIRS}
      ${JSON_INCLUDE_PUBLIC_DIRS}
-     ${WSLAY_INCLUDE_DIRS} 
+     ${WSLAY_INCLUDE_DIRS}
      ${SDP_INCLUDE_PUBLIC_DIRS}
      ${STUN_INCLUDE_PUBLIC_DIRS}
      ${ICE_INCLUDE_PUBLIC_DIRS} )
+
+# Set more strict rules to application code only
+set_source_files_properties(
+     ${WEBRTC_APPLICATION_MASTER_SOURCE_FILES}
+     ${WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS}
+     PROPERTIES
+     COMPILE_FLAGS "-Werror"
+)
+
+# Append config options to mbedtls config.h
+set(FILE_TO_MODIFY "${REPO_ROOT_DIRECTORY}/libraries/ambpro2_sdk/component/ssl/mbedtls-2.16.6/include/mbedtls/config.h")
+
+# Check if the file has already been modified
+if(NOT EXISTS "${FILE_TO_MODIFY}.modified")
+  # Read the original content
+  file(READ "${FILE_TO_MODIFY}" ORIGINAL_CONTENT)
+
+  # Append new lines to the file
+  file(APPEND "${FILE_TO_MODIFY}"
+  "\n"
+  "#define MBEDTLS_DEBUG_C\n"
+  "#define MBEDTLS_DTLS_DEBUG_C\n"
+
+  "#define MBEDTLS_PLATFORM_C\n"
+  "#define MBEDTLS_ERROR_C\n"
+
+  "// this will enable mbedtls_pem_write_buffer\n"
+  "#define MBEDTLS_PEM_WRITE_C\n"
+  )
+
+  # Create a marker file to indicate that the file has been modified
+  file(WRITE "${FILE_TO_MODIFY}.modified" "File has been modified.")
+endif()
