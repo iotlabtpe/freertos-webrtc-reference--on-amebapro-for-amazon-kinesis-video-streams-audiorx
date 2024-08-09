@@ -256,7 +256,7 @@ static IceControllerResult_t parseIceCandidate( const char * pDecodeMessage,
     return ret;
 }
 
-static IceControllerRemoteInfo_t * allocateRemoteInfo( IceControllerContext_t * pCtx )
+static IceControllerRemoteInfo_t * allocateRemoteInfo( IceControllerContext_t * pCtx, const char *pRemoteClientId, size_t remoteClientIdLength )
 {
     IceControllerRemoteInfo_t * pRet = NULL;
     int32_t i;
@@ -268,6 +268,32 @@ static IceControllerRemoteInfo_t * allocateRemoteInfo( IceControllerContext_t * 
             pRet = &pCtx->remoteInfo[i];
             pRet->isUsed = 1;
             break;
+        }
+        else if( pCtx->remoteInfo[i].remoteClientIdLength == remoteClientIdLength &&
+                 strncmp( pCtx->remoteInfo[i].remoteClientId, pRemoteClientId, remoteClientIdLength ) == 0 )
+        {
+            pRet = &pCtx->remoteInfo[i];
+        }
+        else
+        {
+            /* Do nothing. */
+        }
+    }
+
+    if( pRet != NULL && pCtx->remoteInfo[i].remoteClientIdLength == 0 )
+    {
+        /* Store remote client ID into context. */
+        if( remoteClientIdLength > SIGNALING_CONTROLLER_REMOTE_ID_MAX_LENGTH )
+        {
+            LogWarn( ( "Remote ID is too long to store, length: %u", remoteClientIdLength ) );
+            pRet = NULL;
+        }
+        else
+        {
+            memcpy( pRet->remoteClientId,
+                    pRemoteClientId,
+                    remoteClientIdLength );
+            pRet->remoteClientIdLength = remoteClientIdLength;
         }
     }
 
@@ -466,35 +492,24 @@ static IceControllerResult_t handleConnectivityCheckRequest( IceControllerContex
     return ret;
 }
 
-static void DtlsHandshake( IceControllerContext_t * pCtx,
-                           IceControllerRemoteInfo_t * pRemoteInfo )
+struct xSOCKET
 {
-    LogDebug( ( "DtlsHandshake" ) );
+    int xFd;
+};
+
+static void DtlsHandshake( IceControllerContext_t * pCtx,
+                           IceControllerSocketContext_t * pSocketContext )
+{
     DtlsTransportStatus_t xNetworkStatus = DTLS_TRANSPORT_SUCCESS;
-    DtlsTestContext_t * pDtlsTestContext = &pRemoteInfo->dtlsTestContext;
+    DtlsTestContext_t * pDtlsTestContext = &pSocketContext->pRemoteInfo->dtlsTestContext;
     char remoteIpAddr[ INET_ADDRSTRLEN ];
     const char * pRemoteIpPos;
-    mbedtls_x509_crt answerCert;
-    mbedtls_pk_context answerKey;
-    char answerCertFingerprint[CERTIFICATE_FINGERPRINT_LENGTH];
-    unsigned char private_key_pcs_pem[PRIVATE_KEY_PCS_PEM_SIZE];
-    int ret;
-
-    memset( &pDtlsTestContext->xNetworkContext,
-            0,
-            sizeof( DtlsNetworkContext_t ) );
-    memset( &pDtlsTestContext->xDtlsTransportParams,
-            0,
-            sizeof( DtlsTransportParams_t ) );
-    memset( &pDtlsTestContext->xNetworkCredentials,
-            0,
-            sizeof( DtlsNetworkCredentials_t ) );
-    memset( &pDtlsTestContext->xTransportInterface,
-            0,
-            sizeof( TransportInterface_t ) );
 
     /* Set the pParams member of the network context with desired transport. */
     pDtlsTestContext->xNetworkContext.pParams = &pDtlsTestContext->xDtlsTransportParams;
+    /* TODO: Hack here to inject existing FD. */
+    pDtlsTestContext->xNetworkContext.pParams->udpSocket = (Socket_t) pvPortMalloc( sizeof( struct xSOCKET ) );
+    pDtlsTestContext->xNetworkContext.pParams->udpSocket->xFd = pSocketContext->socketFd;
 
     /* Set transport interface. */
     pDtlsTestContext->xTransportInterface.pNetworkContext = ( NetworkContext_t * ) &pDtlsTestContext->xNetworkContext;
@@ -502,92 +517,46 @@ static void DtlsHandshake( IceControllerContext_t * pCtx,
     pDtlsTestContext->xTransportInterface.recv = ( TransportRecv_t ) DTLS_recv;
 
     // /* Set the network credentials. */
-    pDtlsTestContext->xNetworkCredentials.rootCaSize = sizeof( AWS_CA_CERT_PEM );
-    pDtlsTestContext->xNetworkCredentials.pRootCa = ( uint8_t * )AWS_CA_CERT_PEM;
+    // pDtlsTestContext->xNetworkCredentials.rootCaSize = sizeof( AWS_CA_CERT_PEM );
+    // pDtlsTestContext->xNetworkCredentials.pRootCa = ( uint8_t * )AWS_CA_CERT_PEM;
 
     /* Disable SNI server name indication*/
     // https://mbed-tls.readthedocs.io/en/latest/kb/how-to/use-sni/
     pDtlsTestContext->xNetworkCredentials.disableSni = pdTRUE;
 
     pRemoteIpPos = inet_ntop( AF_INET,
-                              pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.address,
+                              pSocketContext->pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.address,
                               remoteIpAddr,
                               INET_ADDRSTRLEN );
-    LogInfo( ( "Start DTLS handshaking with %s:%d", pRemoteIpPos? pRemoteIpPos:"UNKNOWN", pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.port ) );
+    LogInfo( ( "Start DTLS handshaking with %s:%d", pRemoteIpPos? pRemoteIpPos:"UNKNOWN", pSocketContext->pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.port ) );
 
     /* Attempt to create a DTLS connection. */
     // Generate answer cert // DER format
-    do {
-        xNetworkStatus = createCertificateAndKey( GENERATED_CERTIFICATE_BITS,
-                                                  pdFALSE,
-                                                  &answerCert,
-                                                  &answerKey );
-        if( xNetworkStatus == DTLS_TRANSPORT_SUCCESS )
-        {
-            LogInfo( ( "Success to createCertificateAndKey" ) );
-        }
-        else
-        {
-            LogError( ( "Fail to createCertificateAndKey, return %d", xNetworkStatus ) );
-            break;
-        }
+    pDtlsTestContext->xNetworkCredentials.clientCertSize = pSocketContext->pRemoteInfo->answerCert.raw.len;
+    pDtlsTestContext->xNetworkCredentials.pClientCert = pSocketContext->pRemoteInfo->answerCert.raw.p;
+    pDtlsTestContext->xNetworkCredentials.privateKeySize = PRIVATE_KEY_PCS_PEM_SIZE;
+    pDtlsTestContext->xNetworkCredentials.pPrivateKey = ( uint8_t * ) pSocketContext->pRemoteInfo->private_key_pcs_pem;
 
-        // Generate answer fingerprint
-        xNetworkStatus = dtlsCreateCertificateFingerprint( &answerCert,
-                                                           answerCertFingerprint, sizeof(answerCertFingerprint) );
-        if( xNetworkStatus == DTLS_TRANSPORT_SUCCESS )
-        {
-            LogInfo( ( "Success to dtlsCertificateFingerprint answer cert %s", answerCertFingerprint ) );
-        }
-        else
-        {
-            LogError( ( "Fail to dtlsCertificateFingerprint answer cert, return %d", xNetworkStatus ) );
-            break;
-        }
+    /*
+        done:
+        int Crypto_CreateDtlsCredentials( *pNetworkCredentials );
+        int Crypto_GetFingerPrint( *pNetworkCredentials, char *pFingerPrint, size_t length );
 
-        pDtlsTestContext->xNetworkCredentials.clientCertSize = answerCert.raw.len;
-        pDtlsTestContext->xNetworkCredentials.pClientCert = answerCert.raw.p;
-        pDtlsTestContext->xNetworkCredentials.privateKeySize = PRIVATE_KEY_PCS_PEM_SIZE;
-
-        if( ( ret = mbedtls_pk_write_key_pem( &answerKey,
-                                              private_key_pcs_pem,
-                                              PRIVATE_KEY_PCS_PEM_SIZE ) ) == 0 )
-        {
-            LogInfo( ( "Success to mbedtls_pk_write_key_pem" ) );
-            LogInfo( ( "Key:\n%s", ( char * ) private_key_pcs_pem ) );
-        }
-        else
-        {
-            LogError( ( "Fail to mbedtls_pk_write_key_pem, return %d", ret ) );
-            MBEDTLS_ERROR_DESCRIPTION( ret );
-            break;
-        }
-
-        pDtlsTestContext->xNetworkCredentials.pPrivateKey = ( uint8_t * ) private_key_pcs_pem;
-
-        /*
-            done:
-            int Crypto_CreateDtlsCredentials( *pNetworkCredentials );
-            int Crypto_GetFingerPrint( *pNetworkCredentials, char *pFingerPrint, size_t length );
-
-            todo:
-            int Crypto_DtlsHandshake( *pNetworkCredentials );
-            1.
-            - Crypto_DtlsClientHello( *pNetworkCredentials );
-            - ...
-            2.
-            - int Crypto_DtlsHandshake( *socket, *pNetworkCredentials );
-         */
+        todo:
+        int Crypto_DtlsHandshake( *pNetworkCredentials );
+        1.
+        - Crypto_DtlsClientHello( *pNetworkCredentials );
+        - ...
+        2.
+        - int Crypto_DtlsHandshake( *socket, *pNetworkCredentials );
+    */
         xNetworkStatus = DTLS_Connect( &pDtlsTestContext->xNetworkContext,
                                        &pDtlsTestContext->xNetworkCredentials );
 
-        if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
-        {
-            LogError( ( "Fail to connect with server with return % d ", xNetworkStatus ) );
-            break;
-        }
-    } while( 0 );
-
+    if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
+    {
+        LogError( ( "Fail to connect with server with return % d ", xNetworkStatus ) );
+    }
 }
 
 static IceControllerResult_t handleRequest( IceControllerContext_t * pCtx,
@@ -630,7 +599,7 @@ static IceControllerResult_t handleRequest( IceControllerContext_t * pCtx,
 
                 /* Do DTLS handshake. */
                 DtlsHandshake( pCtx,
-                               requestMsg.requestContent.detectRxPacket.pSocketContext->pRemoteInfo );
+                               requestMsg.requestContent.detectRxPacket.pSocketContext );
             }
             else if( ret == ICE_CONTROLLER_RESULT_NO_MORE_RX_PACKET )
             {
@@ -1228,7 +1197,7 @@ IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
-        pRemoteInfo = allocateRemoteInfo( pCtx );
+        pRemoteInfo = allocateRemoteInfo( pCtx, pRemoteClientId, remoteClientIdLength );
         if( pRemoteInfo == NULL )
         {
             LogWarn( ( "Fail to allocate remote info" ) );
@@ -1240,23 +1209,6 @@ IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t
     {
         /* Initialize Ice controller net. */
         ret = IceControllerNet_InitRemoteInfo( pRemoteInfo );
-    }
-
-    if( ret == ICE_CONTROLLER_RESULT_OK )
-    {
-        /* Store remote client ID into context. */
-        if( remoteClientIdLength > SIGNALING_CONTROLLER_REMOTE_ID_MAX_LENGTH )
-        {
-            LogWarn( ( "Remote ID is too long to store, length: %u", remoteClientIdLength ) );
-            ret = ICE_CONTROLLER_RESULT_INVALID_REMOTE_CLIENT_ID;
-        }
-        else
-        {
-            memcpy( pRemoteInfo->remoteClientId,
-                    pRemoteClientId,
-                    remoteClientIdLength );
-            pRemoteInfo->remoteClientIdLength = remoteClientIdLength;
-        }
     }
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
@@ -1428,6 +1380,101 @@ IceControllerResult_t IceController_ProcessLoop( IceControllerContext_t * pCtx )
                 break;
             }
         }
+    }
+
+    return ret;
+}
+
+IceControllerResult_t IceController_CreateDtlsSession( IceControllerContext_t * pCtx,
+                                                       const char * pRemoteClientId,
+                                                       size_t remoteClientIdLength,
+                                                       const char **ppLocalFingerprint,
+                                                       size_t * pLocalFingerprint )
+{
+    IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
+    IceControllerRemoteInfo_t * pRemoteInfo = NULL;
+    DtlsTestContext_t * pDtlsTestContext = NULL;
+    DtlsTransportStatus_t xNetworkStatus = DTLS_TRANSPORT_SUCCESS;
+    int mbedtlsRet = 0;
+
+    if( pCtx == NULL || pRemoteClientId == NULL || ppLocalFingerprint == NULL || pLocalFingerprint == NULL )
+    {
+        LogError( ("Invalid input, pCtx: %p", pCtx) );
+        ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        pRemoteInfo = allocateRemoteInfo( pCtx, pRemoteClientId, remoteClientIdLength );
+        if( pRemoteInfo == NULL )
+        {
+            LogWarn( ( "Fail to allocate remote info" ) );
+            ret = ICE_CONTROLLER_RESULT_EXCEED_REMOTE_PEER;
+        }
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        pDtlsTestContext = &pRemoteInfo->dtlsTestContext;
+        memset( pDtlsTestContext,
+                0,
+                sizeof( DtlsTestContext_t ) );
+
+        /* Attempt to create a DTLS connection. */
+        // Generate answer cert // DER format
+        do {
+            xNetworkStatus = createCertificateAndKey( GENERATED_CERTIFICATE_BITS,
+                                                    pdFALSE,
+                                                    &pRemoteInfo->answerCert,
+                                                    &pRemoteInfo->answerKey );
+            if( xNetworkStatus == DTLS_TRANSPORT_SUCCESS )
+            {
+                LogInfo( ( "Success to createCertificateAndKey" ) );
+            }
+            else
+            {
+                LogError( ( "Fail to createCertificateAndKey, return %d", xNetworkStatus ) );
+                ret = ICE_CONTROLLER_RESULT_FAIL_CREATE_CERT_AND_KEY;
+                break;
+            }
+
+            // Generate answer fingerprint
+            xNetworkStatus = dtlsCreateCertificateFingerprint( &pRemoteInfo->answerCert,
+                                                            pRemoteInfo->answerCertFingerprint, CERTIFICATE_FINGERPRINT_LENGTH );
+            if( xNetworkStatus == DTLS_TRANSPORT_SUCCESS )
+            {
+                LogInfo( ( "Success to dtlsCertificateFingerprint answer cert %s", pRemoteInfo->answerCertFingerprint ) );
+            }
+            else
+            {
+                LogError( ( "Fail to dtlsCertificateFingerprint answer cert, return %d", xNetworkStatus ) );
+                ret = ICE_CONTROLLER_RESULT_FAIL_CREATE_CERT_FINGERPRINT;
+                break;
+            }
+
+            if( ( mbedtlsRet = mbedtls_pk_write_key_pem( &pRemoteInfo->answerKey,
+                                                pRemoteInfo->private_key_pcs_pem,
+                                                PRIVATE_KEY_PCS_PEM_SIZE ) ) == 0 )
+            {
+                LogInfo( ( "Success to mbedtls_pk_write_key_pem" ) );
+                LogInfo( ( "Key:\n%s", ( char * ) pRemoteInfo->private_key_pcs_pem ) );
+            }
+            else
+            {
+                LogError( ( "Fail to mbedtls_pk_write_key_pem, return %d", mbedtlsRet ) );
+                MBEDTLS_ERROR_DESCRIPTION( mbedtlsRet );
+                ret = ICE_CONTROLLER_RESULT_FAIL_WRITE_KEY_PEM;
+                break;
+            }
+
+            pDtlsTestContext->xNetworkCredentials.pPrivateKey = ( uint8_t * ) pRemoteInfo->private_key_pcs_pem;
+        } while( 0 );
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        *ppLocalFingerprint = pRemoteInfo->answerCertFingerprint;
+        *pLocalFingerprint = strlen( *ppLocalFingerprint );
     }
 
     return ret;

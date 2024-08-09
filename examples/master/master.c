@@ -29,7 +29,9 @@ static void wifi_common_init( void );
 static long long GetCurrentTimeSec( void );
 static uint8_t respondWithSdpAnswer( const char * pRemoteClientId,
                                      size_t remoteClientIdLength,
-                                     DemoContext_t * pDemoContext );
+                                     DemoContext_t * pDemoContext,
+                                     const char * pLocalFingerprint,
+                                     size_t localFingerprintLength );
 static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCtx,
                                      DemoSessionInformation_t * pSessionInformation,
                                      const char * pRemoteClientId,
@@ -43,7 +45,9 @@ static void Master_Task( void * pParameter );
 
 extern uint8_t populateSdpContent( DemoSessionInformation_t * pRemoteSessionDescription,
                                    DemoSessionInformation_t * pLocalSessionDescription,
-                                   PeerConnectionContext_t * pPeerConnectionContext );
+                                   PeerConnectionContext_t * pPeerConnectionContext,
+                                    const char * pLocalFingerprint,
+                                    size_t localFingerprintLength );
 extern uint8_t serializeSdpMessage( DemoSessionInformation_t * pSessionInDescriptionAnswer,
                                     DemoContext_t * pDemoContext );
 extern uint8_t addressSdpOffer( const char * pEventSdpOffer,
@@ -124,7 +128,9 @@ static long long GetCurrentTimeSec( void )
 
 static uint8_t respondWithSdpAnswer( const char * pRemoteClientId,
                                      size_t remoteClientIdLength,
-                                     DemoContext_t * pDemoContext )
+                                     DemoContext_t * pDemoContext,
+                                     const char * pLocalFingerprint,
+                                     size_t localFingerprintLength )
 {
     uint8_t skipProcess = 0;
     SignalingControllerResult_t signalingControllerReturn;
@@ -135,7 +141,7 @@ static uint8_t respondWithSdpAnswer( const char * pRemoteClientId,
     };
 
     /* Prepare SDP answer and send it back to remote peer. */
-    skipProcess = populateSdpContent( &pDemoContext->sessionInformationSdpOffer, &pDemoContext->sessionInformationSdpAnswer, &pDemoContext->peerConnectionContext );
+    skipProcess = populateSdpContent( &pDemoContext->sessionInformationSdpOffer, &pDemoContext->sessionInformationSdpAnswer, &pDemoContext->peerConnectionContext, pLocalFingerprint, localFingerprintLength );
 
     if( !skipProcess )
     {
@@ -304,11 +310,37 @@ static int addTransceivers( DemoContext_t * pDemoContext )
     return ret;
 }
 
+static uint8_t CreatePeerConnectionSession( PeerConnectionContext_t* pPeerConnectionContext, const char *pRemoteClientId, size_t remoteClientIdLength, const char **ppLocalFingerprint, size_t * pLocalFingerprint )
+{
+    uint8_t skipProcess = 0;
+    PeerConnectionResult_t peerConnectionResult;
+
+    if( pPeerConnectionContext == NULL || pRemoteClientId == NULL )
+    {
+        LogError( ("Invalid input, pPeerConnectionContext: %p, pRemoteClientId: %p", pPeerConnectionContext, pRemoteClientId) );
+        skipProcess = 1;
+    }
+
+    if( !skipProcess )
+    {
+        peerConnectionResult = PeerConnection_CreateSession( pPeerConnectionContext, pRemoteClientId, remoteClientIdLength, ppLocalFingerprint, pLocalFingerprint );
+        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+        {
+            LogWarn( ( "PeerConnection_AddRemoteCandidate fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
+            skipProcess = 1;
+        }
+    }
+
+    return skipProcess;
+}
+
 static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEvent,
                                        void * pUserContext )
 {
     uint8_t skipProcess = 0;
     PeerConnectionResult_t peerConnectionResult;
+    const char * pLocalFingerprint = NULL;
+    size_t localFingerprintLength = 0;
 
     ( void ) pUserContext;
 
@@ -326,7 +358,12 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEven
 
         if( !skipProcess )
         {
-            skipProcess = respondWithSdpAnswer( pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &demoContext );
+            skipProcess = CreatePeerConnectionSession( &demoContext.peerConnectionContext, pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &pLocalFingerprint, &localFingerprintLength );
+        }
+
+        if( !skipProcess )
+        {
+            skipProcess = respondWithSdpAnswer( pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &demoContext, pLocalFingerprint, localFingerprintLength );
         }
 
         if( !skipProcess )

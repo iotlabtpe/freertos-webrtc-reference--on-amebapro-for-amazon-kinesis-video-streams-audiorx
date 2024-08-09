@@ -292,3 +292,32 @@ PeerConnectionResult_t PeerConnection_GetLocalUserInfo( PeerConnectionContext_t 
 
     return ret;
 }
+
+PeerConnectionResult_t PeerConnection_CreateSession( PeerConnectionContext_t * pCtx,
+                                                     const char * pRemoteClientId,
+                                                     size_t remoteClientIdLength,
+                                                     const char **ppLocalFingerprint,
+                                                     size_t * pLocalFingerprint )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    IceControllerResult_t iceControllerResult;
+
+    if( ( pCtx == NULL ) ||
+        ( pRemoteClientId == NULL ) )
+    {
+        LogError( ( "Invalid input." ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        iceControllerResult = IceController_CreateDtlsSession( &pCtx->iceControllerContext, pRemoteClientId, remoteClientIdLength, ppLocalFingerprint, pLocalFingerprint );
+        if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
+        {
+            LogError( ( "IceController_CreateDtlsSession fail, result: %d.", iceControllerResult ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_CREATE_DTLS_SESSION;
+        }
+    }
+
+    return ret;
+}

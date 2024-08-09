@@ -34,6 +34,7 @@ typedef enum SdpControllerResult
     SDP_CONTROLLER_RESULT_SDP_FAIL_SNPRINTF,
     SDP_CONTROLLER_RESULT_SDP_FAIL_GET_TRANSCEIVERS,
     SDP_CONTROLLER_RESULT_SDP_FAIL_GET_LOCALUSERINFO,
+    SDP_CONTROLLER_RESULT_SDP_FAIL_GET_LOCALFINGERPRINT,
     SDP_CONTROLLER_RESULT_SDP_FAIL_NO_FINGERPRINT_FOUND,
     SDP_CONTROLLER_RESULT_SDP_FAIL_NO_ICE_UFRAG_FOUND,
     SDP_CONTROLLER_RESULT_SDP_FAIL_NO_ICE_PWD_FOUND,
@@ -224,7 +225,9 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
                                                                size_t * pBufferLength,
                                                                SdpControllerSdpDescription_t * pSdpLocalDescription,
                                                                SdpControllerSdpDescription_t * pSdpRemoteDescription,
-                                                               PeerConnectionContext_t * pPeerConnectionContext );
+                                                               PeerConnectionContext_t * pPeerConnectionContext,
+                            const char * pLocalFingerprint,
+                            size_t localFingerprintLength );
 
 #ifdef __cplusplus
 }

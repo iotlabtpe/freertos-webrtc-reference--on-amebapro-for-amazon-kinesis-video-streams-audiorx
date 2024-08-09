@@ -108,9 +108,9 @@ static void DtlsSslContextFree( DtlsSSLContext_t * pSslContext );
  *
  * @return 0 on success; otherwise, failure;
  */
-static int32_t setRootCa( DtlsSSLContext_t * pSslContext,
-                          const uint8_t * pRootCa,
-                          size_t rootCaSize );
+// static int32_t setRootCa( DtlsSSLContext_t * pSslContext,
+//                           const uint8_t * pRootCa,
+//                           size_t rootCaSize );
 
 /**
  * @brief Set X509 certificate as client certificate for the server to
@@ -244,38 +244,38 @@ static void DtlsSslContextFree( DtlsSSLContext_t * pSslContext )
 }
 /*-----------------------------------------------------------*/
 
-static int32_t setRootCa( DtlsSSLContext_t * pSslContext,
-                          const uint8_t * pRootCa,
-                          size_t rootCaSize )
-{
-    int32_t mbedtlsError = -1;
+// static int32_t setRootCa( DtlsSSLContext_t * pSslContext,
+//                           const uint8_t * pRootCa,
+//                           size_t rootCaSize )
+// {
+//     int32_t mbedtlsError = -1;
 
-    configASSERT( pSslContext != NULL );
-    configASSERT( pRootCa != NULL );
+//     configASSERT( pSslContext != NULL );
+//     configASSERT( pRootCa != NULL );
 
-    LogInfo( ( "Before mbedtls_x509_crt_parse." ) );
-    /* Parse the server root CA certificate into the SSL context. */
-    mbedtlsError = mbedtls_x509_crt_parse( &( pSslContext->rootCa ),
-                                           pRootCa,
-                                           rootCaSize );
+//     LogInfo( ( "Before mbedtls_x509_crt_parse." ) );
+//     /* Parse the server root CA certificate into the SSL context. */
+//     mbedtlsError = mbedtls_x509_crt_parse( &( pSslContext->rootCa ),
+//                                            pRootCa,
+//                                            rootCaSize );
 
-    if( mbedtlsError != 0 )
-    {
-        LogError( ( "Failed to parse server root CA certificate: mbedTLSError= "
-                    "%s : %s.",
-                    mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
-                    mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
-    }
-    else
-    {
-        LogInfo( ( "Before mbedtls_ssl_conf_ca_chain." ) );
-        mbedtls_ssl_conf_ca_chain( &( pSslContext->config ),
-                                   &( pSslContext->rootCa ),
-                                   NULL );
-    }
+//     if( mbedtlsError != 0 )
+//     {
+//         LogError( ( "Failed to parse server root CA certificate: mbedTLSError= "
+//                     "%s : %s.",
+//                     mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
+//                     mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
+//     }
+//     else
+//     {
+//         LogInfo( ( "Before mbedtls_ssl_conf_ca_chain." ) );
+//         mbedtls_ssl_conf_ca_chain( &( pSslContext->config ),
+//                                    &( pSslContext->rootCa ),
+//                                    NULL );
+//     }
 
-    return mbedtlsError;
-}
+//     return mbedtlsError;
+// }
 /*-----------------------------------------------------------*/
 
 static int32_t setClientCertificate( DtlsSSLContext_t * pSslContext,
@@ -360,10 +360,10 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
     mbedtls_ssl_conf_cert_profile( &( pSslContext->config ),
                                    &( pSslContext->certProfile ) );
 
-    LogInfo( ( "Before setRootCa." ) );
-    mbedtlsError = setRootCa( pSslContext,
-                              pNetworkCredentials->pRootCa,
-                              pNetworkCredentials->rootCaSize );
+    // LogInfo( ( "Before setRootCa." ) );
+    // mbedtlsError = setRootCa( pSslContext,
+    //                           pNetworkCredentials->pRootCa,
+    //                           pNetworkCredentials->rootCaSize );
 
     if( ( pNetworkCredentials->pClientCert != NULL ) && ( pNetworkCredentials->pPrivateKey != NULL ) )
     {
@@ -406,7 +406,7 @@ static DtlsTransportStatus_t dtlsSetup( DtlsNetworkContext_t * pNetworkContext,
     configASSERT( pNetworkContext != NULL );
     configASSERT( pNetworkContext->pParams != NULL );
     configASSERT( pNetworkCredentials != NULL );
-    configASSERT( pNetworkCredentials->pRootCa != NULL );
+    // configASSERT( pNetworkCredentials->pRootCa != NULL );
 
     pDtlsTransportParams = pNetworkContext->pParams;
     /* Initialize the mbed DTLS context structures. */
@@ -585,11 +585,11 @@ DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
                     pNetworkCredentials ) );
         returnStatus = DTLS_TRANSPORT_INVALID_PARAMETER;
     }
-    else if( ( pNetworkCredentials->pRootCa == NULL ) )
-    {
-        LogError( ( "pRootCa cannot be NULL." ) );
-        returnStatus = DTLS_TRANSPORT_INVALID_PARAMETER;
-    }
+    // else if( ( pNetworkCredentials->pRootCa == NULL ) )
+    // {
+    //     LogError( ( "pRootCa cannot be NULL." ) );
+    //     returnStatus = DTLS_TRANSPORT_INVALID_PARAMETER;
+    // }
     else
     {
         /* Empty else for MISRA 15.7 compliance. */

@@ -100,6 +100,9 @@ typedef enum IceControllerResult
     ICE_CONTROLLER_RESULT_FAIL_QUERY_CANDIDATE_PAIR_COUNT,
     ICE_CONTROLLER_RESULT_FAIL_MUTEX_CREATE,
     ICE_CONTROLLER_RESULT_FAIL_MUTEX_TAKE,
+    ICE_CONTROLLER_RESULT_FAIL_CREATE_CERT_AND_KEY,
+    ICE_CONTROLLER_RESULT_FAIL_CREATE_CERT_FINGERPRINT,
+    ICE_CONTROLLER_RESULT_FAIL_WRITE_KEY_PEM,
     ICE_CONTROLLER_RESULT_JSON_CANDIDATE_NOT_FOUND,
     ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_PRIORITY,
     ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_PROTOCOL,
@@ -162,6 +165,7 @@ typedef struct IceControllerSocketContext
     IceCandidateType_t candidateType; /* server socket of host/srflx/relay candidate or client socket connecting with remote. */
     IceCandidate_t * pLocalCandidate;
     int socketFd;
+    Socket_t udpSocket;
     IceControllerRemoteInfo_t * pRemoteInfo;
 } IceControllerSocketContext_t;
 
@@ -227,6 +231,10 @@ typedef struct IceControllerSignalingRemoteInfo
 
     /* For DTLS. */
     DtlsTestContext_t dtlsTestContext;
+    mbedtls_x509_crt answerCert;
+    mbedtls_pk_context answerKey;
+    char answerCertFingerprint[CERTIFICATE_FINGERPRINT_LENGTH];
+    unsigned char private_key_pcs_pem[PRIVATE_KEY_PCS_PEM_SIZE];
 } IceControllerRemoteInfo_t;
 
 typedef struct IceControllerDetectRxPacket

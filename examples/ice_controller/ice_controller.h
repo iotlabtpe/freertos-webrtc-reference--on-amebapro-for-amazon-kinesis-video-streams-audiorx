@@ -28,6 +28,11 @@ IceControllerResult_t IceController_SendRemoteCandidateRequest( IceControllerCon
                                                                 size_t remoteClientIdLength,
                                                                 IceControllerCandidate_t * pCandidate );
 IceControllerResult_t IceController_ProcessLoop( IceControllerContext_t * pCtx );
+IceControllerResult_t IceController_CreateDtlsSession( IceControllerContext_t * pCtx,
+                                                       const char * pRemoteClientId,
+                                                       size_t remoteClientIdLength,
+                                                       const char **ppLocalFingerprint,
+                                                       size_t * pLocalFingerprint );
 
 #ifdef __cplusplus
 }
