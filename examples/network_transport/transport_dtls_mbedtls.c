@@ -342,6 +342,7 @@ static int32_t setPrivateKey( DtlsSSLContext_t * pSslContext,
 static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
                                const DtlsNetworkCredentials_t * pNetworkCredentials )
 {
+    LogDebug( ( "setCredentials" ) );
     int32_t mbedtlsError = 0;
 
     configASSERT( pSslContext != NULL );
@@ -354,9 +355,11 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
     /* Set SSL authmode and the RNG context. */
     mbedtls_ssl_conf_authmode( &( pSslContext->config ),
                                MBEDTLS_SSL_VERIFY_REQUIRED );
+    LogDebug( ( "before mbedtls_ssl_conf_rng" ) );
     mbedtls_ssl_conf_rng( &( pSslContext->config ),
                           mbedtls_ctr_drbg_random,
                           &( pSslContext->ctrDrbgContext ) );
+    LogDebug( ( "before mbedtls_ssl_conf_cert_profile" ) );
     mbedtls_ssl_conf_cert_profile( &( pSslContext->config ),
                                    &( pSslContext->certProfile ) );
 
@@ -365,31 +368,44 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
     //                           pNetworkCredentials->pRootCa,
     //                           pNetworkCredentials->rootCaSize );
 
-    if( ( pNetworkCredentials->pClientCert != NULL ) && ( pNetworkCredentials->pPrivateKey != NULL ) )
+    if( pNetworkCredentials->pClientCert != NULL )
     {
-        if( mbedtlsError == 0 )
+        if( pNetworkCredentials->pPrivateKey != NULL )
         {
-            LogInfo( ( "Before setClientCertificate." ) );
-            mbedtlsError = setClientCertificate( pSslContext,
-                                                 pNetworkCredentials->pClientCert,
-                                                 pNetworkCredentials->clientCertSize );
-        }
+            if( mbedtlsError == 0 )
+            {
+                LogInfo( ( "Before setClientCertificate." ) );
+                mbedtlsError = setClientCertificate( pSslContext,
+                                                     pNetworkCredentials->pClientCert,
+                                                     pNetworkCredentials->clientCertSize );
+            }
 
-        if( mbedtlsError == 0 )
-        {
-            LogInfo( ( "Before setPrivateKey." ) );
-            mbedtlsError = setPrivateKey( pSslContext,
-                                          pNetworkCredentials->pPrivateKey,
-                                          pNetworkCredentials->privateKeySize );
-        }
+            if( mbedtlsError == 0 )
+            {
+                LogInfo( ( "Before setPrivateKey." ) );
+                mbedtlsError = setPrivateKey( pSslContext,
+                                              pNetworkCredentials->pPrivateKey,
+                                              pNetworkCredentials->privateKeySize );
+            }
 
-        if( mbedtlsError == 0 )
-        {
-            LogInfo( ( "Before mbedtls_ssl_conf_own_cert." ) );
-            mbedtlsError = mbedtls_ssl_conf_own_cert( &( pSslContext->config ),
-                                                      &( pSslContext->clientCert ),
-                                                      &( pSslContext->privKey ) );
+            if( mbedtlsError == 0 )
+            {
+                LogInfo( ( "Before mbedtls_ssl_conf_own_cert." ) );
+                mbedtlsError = mbedtls_ssl_conf_own_cert( &( pSslContext->config ),
+                                                          &( pSslContext->clientCert ),
+                                                          &( pSslContext->privKey ) );
+            }
         }
+        else
+        {
+            LogError( ( "pNetworkCredentials->pPrivateKey == NULL" ) );
+            mbedtlsError = -1;
+        }
+    }
+    else
+    {
+        LogError( ( "pNetworkCredentials->pClientCert == NULL" ) );
+        mbedtlsError = -1;
     }
 
     return mbedtlsError;
@@ -575,6 +591,15 @@ DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
     DtlsTransportParams_t * pDtlsTransportParams = NULL;
     DtlsTransportStatus_t returnStatus = DTLS_TRANSPORT_SUCCESS;
     BaseType_t isTlsSetup = pdFALSE;
+    if( NULL == pNetworkCredentials->pClientCert)
+    {
+        LogError( ( "NULL == pNetworkCredentials->pClientCert" ) );
+    }
+
+    if( NULL == pNetworkCredentials->pPrivateKey)
+    {
+        LogError( ( "NULL == pNetworkCredentials->pClientCert" ) );
+    }
 
     if( ( pNetworkContext == NULL ) || ( pNetworkContext->pParams == NULL ) || ( pNetworkCredentials == NULL ) )
     {
