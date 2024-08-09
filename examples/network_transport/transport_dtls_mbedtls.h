@@ -172,23 +172,15 @@ typedef enum DtlsTransportStatus
  * @brief Create a DTLS connection with sockets.
  *
  * @param[out] pNetworkContext Pointer to a network context to contain the
- * initialized socket handle.
- * @param[in] pHostName The hostname of the remote endpoint.
- * @param[in] port The destination port.
+ * connected socket handle.
  * @param[in] pNetworkCredentials Credentials for the TLS connection.
- * @param[in] receiveTimeoutMs Receive socket timeout.
- * @param[in] sendTimeoutMs Send socket timeout.
  *
  * @return #DTLS_TRANSPORT_SUCCESS, #DTLS_TRANSPORT_INSUFFICIENT_MEMORY, #DTLS_TRANSPORT_INVALID_CREDENTIALS,
  * #DTLS_TRANSPORT_HANDSHAKE_FAILED, #DTLS_TRANSPORT_INTERNAL_ERROR, or #DTLS_TRANSPORT_CONNECT_FAILURE.
  */
 DtlsTransportStatus_t
 DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
-              const char * pHostName,
-              uint16_t port,
-              const DtlsNetworkCredentials_t * pNetworkCredentials,
-              uint32_t receiveTimeoutMs,
-              uint32_t sendTimeoutMs );
+              const DtlsNetworkCredentials_t * pNetworkCredentials);
 
 /**
  * @brief Gracefully disconnect an established DTLS connection.

@@ -157,20 +157,6 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
                                const DtlsNetworkCredentials_t * pNetworkCredentials );
 
 /**
- * @brief Set optional configurations for the DTLS connection.
- *
- * This function is used to set SNI and ALPN protocols.
- *
- * @param[in] pSslContext SSL context to which the optional configurations are
- * to be set.
- * @param[in] pHostName Remote host name, used for server name indication.
- * @param[in] pNetworkCredentials DTLS setup parameters.
- */
-static void setOptionalConfigurations( DtlsSSLContext_t * pSslContext,
-                                       const char * pHostName,
-                                       const DtlsNetworkCredentials_t * pNetworkCredentials );
-
-/**
  * @brief Setup DTLS by initializing contexts and setting configurations.
  *
  * @param[in] pDtlsNetworkContext Network context.
@@ -181,7 +167,6 @@ static void setOptionalConfigurations( DtlsSSLContext_t * pSslContext,
  * #DTLS_TRANSPORT_INVALID_CREDENTIALS, or #DTLS_TRANSPORT_INTERNAL_ERROR.
  */
 static DtlsTransportStatus_t dtlsSetup( DtlsNetworkContext_t * pDtlsNetworkContext,
-                                        const char * pHostName,
                                         const DtlsNetworkCredentials_t * pNetworkCredentials );
 
 /**
@@ -411,72 +396,7 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
 }
 /*-----------------------------------------------------------*/
 
-static void setOptionalConfigurations( DtlsSSLContext_t * pSslContext,
-                                       const char * pHostName,
-                                       const DtlsNetworkCredentials_t * pNetworkCredentials )
-{
-    int32_t mbedtlsError = -1;
-
-    configASSERT( pSslContext != NULL );
-    configASSERT( pHostName != NULL );
-    configASSERT( pNetworkCredentials != NULL );
-
-    if( pNetworkCredentials->pAlpnProtos != NULL )
-    {
-        /* Include an application protocol list in the DTLS ClientHello
-         * message. */
-        mbedtlsError = mbedtls_ssl_conf_alpn_protocols( &( pSslContext->config ),
-                                                        pNetworkCredentials->pAlpnProtos );
-
-        if( mbedtlsError != 0 )
-        {
-            LogError( ( "Failed to configure ALPN protocol in mbed DTLS: mbedTLSError= "
-                        "%s : %s.",
-                        mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
-                        mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
-        }
-    }
-
-    /* Enable SNI if requested. */
-    if( pNetworkCredentials->disableSni == pdFALSE )
-    {
-        printf( "Set host name %s\n",
-                pHostName );
-        mbedtlsError = mbedtls_ssl_set_hostname( &( pSslContext->context ),
-                                                 pHostName );
-
-        if( mbedtlsError != 0 )
-        {
-            LogError( ( "Failed to set server name: mbedTLSError= %s : %s.", mbedtlsHighLevelCodeOrDefault( mbedtlsError ), mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
-        }
-    }
-
-    /* Set Maximum Fragment Length if enabled. */
-    // #ifdef MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
-
-    //     /* Enable the max fragment extension. 4096 bytes is currently the
-    //     largest fragment size permitted.
-    //      * See RFC 8449 https://tools.ietf.org/html/rfc8449 for more
-    //      information.
-    //      *
-    //      * Smaller values can be found in "mbedtls/include/ssl.h".
-    //      */
-    //     mbedtlsError = mbedtls_ssl_conf_max_frag_len( &( pSslContext->config
-    //     ), MBEDTLS_SSL_MAX_FRAG_LEN_4096 );
-
-    //     if( mbedtlsError != 0 )
-    //     {
-    //         LogError( ( "Failed to maximum fragment length extension:
-    //         mbedTLSError= %s : %s.",
-    //                     mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
-    //                     mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
-    //     }
-    // #endif /* ifdef MBEDTLS_SSL_MAX_FRAGMENT_LENGTH */
-}
-/*-----------------------------------------------------------*/
-
 static DtlsTransportStatus_t dtlsSetup( DtlsNetworkContext_t * pNetworkContext,
-                                        const char * pHostName,
                                         const DtlsNetworkCredentials_t * pNetworkCredentials )
 {
     DtlsTransportParams_t * pDtlsTransportParams = NULL;
@@ -485,7 +405,6 @@ static DtlsTransportStatus_t dtlsSetup( DtlsNetworkContext_t * pNetworkContext,
 
     configASSERT( pNetworkContext != NULL );
     configASSERT( pNetworkContext->pParams != NULL );
-    configASSERT( pHostName != NULL );
     configASSERT( pNetworkCredentials != NULL );
     configASSERT( pNetworkCredentials->pRootCa != NULL );
 
@@ -516,14 +435,6 @@ static DtlsTransportStatus_t dtlsSetup( DtlsNetworkContext_t * pNetworkContext,
         if( mbedtlsError != 0 )
         {
             returnStatus = DTLS_TRANSPORT_INVALID_CREDENTIALS;
-        }
-        else
-        {
-            /* Optionally set SNI and ALPN protocols. */
-            LogInfo( ( "Before setOptionalConfigurations." ) );
-            setOptionalConfigurations( &( pDtlsTransportParams->dtlsSslContext ),
-                                       pHostName,
-                                       pNetworkCredentials );
         }
     }
 
@@ -659,24 +570,18 @@ static DtlsTransportStatus_t initMbedtls( mbedtls_entropy_context * pEntropyCont
 
 DtlsTransportStatus_t
 DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
-              const char * pHostName,
-              uint16_t port,
-              const DtlsNetworkCredentials_t * pNetworkCredentials,
-              uint32_t receiveTimeoutMs,
-              uint32_t sendTimeoutMs )
+              const DtlsNetworkCredentials_t * pNetworkCredentials )
 {
     DtlsTransportParams_t * pDtlsTransportParams = NULL;
     DtlsTransportStatus_t returnStatus = DTLS_TRANSPORT_SUCCESS;
-    BaseType_t socketStatus = 0;
-    BaseType_t isSocketConnected = pdFALSE, isTlsSetup = pdFALSE;
+    BaseType_t isTlsSetup = pdFALSE;
 
-    if( ( pNetworkContext == NULL ) || ( pNetworkContext->pParams == NULL ) || ( pHostName == NULL ) || ( pNetworkCredentials == NULL ) )
+    if( ( pNetworkContext == NULL ) || ( pNetworkContext->pParams == NULL ) || ( pNetworkCredentials == NULL ) )
     {
         LogError( ( "Invalid input parameter(s): Arguments cannot be NULL. "
                     "pNetworkContext=%p, "
-                    "pHostName=%p, _pNetworkCredentials=%p.",
+                    "pNetworkCredentials=%p.",
                     pNetworkContext,
-                    pHostName,
                     pNetworkCredentials ) );
         returnStatus = DTLS_TRANSPORT_INVALID_PARAMETER;
     }
@@ -690,34 +595,9 @@ DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
         /* Empty else for MISRA 15.7 compliance. */
     }
 
-    /* Establish a UDP connection with the server. */
-    if( returnStatus == DTLS_TRANSPORT_SUCCESS )
-    {
-
-
-        pDtlsTransportParams = pNetworkContext->pParams;
-
-        /* Initialize udpSocket. */
-        pDtlsTransportParams->udpSocket = NULL;
-
-        socketStatus = UDP_Sockets_Connect( &( pDtlsTransportParams->udpSocket ),
-                                            pHostName,
-                                            port,
-                                            receiveTimeoutMs,
-                                            sendTimeoutMs );
-
-        if( socketStatus != 0 )
-        {
-            LogError( ( "Failed to connect to %s with error %ld.", pHostName, socketStatus ) );
-            returnStatus = DTLS_TRANSPORT_CONNECT_FAILURE;
-        }
-    }
-
     /* Initialize mbedtls. */
     if( returnStatus == DTLS_TRANSPORT_SUCCESS )
     {
-        isSocketConnected = pdTRUE;
-
         returnStatus = initMbedtls( &( pDtlsTransportParams->dtlsSslContext.entropyContext ),
                                     &( pDtlsTransportParams->dtlsSslContext.ctrDrbgContext ) );
     }
@@ -726,7 +606,6 @@ DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
     if( returnStatus == DTLS_TRANSPORT_SUCCESS )
     {
         returnStatus = dtlsSetup( pNetworkContext,
-                                  pHostName,
                                   pNetworkCredentials );
     }
 
@@ -761,17 +640,10 @@ DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
         {
             DtlsSslContextFree( &( pDtlsTransportParams->dtlsSslContext ) );
         }
-
-        /* Call Sockets_Disconnect if socket was connected. */
-        if( isSocketConnected == pdTRUE )
-        {
-            UDP_Sockets_Disconnect( pDtlsTransportParams->udpSocket );
-            pDtlsTransportParams->udpSocket = NULL;
-        }
     }
     else
     {
-        LogInfo( ( "(Network connection %p) Connection to %s established.", pNetworkContext, pHostName ) );
+        LogInfo( ( "(Network connection %p) Connection established.", pNetworkContext ) );
     }
 
     return returnStatus;
@@ -813,10 +685,6 @@ void DTLS_Disconnect( DtlsNetworkContext_t * pNetworkContext )
                        pNetworkContext,
                        ( dtlsStatus == MBEDTLS_ERR_SSL_WANT_READ ) ? "WANT_READ" : "WANT_WRITE" ) );
         }
-
-
-        /* Call socket shutdown function to close connection. */
-        UDP_Sockets_Disconnect( pTlsTransportParams->udpSocket );
 
         /* Free mbed DTLS contexts. */
         DtlsSslContextFree( &( pTlsTransportParams->dtlsSslContext ) );
@@ -1037,13 +905,14 @@ int32_t dtlsSessionGetLocalCertificateFingerprint( DtlsSSLContext_t * pSslContex
 /*-----------------------------------------------------------*/
 
 int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslContext,
-                                                       char * pExpectedFingerprint, const size_t fingerprintMaxLen )
+                                                       char * pExpectedFingerprint,
+                                                       const size_t fingerprintMaxLen )
 {
     int32_t retStatus = 0;
     char actualFingerprint[fingerprintMaxLen];
     mbedtls_x509_crt * pRemoteCertificate = NULL;
 
-    if( ( pSslContext == NULL ) || ( pExpectedFingerprint == NULL ) || fingerprintMaxLen < sizeof(actualFingerprint))
+    if( ( pSslContext == NULL ) || ( pExpectedFingerprint == NULL ) || ( fingerprintMaxLen < sizeof( actualFingerprint ) ) )
     {
         LogError( ( "invalid input, pSslContext || pExpectedFingerprint == NULL || fingerprintMaxLen < sizeof(actualFingerprint) " ) );
         retStatus = -1;
@@ -1065,7 +934,8 @@ int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslCo
     }
 
     if( dtlsCreateCertificateFingerprint( pRemoteCertificate,
-                                    actualFingerprint, sizeof(actualFingerprint)) != 0 )
+                                          actualFingerprint,
+                                          sizeof( actualFingerprint ) ) != 0 )
     {
         LogError( ( "Failed to calculate certificate fingerprint" ) );
         retStatus = -1;
