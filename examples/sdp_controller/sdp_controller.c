@@ -261,6 +261,9 @@ static SdpControllerResult_t ParseExtraAttributes( SdpControllerSdpDescription_t
             /* Found fingerprint, store it as extra info. */
             pOffer->pFingerprint = pAttribute->pAttributeValue;
             pOffer->fingerprintLength = pAttribute->attributeValueLength;
+            //store the remote fingerprint to verify later on, storing without prefix "sha-256 " == 8
+            memcpy( remoteFingerPrint, pOffer->pFingerprint+strlen("sha-256 "), pOffer->fingerprintLength-strlen("sha-256 ") );
+            remoteFingerPrintLength = pOffer->fingerprintLength;
         }
         else if( ( pAttribute->attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SETUP_LENGTH ) &&
                  ( strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SETUP, pAttribute->pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SETUP_LENGTH ) == 0 ) )

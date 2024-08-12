@@ -25,6 +25,8 @@
 #define ICE_SERVER_TYPE_TURN_LENGTH ( 5 )
 #define ICE_SERVER_TYPE_TURNS "turns:"
 #define ICE_SERVER_TYPE_TURNS_LENGTH ( 6 )
+char remoteFingerPrint[ 300 ];
+size_t remoteFingerPrintLength;
 
 static const uint32_t gCrc32Table[256] = {
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
@@ -269,7 +271,7 @@ static IceControllerRemoteInfo_t * allocateRemoteInfo( IceControllerContext_t * 
         {
             pRet = &pCtx->remoteInfo[i];
             pRet->isUsed = 1;
-            LogInfo( ("Allocating idx: %ld remote info: %p for client: %.*s", i, pRet, remoteClientIdLength, pRemoteClientId) );
+            LogInfo( ( "Allocating idx: %ld remote info: %p for client: %.*s", i, pRet, remoteClientIdLength, pRemoteClientId ) );
             break;
         }
         else if( ( pCtx->remoteInfo[i].remoteClientIdLength == remoteClientIdLength ) &&
@@ -278,7 +280,7 @@ static IceControllerRemoteInfo_t * allocateRemoteInfo( IceControllerContext_t * 
                             remoteClientIdLength ) == 0 ) )
         {
             pRet = &pCtx->remoteInfo[i];
-            LogInfo( ("Reusing idx: %ld remote info: %p for client: %.*s", i, pRet, remoteClientIdLength, pRemoteClientId) );
+            LogInfo( ( "Reusing idx: %ld remote info: %p for client: %.*s", i, pRet, remoteClientIdLength, pRemoteClientId ) );
             break;
         }
         else
@@ -511,7 +513,7 @@ static void DtlsHandshake( IceControllerContext_t * pCtx,
     DtlsTestContext_t * pDtlsTestContext = &pSocketContext->pRemoteInfo->dtlsTestContext;
     char remoteIpAddr[ INET_ADDRSTRLEN ];
     const char * pRemoteIpPos;
-    
+
     LogInfo( ( "Using remote info: %p for DTLS Handshaking.", pSocketContext->pRemoteInfo ) );
 
     /* Set the pParams member of the network context with desired transport. */
@@ -566,7 +568,6 @@ static void DtlsHandshake( IceControllerContext_t * pCtx,
         pDtlsTestContext->xNetworkCredentials.pPrivateKey = ( uint8_t * ) pSocketContext->pRemoteInfo->private_key_pcs_pem;
     }
 
-
     /*
         done:
         int Crypto_CreateDtlsCredentials( *pNetworkCredentials );
@@ -589,6 +590,17 @@ static void DtlsHandshake( IceControllerContext_t * pCtx,
     {
         LogError( ( "Fail to connect with server with return % d ", xNetworkStatus ) );
     }
+
+    // verify remote fingerprint (if remote cert fingerprint is the expected one)
+    xNetworkStatus = dtlsSessionVerifyRemoteCertificateFingerprint( &pDtlsTestContext->xNetworkContext.pParams->dtlsSslContext,
+                                                                    remoteFingerPrint,
+                                                                    remoteFingerPrintLength );
+
+    if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
+    {
+        LogError( ( "Fail to dtlsSessionVerifyRemoteCertificateFingerprint with return % d ", xNetworkStatus ) );
+    }
+
 }
 
 static IceControllerResult_t handleRequest( IceControllerContext_t * pCtx,

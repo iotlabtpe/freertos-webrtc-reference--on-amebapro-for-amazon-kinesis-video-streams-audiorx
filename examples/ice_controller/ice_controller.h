@@ -10,6 +10,9 @@ extern "C" {
 #include <stdio.h>
 #include "ice_controller_data_types.h"
 
+extern char remoteFingerPrint[ 300 ];
+extern size_t remoteFingerPrintLength;
+
 IceControllerResult_t IceController_Init( IceControllerContext_t * pCtx,
                                           SignalingControllerContext_t * pSignalingControllerContext );
 IceControllerResult_t IceController_Destroy( IceControllerContext_t * pCtx );

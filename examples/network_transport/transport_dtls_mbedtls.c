@@ -935,7 +935,6 @@ int32_t DTLS_send( DtlsNetworkContext_t * pNetworkContext,
 }
 /*-----------------------------------------------------------*/
 
-/* SRTP functions */
 int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt * pCert,
                                           char * pBuff,
                                           const size_t bufLen )
@@ -956,17 +955,6 @@ int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt * pCert,
     {
         /* Empty else marker. */
     }
-
-    if( bufLen < CERTIFICATE_FINGERPRINT_LENGTH )
-    {
-        LogError( ( "bufLen < CERTIFICATE_FINGERPRINT_LENGTH " ) );
-        retStatus = -1;
-    }
-    else
-    {
-        /* Empty else marker. */
-    }
-
 
     pMdInfo = mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 );
     if( ( pMdInfo == NULL ) )
@@ -993,6 +981,17 @@ int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt * pCert,
     }
 
     size = mbedtls_md_get_size( pMdInfo );
+
+    if( bufLen < 3*size )
+    {
+        LogError( ( "buffer to store fingerprint too small buffer: %i size: %li", bufLen, size ) );
+        retStatus = -1;
+    }
+    else
+    {
+        /* Empty else marker. */
+    }
+
     for( i = 0; i < size; i++ )
     {
         sprintf( pBuff,
@@ -1069,7 +1068,6 @@ int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslCo
                                           sizeof( actualFingerprint ) ) != 0 )
     {
         LogError( ( "Failed to calculate certificate fingerprint" ) );
-        retStatus = -1;
     }
     else
     {
@@ -1080,7 +1078,7 @@ int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslCo
                  actualFingerprint,
                  fingerprintMaxLen ) != 0 )
     {
-        LogError( ( "STATUS_SSL_REMOTE_CERTIFICATE_VERIFICATION_FAILED" ) );
+        LogError( ( "STATUS_SSL_REMOTE_CERTIFICATE_VERIFICATION_FAILED \nexpected fingerprint:\n %s \nactual fingerprint:\n %s", pExpectedFingerprint, actualFingerprint ) );
         retStatus = -1;
     }
     else
