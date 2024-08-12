@@ -222,7 +222,7 @@ static void DtlsSslContextInit( DtlsSSLContext_t * pSslContext )
     mbedtls_x509_crt_init( &( pSslContext->clientCert ) );
     mbedtls_ssl_init( &( pSslContext->context ) );
 #ifdef MBEDTLS_DEBUG_C
-    mbedtls_debug_set_threshold( 2 );
+    mbedtls_debug_set_threshold( 1 );
     mbedtls_ssl_conf_dbg( &( pSslContext->config ),
                           dtls_mbedtls_string_printf,
                           NULL );
@@ -395,7 +395,7 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
                                                           &( pSslContext->clientCert ),
                                                           &( pSslContext->privKey ) );
             }
-            
+
             if( mbedtlsError == 0 )
             {
                 mbedtls_ssl_conf_dtls_cookies( &( pSslContext->config ), NULL, NULL, NULL);
@@ -710,9 +710,6 @@ DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
 
 
         pDtlsTransportParams = pNetworkContext->pParams;
-
-        /* Initialize udpSocket. */
-        pDtlsTransportParams->udpSocket = NULL;
 
         socketStatus = UDP_Sockets_Connect( &( pDtlsTransportParams->udpSocket ),
                                             pHostName,
