@@ -269,6 +269,7 @@ static IceControllerRemoteInfo_t * allocateRemoteInfo( IceControllerContext_t * 
         {
             pRet = &pCtx->remoteInfo[i];
             pRet->isUsed = 1;
+            LogInfo( ("Allocating idx: %ld remote info: %p for client: %.*s", i, pRet, remoteClientIdLength, pRemoteClientId) );
             break;
         }
         else if( ( pCtx->remoteInfo[i].remoteClientIdLength == remoteClientIdLength ) &&
@@ -277,6 +278,8 @@ static IceControllerRemoteInfo_t * allocateRemoteInfo( IceControllerContext_t * 
                             remoteClientIdLength ) == 0 ) )
         {
             pRet = &pCtx->remoteInfo[i];
+            LogInfo( ("Reusing idx: %ld remote info: %p for client: %.*s", i, pRet, remoteClientIdLength, pRemoteClientId) );
+            break;
         }
         else
         {
@@ -508,6 +511,8 @@ static void DtlsHandshake( IceControllerContext_t * pCtx,
     DtlsTestContext_t * pDtlsTestContext = &pSocketContext->pRemoteInfo->dtlsTestContext;
     char remoteIpAddr[ INET_ADDRSTRLEN ];
     const char * pRemoteIpPos;
+    
+    LogInfo( ( "Using remote info: %p for DTLS Handshaking.", pSocketContext->pRemoteInfo ) );
 
     /* Set the pParams member of the network context with desired transport. */
     pDtlsTestContext->xNetworkContext.pParams = &pDtlsTestContext->xDtlsTransportParams;
