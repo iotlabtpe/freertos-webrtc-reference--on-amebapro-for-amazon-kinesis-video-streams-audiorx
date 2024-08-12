@@ -315,6 +315,21 @@ void dtls_mbedtls_string_printf( void * dtlsSslContext,
 
 #define KEYING_EXTRACTOR_LABEL "EXTRACTOR-dtls_srtp"
 
+
+/*
+ * For code readability use a typedef for DTLS-SRTP profiles
+ *
+ * Use_srtp extension protection profiles values as defined in
+ * http://www.iana.org/assignments/srtp-protection/srtp-protection.xhtml
+ *
+ * Reminder: if this list is expanded mbedtls_ssl_check_srtp_profile_value
+ * must be updated too.
+ */
+#define MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80     ((uint16_t) 0x0001)
+#define MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_32     ((uint16_t) 0x0002)
+#define MBEDTLS_TLS_SRTP_NULL_HMAC_SHA1_80          ((uint16_t) 0x0005)
+#define MBEDTLS_TLS_SRTP_NULL_HMAC_SHA1_32          ((uint16_t) 0x0006)
+
 /* This one is not iana defined, but for code readability. */
 #define MBEDTLS_TLS_SRTP_UNSET                      ( ( uint16_t ) 0x0000 )
 
@@ -359,6 +374,9 @@ int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt *,
 int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t *,
                                                        char *,
                                                        const size_t );
+
+int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t * ,
+                                           PDtlsKeyingMaterial );
 
 int32_t dtlsCertificateDemToPem( const unsigned char *,
                                  size_t,

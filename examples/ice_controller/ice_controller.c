@@ -598,7 +598,31 @@ static void DtlsHandshake( IceControllerContext_t * pCtx,
 
     if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
     {
-        LogError( ( "Fail to dtlsSessionVerifyRemoteCertificateFingerprint with return % d ", xNetworkStatus ) );
+        LogError( ( "Fail to dtlsSessionVerifyRemoteCertificateFingerprint with return %d ", xNetworkStatus ) );
+    }
+
+    // get srtp key from dtls context
+    DtlsKeyingMaterial dtlsKeyingMaterial;
+
+    memset( &dtlsKeyingMaterial,
+            0,
+            sizeof( DtlsKeyingMaterial ) );
+
+    xNetworkStatus = dtlsSessionPopulateKeyingMaterial( &pDtlsTestContext->xNetworkContext.pParams->dtlsSslContext,
+                                                        &dtlsKeyingMaterial );
+    if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
+    {
+        LogError( ( "Fail to dtlsSessionPopulateKeyingMaterial with return %d ", xNetworkStatus ) );
+    }
+    else
+    {
+        //TODO this are the SRTP keys
+        char buffer[256];
+        snprintf( buffer,
+                  ( size_t ) dtlsKeyingMaterial.key_length,
+                  "%hhn",
+                  ( unsigned char * ) dtlsKeyingMaterial.clientWriteKey );
+        LogDebug( ( "dtlsSessionPopulateKeyingMaterial with clientWriteKey: %s ", buffer ) );
     }
 
 }

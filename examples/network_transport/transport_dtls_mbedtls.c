@@ -64,6 +64,12 @@
 
 /*-----------------------------------------------------------*/
 
+/**  https://tools.ietf.org/html/rfc5764#section-4.1.2 */
+mbedtls_ssl_srtp_profile DTLS_SRTP_SUPPORTED_PROFILES[] = {
+    MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80,
+    MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32
+};
+
 /**
  * @brief Utility for converting the high-level code in an mbedTLS error to
  * string, if the code-contains a high-level code; otherwise, using a default
@@ -350,7 +356,7 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
 
     /* Set up the certificate security profile, starting from the default value.
      */
-    // pSslContext->certProfile = mbedtls_x509_crt_profile_default;
+    pSslContext->certProfile = mbedtls_x509_crt_profile_default;
 
     /* Set SSL authmode and the RNG context. */
     mbedtls_ssl_conf_authmode( &( pSslContext->config ),
@@ -359,14 +365,9 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
     mbedtls_ssl_conf_rng( &( pSslContext->config ),
                           mbedtls_ctr_drbg_random,
                           &( pSslContext->ctrDrbgContext ) );
-    // LogDebug( ( "before mbedtls_ssl_conf_cert_profile" ) );
-    // mbedtls_ssl_conf_cert_profile( &( pSslContext->config ),
-    //                                &( pSslContext->certProfile ) );
-
-    // LogInfo( ( "Before setRootCa." ) );
-    // mbedtlsError = setRootCa( pSslContext,
-    //                           pNetworkCredentials->pRootCa,
-    //                           pNetworkCredentials->rootCaSize );
+    LogDebug( ( "before mbedtls_ssl_conf_cert_profile" ) );
+    mbedtls_ssl_conf_cert_profile( &( pSslContext->config ),
+                                   &( pSslContext->certProfile ) );
 
     if( pNetworkCredentials->pClientCert != NULL )
     {
@@ -398,7 +399,23 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
 
             if( mbedtlsError == 0 )
             {
-                mbedtls_ssl_conf_dtls_cookies( &( pSslContext->config ), NULL, NULL, NULL);
+                LogInfo( ( "Before mbedtls_ssl_conf_dtls_cookies." ) );
+                mbedtls_ssl_conf_dtls_cookies( &( pSslContext->config ),
+                                               NULL,
+                                               NULL,
+                                               NULL );
+            }
+            if( mbedtlsError == 0 )
+            {
+                LogInfo( ( "Before mbedtls_ssl_conf_dtls_srtp_protection_profiles." ) );
+                mbedtlsError = mbedtls_ssl_conf_dtls_srtp_protection_profiles( &pSslContext->config,
+                                                                               DTLS_SRTP_SUPPORTED_PROFILES,
+                                                                               ARRAY_SIZE( DTLS_SRTP_SUPPORTED_PROFILES ) );
+                if( mbedtlsError != 0 )
+                {
+                    LogError( ( "mbedtls_ssl_conf_dtls_srtp_protection_profiles failed" ) );
+                    MBEDTLS_ERROR_DESCRIPTION( mbedtlsError );
+                }
             }
         }
         else
@@ -664,12 +681,12 @@ DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
     BaseType_t socketStatus = 0;
     BaseType_t isSocketConnected = pdFALSE, isTlsSetup = pdFALSE;
 
-    if( NULL == pNetworkCredentials->pClientCert)
+    if( NULL == pNetworkCredentials->pClientCert )
     {
         LogError( ( "NULL == pNetworkCredentials->pClientCert" ) );
     }
 
-    if( NULL == pNetworkCredentials->pPrivateKey)
+    if( NULL == pNetworkCredentials->pPrivateKey )
     {
         LogError( ( "NULL == pNetworkCredentials->pClientCert" ) );
     }
@@ -982,7 +999,7 @@ int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt * pCert,
 
     size = mbedtls_md_get_size( pMdInfo );
 
-    if( bufLen < 3*size )
+    if( bufLen < 3 * size )
     {
         LogError( ( "buffer to store fingerprint too small buffer: %i size: %li", bufLen, size ) );
         retStatus = -1;
@@ -1131,19 +1148,22 @@ int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t * pSslContext,
 
     pKeys = ( pTlsKeys ) & pSslContext->privKey;
 
-    if( mbedtls_ssl_tls_prf( pKeys->tlsProfile,
-                             pKeys->masterSecret,
-                             ARRAY_SIZE( pKeys->masterSecret ),
-                             KEYING_EXTRACTOR_LABEL,
-                             pKeys->randBytes,
-                             ARRAY_SIZE( pKeys->randBytes ),
-                             keyingMaterialBuffer,
-                             ARRAY_SIZE( keyingMaterialBuffer ) ) != 0 )
+    //TODO necessary?
+    // https://mbed-tls.readthedocs.io/en/latest/kb/how-to/tls_prf/
+    pKeys->tlsProfile = MBEDTLS_SSL_TLS_PRF_SHA256;
+
+    retStatus = mbedtls_ssl_tls_prf( pKeys->tlsProfile,
+                                     pKeys->masterSecret,
+                                     ARRAY_SIZE( pKeys->masterSecret ),
+                                     KEYING_EXTRACTOR_LABEL,
+                                     pKeys->randBytes,
+                                     ARRAY_SIZE( pKeys->randBytes ),
+                                     keyingMaterialBuffer,
+                                     ARRAY_SIZE( keyingMaterialBuffer ) );
+    if( retStatus != 0 )
     {
-        LogError( ( "Failed TLS-PRF function for key derivation: mbedTLSError= "
-                    "%s : %s.",
-                    mbedtlsHighLevelCodeOrDefault( sslRet ),
-                    mbedtlsLowLevelCodeOrDefault( sslRet ) ) );
+        LogError( ( "Failed TLS-PRF function for key derivation, funct: %d",pKeys->tlsProfile  ) );
+        MBEDTLS_ERROR_DESCRIPTION( retStatus );
         retStatus = -1;
     }
     else
@@ -1151,42 +1171,44 @@ int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t * pSslContext,
         /* Empty else marker. */
     }
 
-    pDtlsKeyingMaterial->key_length = MAX_SRTP_MASTER_KEY_LEN + MAX_SRTP_SALT_KEY_LEN;
-
-    memcpy( pDtlsKeyingMaterial->clientWriteKey,
-            &keyingMaterialBuffer[offset],
-            MAX_SRTP_MASTER_KEY_LEN );
-    offset += MAX_SRTP_MASTER_KEY_LEN;
-
-    memcpy( pDtlsKeyingMaterial->serverWriteKey,
-            &keyingMaterialBuffer[offset],
-            MAX_SRTP_MASTER_KEY_LEN );
-    offset += MAX_SRTP_MASTER_KEY_LEN;
-
-    memcpy( pDtlsKeyingMaterial->clientWriteKey + MAX_SRTP_MASTER_KEY_LEN,
-            &keyingMaterialBuffer[offset],
-            MAX_SRTP_SALT_KEY_LEN );
-    offset += MAX_SRTP_SALT_KEY_LEN;
-
-    memcpy( pDtlsKeyingMaterial->serverWriteKey + MAX_SRTP_MASTER_KEY_LEN,
-            &keyingMaterialBuffer[offset],
-            MAX_SRTP_SALT_KEY_LEN );
-
-    mbedtls_ssl_get_dtls_srtp_negotiation_result( &pSslContext->context,
-                                                  &negotiatedSRTPProfile );
-    switch( negotiatedSRTPProfile.chosen_dtls_srtp_profile )
+    if( retStatus == 0 )
     {
-    case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80:
-        pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_80;
-        break;
-    case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32:
-        pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_32;
-        break;
-    default:
-        LogError( ( "STATUS_SSL_UNKNOWN_SRTP_PROFILE" ) );
-        retStatus = -1;
-    }
+        pDtlsKeyingMaterial->key_length = MAX_SRTP_MASTER_KEY_LEN + MAX_SRTP_SALT_KEY_LEN;
 
+        memcpy( pDtlsKeyingMaterial->clientWriteKey,
+                &keyingMaterialBuffer[offset],
+                MAX_SRTP_MASTER_KEY_LEN );
+        offset += MAX_SRTP_MASTER_KEY_LEN;
+
+        memcpy( pDtlsKeyingMaterial->serverWriteKey,
+                &keyingMaterialBuffer[offset],
+                MAX_SRTP_MASTER_KEY_LEN );
+        offset += MAX_SRTP_MASTER_KEY_LEN;
+
+        memcpy( pDtlsKeyingMaterial->clientWriteKey + MAX_SRTP_MASTER_KEY_LEN,
+                &keyingMaterialBuffer[offset],
+                MAX_SRTP_SALT_KEY_LEN );
+        offset += MAX_SRTP_SALT_KEY_LEN;
+
+        memcpy( pDtlsKeyingMaterial->serverWriteKey + MAX_SRTP_MASTER_KEY_LEN,
+                &keyingMaterialBuffer[offset],
+                MAX_SRTP_SALT_KEY_LEN );
+
+        mbedtls_ssl_get_dtls_srtp_negotiation_result( &pSslContext->context,
+                                                      &negotiatedSRTPProfile );
+        switch( negotiatedSRTPProfile.chosen_dtls_srtp_profile )
+        {
+        case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80:
+            pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_80;
+            break;
+        case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32:
+            pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_32;
+            break;
+        default:
+            LogError( ( "STATUS_SSL_UNKNOWN_SRTP_PROFILE" ) );
+            retStatus = -1;
+        }
+    }
     return retStatus;
 }
 /*-----------------------------------------------------------*/
