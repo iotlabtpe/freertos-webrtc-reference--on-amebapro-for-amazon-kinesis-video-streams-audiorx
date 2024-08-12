@@ -94,8 +94,7 @@ BaseType_t UDP_Sockets_Connect(Socket_t *pUdpSocket,
     xRet = UDP_SOCKETS_ERRNO_ERROR;
     for (pxCur = pxAddrList; pxCur != NULL; pxCur = pxCur->ai_next)
     {
-        xFd = socket(pxCur->ai_family, pxCur->ai_socktype,
-                     pxCur->ai_protocol);
+        xFd = (*pUdpSocket)->xFd;
         if (xFd < 0)
         {
             LogError(("Failed to create new socket."));
@@ -109,33 +108,37 @@ BaseType_t UDP_Sockets_Connect(Socket_t *pUdpSocket,
             LogInfo(("Established UDP connection with %s.", pHostName));
             break;
         }
+        else
+        {
+            LogInfo(("Connecting failed with %s.", pHostName));
+        }
 
-        close(xFd);
+        // close(xFd);
         xRet = UDP_SOCKETS_ERRNO_ERROR;
     }
 
     freeaddrinfo(pxAddrList);
 
-    if (xRet == UDP_SOCKETS_ERRNO_NONE)
-    {
-        *pUdpSocket = pvPortMalloc(sizeof(*pUdpSocket));
-        if (*pUdpSocket == NULL)
-        {
-            LogError(("Failed to allow new socket context."));
-            (void)close(xFd);
-            xRet = UDP_SOCKETS_ERRNO_ENOMEM;
-        }
-        else
-        {
-            (*pUdpSocket)->xFd = xFd;
-        }
-    }
+    // if (xRet == UDP_SOCKETS_ERRNO_NONE)
+    // {
+    //     *pUdpSocket = pvPortMalloc(sizeof(*pUdpSocket));
+    //     if (*pUdpSocket == NULL)
+    //     {
+    //         LogError(("Failed to allow new socket context."));
+    //         (void)close(xFd);
+    //         xRet = UDP_SOCKETS_ERRNO_ENOMEM;
+    //     }
+    //     else
+    //     {
+    //         (*pUdpSocket)->xFd = xFd;
+    //     }
+    // }
 
-    if (xRet == UDP_SOCKETS_ERRNO_NONE)
-    {
-        setsockopt( xFd, SOL_SOCKET, SO_RCVTIMEO, &receiveTimeoutMs, sizeof( receiveTimeoutMs ) );
-        setsockopt( xFd, SOL_SOCKET, SO_SNDTIMEO, &sendTimeoutMs, sizeof( sendTimeoutMs ) );
-    }
+    // if (xRet == UDP_SOCKETS_ERRNO_NONE)
+    // {
+    //     setsockopt( xFd, SOL_SOCKET, SO_RCVTIMEO, &receiveTimeoutMs, sizeof( receiveTimeoutMs ) );
+    //     setsockopt( xFd, SOL_SOCKET, SO_SNDTIMEO, &sendTimeoutMs, sizeof( sendTimeoutMs ) );
+    // }
 
     return xRet;
 }
@@ -149,7 +152,7 @@ void UDP_Sockets_Disconnect(Socket_t udpSocket)
 {
     (void)shutdown(udpSocket->xFd, SHUT_RDWR);
     (void)close(udpSocket->xFd);
-    vPortFree(udpSocket);
+    // vPortFree(udpSocket);
 }
 
 /**

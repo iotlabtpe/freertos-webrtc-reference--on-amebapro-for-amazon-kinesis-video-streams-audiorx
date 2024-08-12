@@ -180,7 +180,9 @@ typedef enum DtlsTransportStatus
  */
 DtlsTransportStatus_t
 DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
-              const DtlsNetworkCredentials_t * pNetworkCredentials);
+              const DtlsNetworkCredentials_t * pNetworkCredentials,
+              const char * pHostName,
+              uint16_t port);
 
 /**
  * @brief Gracefully disconnect an established DTLS connection.

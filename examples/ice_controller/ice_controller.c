@@ -581,7 +581,9 @@ static void DtlsHandshake( IceControllerContext_t * pCtx,
         - int Crypto_DtlsHandshake( *socket, *pNetworkCredentials );
      */
     xNetworkStatus = DTLS_Connect( &pDtlsTestContext->xNetworkContext,
-                                   &pDtlsTestContext->xNetworkCredentials );
+                                   &pDtlsTestContext->xNetworkCredentials,
+                                   pRemoteIpPos,
+                                   pSocketContext->pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.port );
 
     if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
     {
