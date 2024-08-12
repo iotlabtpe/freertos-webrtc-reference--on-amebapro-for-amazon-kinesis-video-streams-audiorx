@@ -623,6 +623,8 @@ DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
     /* Initialize mbedtls. */
     if( returnStatus == DTLS_TRANSPORT_SUCCESS )
     {
+        pDtlsTransportParams = pNetworkContext->pParams;
+
         returnStatus = initMbedtls( &( pDtlsTransportParams->dtlsSslContext.entropyContext ),
                                     &( pDtlsTransportParams->dtlsSslContext.ctrDrbgContext ) );
     }
