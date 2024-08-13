@@ -1313,6 +1313,7 @@ IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t
                     pRemoteCertFingerprint,
                     remoteCertFingerprintLength );
             pRemoteInfo->remoteCertFingerprint[ remoteCertFingerprintLength ] = '\0';
+            pRemoteInfo->remoteCertFingerprintLength = remoteCertFingerprintLength;
 
             TransactionIdStore_Init( &pRemoteInfo->transactionIdStore,
                                      pRemoteInfo->transactionIdsBuffer,

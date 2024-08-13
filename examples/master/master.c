@@ -21,6 +21,7 @@
 #define DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID "myKvsVideoStream"
 #define DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID "myVideoTrack"
 #define DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID "myAudioTrack"
+#define DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH ( 8 ) // the length of "sha-256 "
 
 #define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect
 
@@ -186,8 +187,8 @@ static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCt
         remoteInfo.remoteUserNameLength = demoContext.sessionInformationSdpOffer.sdpDescription.iceUfragLength;
         remoteInfo.pRemotePassword = demoContext.sessionInformationSdpOffer.sdpDescription.pIcePwd;
         remoteInfo.remotePasswordLength = demoContext.sessionInformationSdpOffer.sdpDescription.icePwdLength;
-        remoteInfo.pRemoteCertFingerprint = demoContext.sessionInformationSdpOffer.sdpDescription.pFingerprint;
-        remoteInfo.remoteCertFingerprintLength = demoContext.sessionInformationSdpOffer.sdpDescription.fingerprintLength;
+        remoteInfo.pRemoteCertFingerprint = demoContext.sessionInformationSdpOffer.sdpDescription.pFingerprint + DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
+        remoteInfo.remoteCertFingerprintLength = demoContext.sessionInformationSdpOffer.sdpDescription.fingerprintLength - DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
 
         peerConnectionResult = PeerConnection_SetRemoteDescription( pPeerConnectionCtx, &remoteInfo );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )

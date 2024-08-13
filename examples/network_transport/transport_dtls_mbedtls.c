@@ -1056,12 +1056,12 @@ int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslCo
                                                        const size_t fingerprintMaxLen )
 {
     int32_t retStatus = 0;
-    char actualFingerprint[fingerprintMaxLen];
+    char actualFingerprint[ CERTIFICATE_FINGERPRINT_LENGTH ];
     mbedtls_x509_crt * pRemoteCertificate = NULL;
 
-    if( ( pSslContext == NULL ) || ( pExpectedFingerprint == NULL ) || ( fingerprintMaxLen < sizeof( actualFingerprint ) ) )
+    if( ( pSslContext == NULL ) || ( pExpectedFingerprint == NULL ) || ( CERTIFICATE_FINGERPRINT_LENGTH < fingerprintMaxLen ) )
     {
-        LogError( ( "invalid input, pSslContext || pExpectedFingerprint == NULL || fingerprintMaxLen < sizeof(actualFingerprint) " ) );
+        LogError( ( "invalid input, pSslContext || pExpectedFingerprint == NULL || CERTIFICATE_FINGERPRINT_LENGTH < fingerprintMaxLen(%u)", fingerprintMaxLen ) );
         retStatus = -1;
     }
     else
@@ -1082,7 +1082,7 @@ int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslCo
 
     if( dtlsCreateCertificateFingerprint( pRemoteCertificate,
                                           actualFingerprint,
-                                          sizeof( actualFingerprint ) ) != 0 )
+                                          CERTIFICATE_FINGERPRINT_LENGTH ) != 0 )
     {
         LogError( ( "Failed to calculate certificate fingerprint" ) );
     }
