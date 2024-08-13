@@ -160,7 +160,7 @@ static int32_t setPrivateKey( DtlsSSLContext_t * pSslContext,
  * @return 0 on success; otherwise, failure;
  */
 static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
-                               const DtlsNetworkCredentials_t * pNetworkCredentials );
+                               DtlsNetworkCredentials_t * pNetworkCredentials );
 
 /**
  * @brief Setup DTLS by initializing contexts and setting configurations.
@@ -173,7 +173,7 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
  * #DTLS_TRANSPORT_INVALID_CREDENTIALS, or #DTLS_TRANSPORT_INTERNAL_ERROR.
  */
 static DtlsTransportStatus_t dtlsSetup( DtlsNetworkContext_t * pDtlsNetworkContext,
-                                        const DtlsNetworkCredentials_t * pNetworkCredentials );
+                                        DtlsNetworkCredentials_t * pNetworkCredentials );
 
 /**
  * @brief Perform the DTLS handshake on a UDP connection.
@@ -345,8 +345,41 @@ static int32_t setPrivateKey( DtlsSSLContext_t * pSslContext,
 }
 /*-----------------------------------------------------------*/
 
+int dtlsSessionKeyDerivationCallback( void * customData,
+                                                 const unsigned char * pMasterSecret,
+                                                 const unsigned char * pKeyBlock,
+                                                 size_t maclen,
+                                                 size_t keylen,
+                                                 size_t ivlen,
+                                                 const unsigned char clientRandom[MAX_DTLS_RANDOM_BYTES_LEN],
+                                                 const unsigned char serverRandom[MAX_DTLS_RANDOM_BYTES_LEN],
+                                                 mbedtls_tls_prf_types tlsProfile )
+{
+    ( ( void ) pKeyBlock );
+    ( ( void ) maclen );
+    ( ( void  )keylen );
+    ( ( void ) ivlen );
+    DtlsSSLContext_t * pSslContext = customData;
+
+    pTlsKeys pKeys = ( pTlsKeys ) & pSslContext->privKey;
+
+    memcpy( pKeys->masterSecret,
+            pMasterSecret,
+            sizeof( pKeys->masterSecret ) );
+    memcpy( pKeys->randBytes,
+            clientRandom,
+            MAX_DTLS_RANDOM_BYTES_LEN );
+    memcpy( pKeys->randBytes + MAX_DTLS_RANDOM_BYTES_LEN,
+            serverRandom,
+            MAX_DTLS_RANDOM_BYTES_LEN );
+    pKeys->tlsProfile = tlsProfile;
+
+    return 0;
+}
+
+/*-----------------------------------------------------------*/
 static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
-                               const DtlsNetworkCredentials_t * pNetworkCredentials )
+                               DtlsNetworkCredentials_t * pNetworkCredentials )
 {
     LogDebug( ( "setCredentials" ) );
     int32_t mbedtlsError = 0;
@@ -417,6 +450,17 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
                     MBEDTLS_ERROR_DESCRIPTION( mbedtlsError );
                 }
             }
+            if( mbedtlsError == 0 )
+            {
+                LogInfo( ( "Before mbedtls_ssl_conf_export_keys_ext_cb." ) );
+
+
+                mbedtls_ssl_conf_export_keys_ext_cb( &pSslContext->config,
+                                                     dtlsSessionKeyDerivationCallback,
+                                                     &pNetworkCredentials->dtlsKeyingMaterial );
+
+            }
+
         }
         else
         {
@@ -499,7 +543,7 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
 /*-----------------------------------------------------------*/
 
 static DtlsTransportStatus_t dtlsSetup( DtlsNetworkContext_t * pNetworkContext,
-                                        const DtlsNetworkCredentials_t * pNetworkCredentials )
+                                        DtlsNetworkCredentials_t * pNetworkCredentials )
 {
     DtlsTransportParams_t * pDtlsTransportParams = NULL;
     DtlsTransportStatus_t returnStatus = DTLS_TRANSPORT_SUCCESS;
@@ -672,7 +716,7 @@ static DtlsTransportStatus_t initMbedtls( mbedtls_entropy_context * pEntropyCont
 
 DtlsTransportStatus_t
 DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
-              const DtlsNetworkCredentials_t * pNetworkCredentials,
+              DtlsNetworkCredentials_t * pNetworkCredentials,
               const char * pHostName,
               uint16_t port )
 {
@@ -1127,7 +1171,7 @@ static void mbedtls_ssl_get_dtls_srtp_negotiation_result( const mbedtls_ssl_cont
 /*-----------------------------------------------------------*/
 
 int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t * pSslContext,
-                                           PDtlsKeyingMaterial pDtlsKeyingMaterial )
+                                           pDtlsKeyingMaterial_t pDtlsKeyingMaterial )
 {
     int32_t retStatus = 0;
     uint32_t offset = 0;

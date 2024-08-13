@@ -51,6 +51,7 @@ static const uint32_t gCrc32Table[256] = {
     0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
+
 static IceControllerResult_t IceController_SendConnectivityCheckRequest( IceControllerContext_t * pCtx,
                                                                          IceControllerRemoteInfo_t * pRemoteInfo );
 
@@ -606,20 +607,17 @@ static void DtlsHandshake( IceControllerContext_t * pCtx,
             sizeof( DtlsKeyingMaterial ) );
 
     xNetworkStatus = dtlsSessionPopulateKeyingMaterial( &pDtlsTestContext->xNetworkContext.pParams->dtlsSslContext,
-                                                        &dtlsKeyingMaterial );
+                                                        &pDtlsTestContext->xNetworkCredentials.dtlsKeyingMaterial );
+
     if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
     {
         LogError( ( "Fail to dtlsSessionPopulateKeyingMaterial with return %d ", xNetworkStatus ) );
     }
     else
     {
-        //TODO this are the SRTP keys
-        char buffer[256];
-        snprintf( buffer,
-                  ( size_t ) dtlsKeyingMaterial.key_length,
-                  "%hhn",
-                  ( unsigned char * ) dtlsKeyingMaterial.clientWriteKey );
-        LogDebug( ( "dtlsSessionPopulateKeyingMaterial with clientWriteKey: %s ", buffer ) );
+        LogDebug( ( "dtlsSessionPopulateKeyingMaterial with clientWriteKey: %s ", pDtlsTestContext->xNetworkCredentials.dtlsKeyingMaterial.clientWriteKey ) );
+        LogDebug( ( "dtlsSessionPopulateKeyingMaterial with serverWriteKey: %s ", pDtlsTestContext->xNetworkCredentials.dtlsKeyingMaterial.serverWriteKey ) );
+        LogDebug( ( "dtlsSessionPopulateKeyingMaterial with key_length: %i ", pDtlsTestContext->xNetworkCredentials.dtlsKeyingMaterial.key_length ) );
     }
 
 }
