@@ -46,8 +46,8 @@ static void Master_Task( void * pParameter );
 extern uint8_t populateSdpContent( DemoSessionInformation_t * pRemoteSessionDescription,
                                    DemoSessionInformation_t * pLocalSessionDescription,
                                    PeerConnectionContext_t * pPeerConnectionContext,
-                                    const char * pLocalFingerprint,
-                                    size_t localFingerprintLength );
+                                   const char * pLocalFingerprint,
+                                   size_t localFingerprintLength );
 extern uint8_t serializeSdpMessage( DemoSessionInformation_t * pSessionInDescriptionAnswer,
                                     DemoContext_t * pDemoContext );
 extern uint8_t addressSdpOffer( const char * pEventSdpOffer,
@@ -65,7 +65,7 @@ static void platform_init( void )
     long long sec;
     /* mbedtls init */
     crypto_init();
-    platform_set_malloc_free(( void (*) ) calloc, (void (*)(void *))free);
+    platform_set_malloc_free( ( void ( * ) )calloc, ( void ( * )( void * ) )free );
 
     /* Show backtrace if exception. */
     sys_backtrace_enable();
@@ -186,6 +186,8 @@ static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCt
         remoteInfo.remoteUserNameLength = demoContext.sessionInformationSdpOffer.sdpDescription.iceUfragLength;
         remoteInfo.pRemotePassword = demoContext.sessionInformationSdpOffer.sdpDescription.pIcePwd;
         remoteInfo.remotePasswordLength = demoContext.sessionInformationSdpOffer.sdpDescription.icePwdLength;
+        remoteInfo.pRemoteCertFingerprint = demoContext.sessionInformationSdpOffer.sdpDescription.pFingerprint;
+        remoteInfo.remoteCertFingerprintLength = demoContext.sessionInformationSdpOffer.sdpDescription.fingerprintLength;
 
         peerConnectionResult = PeerConnection_SetRemoteDescription( pPeerConnectionCtx, &remoteInfo );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
@@ -310,14 +312,18 @@ static int addTransceivers( DemoContext_t * pDemoContext )
     return ret;
 }
 
-static uint8_t CreatePeerConnectionSession( PeerConnectionContext_t* pPeerConnectionContext, const char *pRemoteClientId, size_t remoteClientIdLength, const char **ppLocalFingerprint, size_t * pLocalFingerprint )
+static uint8_t CreatePeerConnectionSession( PeerConnectionContext_t * pPeerConnectionContext,
+                                            const char * pRemoteClientId,
+                                            size_t remoteClientIdLength,
+                                            const char ** ppLocalFingerprint,
+                                            size_t * pLocalFingerprint )
 {
     uint8_t skipProcess = 0;
     PeerConnectionResult_t peerConnectionResult;
 
-    if( pPeerConnectionContext == NULL || pRemoteClientId == NULL )
+    if( ( pPeerConnectionContext == NULL ) || ( pRemoteClientId == NULL ) )
     {
-        LogError( ("Invalid input, pPeerConnectionContext: %p, pRemoteClientId: %p", pPeerConnectionContext, pRemoteClientId) );
+        LogError( ( "Invalid input, pPeerConnectionContext: %p, pRemoteClientId: %p", pPeerConnectionContext, pRemoteClientId ) );
         skipProcess = 1;
     }
 

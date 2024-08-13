@@ -34,7 +34,7 @@ PeerConnectionResult_t PeerConnection_GetLocalUserInfo( PeerConnectionContext_t 
 PeerConnectionResult_t PeerConnection_CreateSession( PeerConnectionContext_t * pCtx,
                                                      const char * pRemoteClientId,
                                                      size_t remoteClientIdLength,
-                                                     const char **ppLocalFingerprint,
+                                                     const char ** ppLocalFingerprint,
                                                      size_t * pLocalFingerprint );
 
 #ifdef __cplusplus

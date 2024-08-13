@@ -154,8 +154,10 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
     if( ( pCtx == NULL ) || ( pRemoteInfo == NULL ) ||
         ( pRemoteInfo->pRemoteClientId == NULL ) ||
         ( pRemoteInfo->pRemotePassword == NULL ) ||
-        ( pRemoteInfo->pRemoteUserName == NULL ) )
+        ( pRemoteInfo->pRemoteUserName == NULL ) ||
+        ( pRemoteInfo->pRemoteCertFingerprint == NULL ) )
     {
+        LogError( ( "Invalid input, pCtx: %p, pRemoteInfo: %p", pCtx, pRemoteInfo ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
 
@@ -164,7 +166,8 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
         iceControllerResult = IceController_SetRemoteDescription( &pCtx->iceControllerContext,
                                                                   pRemoteInfo->pRemoteClientId, pRemoteInfo->remoteClientIdLength,
                                                                   pRemoteInfo->pRemoteUserName, pRemoteInfo->remoteUserNameLength,
-                                                                  pRemoteInfo->pRemotePassword, pRemoteInfo->remotePasswordLength );
+                                                                  pRemoteInfo->pRemotePassword, pRemoteInfo->remotePasswordLength,
+                                                                  pRemoteInfo->pRemoteCertFingerprint, pRemoteInfo->remoteCertFingerprintLength );
         if( iceControllerResult != 0 )
         {
             LogError( ( "Fail to set remote description in Ice Controller, result: %d", iceControllerResult ) );
@@ -296,7 +299,7 @@ PeerConnectionResult_t PeerConnection_GetLocalUserInfo( PeerConnectionContext_t 
 PeerConnectionResult_t PeerConnection_CreateSession( PeerConnectionContext_t * pCtx,
                                                      const char * pRemoteClientId,
                                                      size_t remoteClientIdLength,
-                                                     const char **ppLocalFingerprint,
+                                                     const char ** ppLocalFingerprint,
                                                      size_t * pLocalFingerprint )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;

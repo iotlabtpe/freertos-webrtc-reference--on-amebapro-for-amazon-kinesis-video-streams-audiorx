@@ -25,6 +25,7 @@ extern "C" {
 #define ICE_CONTROLLER_USER_NAME_LENGTH ( 4 )
 #define ICE_CONTROLLER_PASSWORD_LENGTH ( 24 )
 #define ICE_CONTROLLER_CNAME_LENGTH ( 16 )
+#define ICE_CONTROLLER_CERTIFICATE_FINGERPRINT_LENGTH ( CERTIFICATE_FINGERPRINT_LENGTH )
 #define ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE ( 1024 )
 
 /**
@@ -172,7 +173,7 @@ typedef struct IceControllerSocketContext
 typedef struct DtlsTestCredentials
 {
     /* user-agent */
-    char *pUserAgent;
+    char * pUserAgent;
     size_t userAgentLength;
 
     /* Region */
@@ -217,6 +218,9 @@ typedef struct IceControllerSignalingRemoteInfo
     char combinedName[ ( ICE_CONTROLLER_USER_NAME_LENGTH << 1 ) + 2 ];
     char remoteClientId[ SIGNALING_CONTROLLER_REMOTE_ID_MAX_LENGTH ];
     size_t remoteClientIdLength;
+    char remoteCertFingerprint[ ICE_CONTROLLER_CERTIFICATE_FINGERPRINT_LENGTH + 1 ];
+    size_t remoteCertFingerprintLength;
+
     IceControllerSocketContext_t socketsContexts[ ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT ];
     size_t socketsContextsCount;
 

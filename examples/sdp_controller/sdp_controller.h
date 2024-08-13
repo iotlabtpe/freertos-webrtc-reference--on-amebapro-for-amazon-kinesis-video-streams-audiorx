@@ -226,8 +226,8 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
                                                                SdpControllerSdpDescription_t * pSdpLocalDescription,
                                                                SdpControllerSdpDescription_t * pSdpRemoteDescription,
                                                                PeerConnectionContext_t * pPeerConnectionContext,
-                            const char * pLocalFingerprint,
-                            size_t localFingerprintLength );
+                                                               const char * pLocalFingerprint,
+                                                               size_t localFingerprintLength );
 
 #ifdef __cplusplus
 }

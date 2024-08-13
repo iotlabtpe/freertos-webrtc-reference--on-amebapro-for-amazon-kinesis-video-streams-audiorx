@@ -39,6 +39,8 @@ typedef struct PeerConnectionRemoteInfo
     size_t remoteUserNameLength;
     const char * pRemotePassword; /* From ice-pwd in SDP attributes */
     size_t remotePasswordLength;
+    const char * pRemoteCertFingerprint; /* From fingerprint in SDP attributes */
+    size_t remoteCertFingerprintLength;
 } PeerConnectionRemoteInfo_t;
 
 typedef struct PeerConnectionUserInfo

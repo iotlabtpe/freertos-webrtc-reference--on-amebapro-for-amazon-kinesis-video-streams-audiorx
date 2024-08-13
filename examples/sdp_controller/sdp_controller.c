@@ -226,8 +226,8 @@ static SdpControllerResult_t PopulateSingleMedia( char ** ppBuffer,
                                                   const Transceiver_t * pTransceiver,
                                                   PeerConnectionContext_t * pPeerConnectionContext,
                                                   uint32_t chosenCodec,
-                            const char * pLocalFingerprint,
-                            size_t localFingerprintLength );
+                                                  const char * pLocalFingerprint,
+                                                  size_t localFingerprintLength );
 static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t * pAttributes,
                                               uint8_t attributeCount,
                                               uint32_t * pCodecPayloads,
@@ -261,9 +261,6 @@ static SdpControllerResult_t ParseExtraAttributes( SdpControllerSdpDescription_t
             /* Found fingerprint, store it as extra info. */
             pOffer->pFingerprint = pAttribute->pAttributeValue;
             pOffer->fingerprintLength = pAttribute->attributeValueLength;
-            //store the remote fingerprint to verify later on, storing without prefix "sha-256 " == 8
-            memcpy( remoteFingerPrint, pOffer->pFingerprint+strlen("sha-256 "), pOffer->fingerprintLength-strlen("sha-256 ") );
-            remoteFingerPrintLength = pOffer->fingerprintLength;
         }
         else if( ( pAttribute->attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SETUP_LENGTH ) &&
                  ( strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SETUP, pAttribute->pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SETUP_LENGTH ) == 0 ) )
@@ -1615,8 +1612,8 @@ static SdpControllerResult_t PopulateSingleMedia( char ** ppBuffer,
                                                   const Transceiver_t * pTransceiver,
                                                   PeerConnectionContext_t * pPeerConnectionContext,
                                                   uint32_t codec,
-                            const char * pLocalFingerprint,
-                            size_t localFingerprintLength )
+                                                  const char * pLocalFingerprint,
+                                                  size_t localFingerprintLength )
 {
     SdpControllerResult_t ret = SDP_CONTROLLER_RESULT_OK;
     uint8_t isOffer = 0;
@@ -2911,8 +2908,8 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
                                                                SdpControllerSdpDescription_t * pSdpLocalDescription,
                                                                SdpControllerSdpDescription_t * pSdpRemoteDescription,
                                                                PeerConnectionContext_t * pPeerConnectionContext,
-                            const char * pLocalFingerprint,
-                            size_t localFingerprintLength )
+                                                               const char * pLocalFingerprint,
+                                                               size_t localFingerprintLength )
 {
     SdpControllerResult_t ret = SDP_CONTROLLER_RESULT_OK;
     PeerConnectionResult_t peerConnectionResult;

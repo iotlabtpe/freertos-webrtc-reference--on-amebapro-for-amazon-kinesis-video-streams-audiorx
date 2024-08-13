@@ -25,8 +25,6 @@
 #define ICE_SERVER_TYPE_TURN_LENGTH ( 5 )
 #define ICE_SERVER_TYPE_TURNS "turns:"
 #define ICE_SERVER_TYPE_TURNS_LENGTH ( 6 )
-char remoteFingerPrint[ 300 ];
-size_t remoteFingerPrintLength;
 
 static const uint32_t gCrc32Table[256] = {
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
@@ -513,6 +511,8 @@ static void DtlsHandshake( IceControllerContext_t * pCtx,
     DtlsTestContext_t * pDtlsTestContext = &pSocketContext->pRemoteInfo->dtlsTestContext;
     char remoteIpAddr[ INET_ADDRSTRLEN ];
     const char * pRemoteIpPos;
+    // get srtp key from dtls context
+    DtlsKeyingMaterial dtlsKeyingMaterial;
 
     LogInfo( ( "Using remote info: %p for DTLS Handshaking.", pSocketContext->pRemoteInfo ) );
 
@@ -539,7 +539,7 @@ static void DtlsHandshake( IceControllerContext_t * pCtx,
                               pSocketContext->pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.address,
                               remoteIpAddr,
                               INET_ADDRSTRLEN );
-    LogInfo( ( "Start DTLS handshaking with %s:%d", pRemoteIpPos? pRemoteIpPos:"UNKNOWN", pSocketContext->pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.port ) );
+    LogInfo( ( "Start DTLS handshaking with %s:%d", pRemoteIpPos ? pRemoteIpPos : "UNKNOWN", pSocketContext->pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.port ) );
 
     /* Attempt to create a DTLS connection. */
     // Generate answer cert // DER format
@@ -593,16 +593,13 @@ static void DtlsHandshake( IceControllerContext_t * pCtx,
 
     // verify remote fingerprint (if remote cert fingerprint is the expected one)
     xNetworkStatus = dtlsSessionVerifyRemoteCertificateFingerprint( &pDtlsTestContext->xNetworkContext.pParams->dtlsSslContext,
-                                                                    remoteFingerPrint,
-                                                                    remoteFingerPrintLength );
+                                                                    pSocketContext->pRemoteInfo->remoteCertFingerprint,
+                                                                    pSocketContext->pRemoteInfo->remoteCertFingerprintLength );
 
     if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
     {
         LogError( ( "Fail to dtlsSessionVerifyRemoteCertificateFingerprint with return %d ", xNetworkStatus ) );
     }
-
-    // get srtp key from dtls context
-    DtlsKeyingMaterial dtlsKeyingMaterial;
 
     memset( &dtlsKeyingMaterial,
             0,
@@ -1247,7 +1244,9 @@ IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t
                                                           const char * pRemoteUserName,
                                                           size_t remoteUserNameLength,
                                                           const char * pRemotePassword,
-                                                          size_t remotePasswordLength )
+                                                          size_t remotePasswordLength,
+                                                          const char * pRemoteCertFingerprint,
+                                                          size_t remoteCertFingerprintLength )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     IceResult_t iceResult;
@@ -1257,9 +1256,13 @@ IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t
 
     if( ( pCtx == NULL ) || ( pRemoteClientId == NULL ) ||
         ( pRemoteUserName == NULL ) || ( pRemotePassword == NULL ) ||
+        ( pRemoteCertFingerprint == NULL ) ||
         ( remoteUserNameLength > ICE_CONTROLLER_USER_NAME_LENGTH ) ||
-        ( remotePasswordLength > ICE_CONTROLLER_PASSWORD_LENGTH ) )
+        ( remotePasswordLength > ICE_CONTROLLER_PASSWORD_LENGTH ) ||
+        ( remoteCertFingerprintLength > ICE_CONTROLLER_CERTIFICATE_FINGERPRINT_LENGTH ) )
     {
+        LogError( ( "Invalid input, pCtx: %p, pRemoteClientId: %p, pRemoteUserName: %p, pRemotePassword: %p, remoteUserNameLength: %u, remotePasswordLength: %u, remoteCertFingerprintLength: %u",
+                    pCtx, pRemoteClientId, pRemoteUserName, pRemotePassword, remoteUserNameLength, remotePasswordLength, remoteCertFingerprintLength ) );
         ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
     }
 
@@ -1306,6 +1309,10 @@ IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t
                       pRemoteUserName,
                       ICE_CONTROLLER_USER_NAME_LENGTH,
                       pCtx->localUserName );
+            memcpy( pRemoteInfo->remoteCertFingerprint,
+                    pRemoteCertFingerprint,
+                    remoteCertFingerprintLength );
+            pRemoteInfo->remoteCertFingerprint[ remoteCertFingerprintLength ] = '\0';
 
             TransactionIdStore_Init( &pRemoteInfo->transactionIdStore,
                                      pRemoteInfo->transactionIdsBuffer,

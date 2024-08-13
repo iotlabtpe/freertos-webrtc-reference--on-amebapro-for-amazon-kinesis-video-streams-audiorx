@@ -10,9 +10,6 @@ extern "C" {
 #include <stdio.h>
 #include "ice_controller_data_types.h"
 
-extern char remoteFingerPrint[ 300 ];
-extern size_t remoteFingerPrintLength;
-
 IceControllerResult_t IceController_Init( IceControllerContext_t * pCtx,
                                           SignalingControllerContext_t * pSignalingControllerContext );
 IceControllerResult_t IceController_Destroy( IceControllerContext_t * pCtx );
@@ -25,7 +22,9 @@ IceControllerResult_t IceController_SetRemoteDescription( IceControllerContext_t
                                                           const char * pRemoteUserName,
                                                           size_t remoteUserNameLength,
                                                           const char * pRemotePassword,
-                                                          size_t remotePasswordLength );
+                                                          size_t remotePasswordLength,
+                                                          const char * pRemoteCertFingerprint,
+                                                          size_t remoteCertFingerprintLength );
 IceControllerResult_t IceController_SendRemoteCandidateRequest( IceControllerContext_t * pCtx,
                                                                 const char * pRemoteClientId,
                                                                 size_t remoteClientIdLength,
@@ -34,8 +33,8 @@ IceControllerResult_t IceController_ProcessLoop( IceControllerContext_t * pCtx )
 IceControllerResult_t IceController_CreateDtlsSession( IceControllerContext_t * pCtx,
                                                        const char * pRemoteClientId,
                                                        size_t remoteClientIdLength,
-                                                       const char **ppLocalFingerprint,
-                                                       size_t * pLocalFingerprint );
+                                                       const char ** ppOutputLocalFingerprint,
+                                                       size_t * pOutputLocalFingerprint );
 
 #ifdef __cplusplus
 }
