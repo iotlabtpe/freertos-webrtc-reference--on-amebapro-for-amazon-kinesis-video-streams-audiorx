@@ -529,9 +529,6 @@ static void DtlsHandshake( IceControllerContext_t * pCtx,
     pDtlsTestContext->xTransportInterface.recv = ( TransportRecv_t ) DTLS_recv;
 
     // /* Set the network credentials. */
-    // pDtlsTestContext->xNetworkCredentials.rootCaSize = sizeof( AWS_CA_CERT_PEM );
-    // pDtlsTestContext->xNetworkCredentials.pRootCa = ( uint8_t * )AWS_CA_CERT_PEM;
-
     /* Disable SNI server name indication*/
     // https://mbed-tls.readthedocs.io/en/latest/kb/how-to/use-sni/
     pDtlsTestContext->xNetworkCredentials.disableSni = pdTRUE;
@@ -569,19 +566,6 @@ static void DtlsHandshake( IceControllerContext_t * pCtx,
         pDtlsTestContext->xNetworkCredentials.pPrivateKey = ( uint8_t * ) pSocketContext->pRemoteInfo->private_key_pcs_pem;
     }
 
-    /*
-        done:
-        int Crypto_CreateDtlsCredentials( *pNetworkCredentials );
-        int Crypto_GetFingerPrint( *pNetworkCredentials, char *pFingerPrint, size_t length );
-
-        todo:
-        int Crypto_DtlsHandshake( *pNetworkCredentials );
-        1.
-        - Crypto_DtlsClientHello( *pNetworkCredentials );
-        - ...
-        2.
-        - int Crypto_DtlsHandshake( *socket, *pNetworkCredentials );
-     */
     xNetworkStatus = DTLS_Connect( &pDtlsTestContext->xNetworkContext,
                                    &pDtlsTestContext->xNetworkCredentials,
                                    pRemoteIpPos,
