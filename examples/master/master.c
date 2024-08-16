@@ -333,7 +333,7 @@ static uint8_t CreatePeerConnectionSession( PeerConnectionContext_t * pPeerConne
         peerConnectionResult = PeerConnection_CreateSession( pPeerConnectionContext, pRemoteClientId, remoteClientIdLength, ppLocalFingerprint, pLocalFingerprint );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
-            LogWarn( ( "PeerConnection_AddRemoteCandidate fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
+            LogWarn( ( "PeerConnection_CreateSession fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
             skipProcess = 1;
         }
     }
@@ -360,43 +360,43 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEven
 
     switch( pEvent->messageType )
     {
-    case SIGNALING_TYPE_MESSAGE_SDP_OFFER:
-        skipProcess = addressSdpOffer( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &demoContext );
+        case SIGNALING_TYPE_MESSAGE_SDP_OFFER:
+            skipProcess = addressSdpOffer( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &demoContext );
 
-        if( !skipProcess )
-        {
-            skipProcess = CreatePeerConnectionSession( &demoContext.peerConnectionContext, pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &pLocalFingerprint, &localFingerprintLength );
-        }
+            if( !skipProcess )
+            {
+                skipProcess = CreatePeerConnectionSession( &demoContext.peerConnectionContext, pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &pLocalFingerprint, &localFingerprintLength );
+            }
 
-        if( !skipProcess )
-        {
-            skipProcess = respondWithSdpAnswer( pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &demoContext, pLocalFingerprint, localFingerprintLength );
-        }
+            if( !skipProcess )
+            {
+                skipProcess = respondWithSdpAnswer( pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &demoContext, pLocalFingerprint, localFingerprintLength );
+            }
 
-        if( !skipProcess )
-        {
-            skipProcess = setRemoteDescription( &demoContext.peerConnectionContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
-        }
-        break;
-    case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:
-        break;
-    case SIGNALING_TYPE_MESSAGE_ICE_CANDIDATE:
-        peerConnectionResult = PeerConnection_AddRemoteCandidate( &demoContext.peerConnectionContext,
-                                                                  pEvent->pRemoteClientId, pEvent->remoteClientIdLength,
-                                                                  pEvent->pDecodeMessage, pEvent->decodeMessageLength );
-        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
-        {
-            LogWarn( ( "PeerConnection_AddRemoteCandidate fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
-        }
-        break;
-    case SIGNALING_TYPE_MESSAGE_GO_AWAY:
-        break;
-    case SIGNALING_TYPE_MESSAGE_RECONNECT_ICE_SERVER:
-        break;
-    case SIGNALING_TYPE_MESSAGE_STATUS_RESPONSE:
-        break;
-    default:
-        break;
+            if( !skipProcess )
+            {
+                skipProcess = setRemoteDescription( &demoContext.peerConnectionContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
+            }
+            break;
+        case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:
+            break;
+        case SIGNALING_TYPE_MESSAGE_ICE_CANDIDATE:
+            peerConnectionResult = PeerConnection_AddRemoteCandidate( &demoContext.peerConnectionContext,
+                                                                      pEvent->pRemoteClientId, pEvent->remoteClientIdLength,
+                                                                      pEvent->pDecodeMessage, pEvent->decodeMessageLength );
+            if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+            {
+                LogWarn( ( "PeerConnection_AddRemoteCandidate fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
+            }
+            break;
+        case SIGNALING_TYPE_MESSAGE_GO_AWAY:
+            break;
+        case SIGNALING_TYPE_MESSAGE_RECONNECT_ICE_SERVER:
+            break;
+        case SIGNALING_TYPE_MESSAGE_STATUS_RESPONSE:
+            break;
+        default:
+            break;
     }
 
     return 0;

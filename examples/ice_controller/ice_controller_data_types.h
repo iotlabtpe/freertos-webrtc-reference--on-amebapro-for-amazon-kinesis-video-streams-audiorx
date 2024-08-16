@@ -20,12 +20,7 @@ extern "C" {
 /* FreeRTOS includes. */
 #include "semphr.h"
 
-// #define KVS_IP_ADDRESS_STRING_BUFFER_LEN ( 46 )
 #define ICE_CONTROLLER_IP_ADDR_STRING_BUFFER_LENGTH ( 39 )
-#define ICE_CONTROLLER_USER_NAME_LENGTH ( 4 )
-#define ICE_CONTROLLER_PASSWORD_LENGTH ( 24 )
-#define ICE_CONTROLLER_CNAME_LENGTH ( 16 )
-#define ICE_CONTROLLER_CERTIFICATE_FINGERPRINT_LENGTH ( CERTIFICATE_FINGERPRINT_LENGTH )
 #define ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE ( 1024 )
 
 /**
@@ -57,6 +52,37 @@ extern "C" {
 
 /* This is the URI format for STUN server as reference here. Note that we're using port 443 by default. */
 #define AWS_DEFAULT_STUN_SERVER_URI "stun:stun.kinesisvideo.%s.%s:443"
+
+typedef enum IceControllerCallbackEvent
+{
+    ICE_CONTROLLER_CB_EVENT_NONE = 0,
+    ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY,
+    ICE_CONTROLLER_CB_EVENT_CONNECTIVITY_CHECK_TIMEOUT,
+    ICE_CONTROLLER_CB_EVENT_MAX,
+} IceControllerCallbackEvent_t;
+
+typedef struct IceControllerLocalCandidateReadyMsg
+{
+    const IceCandidate_t * pLocalCandidate;
+    size_t localCandidateIndex;
+} IceControllerLocalCandidateReadyMsg_t;
+
+typedef struct IceControllerCallbackContent
+{
+    union MessageContent_t
+    {
+        IceControllerLocalCandidateReadyMsg_t localCandidateReadyMsg; /* ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY */
+        /* NULL for ICE_CONTROLLER_CB_EVENT_CONNECTIVITY_CHECK_TIMEOUT */
+    } requestContent;
+} IceControllerCallbackContent_t;
+
+typedef int32_t (* OnIceEventCallback_t)( void * pCustomContext,
+                                          IceControllerCallbackEvent_t event,
+                                          IceControllerCallbackContent_t * pEventMsg );
+
+typedef int32_t (* OnRecvRtpRtcpPacketCallback_t)( void * pCustomContext,
+                                                   uint8_t * pBuffer,
+                                                   size_t bufferLength );
 
 typedef enum IceControllerResult
 {
@@ -138,6 +164,14 @@ typedef enum IceControllerIceServerType
     ICE_CONTROLLER_ICE_SERVER_TYPE_TURN,
 } IceControllerIceServerType_t;
 
+typedef enum IceControllerSocketContextState
+{
+    ICE_CONTROLLER_SOCKET_CONTEXT_STATE_NONE = 0,
+    ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CREATE,
+    ICE_CONTROLLER_SOCKET_CONTEXT_STATE_READY,
+    ICE_CONTROLLER_SOCKET_CONTEXT_STATE_PASS_HANDSHAKE,
+} IceControllerSocketContextState_t;
+
 typedef struct IceControllerMetrics
 {
     struct timeval gatheringCandidateStartTime;
@@ -159,15 +193,13 @@ typedef struct IceControllerCandidate
     IceCandidateType_t candidateType;
 } IceControllerCandidate_t;
 
-typedef struct IceControllerSignalingRemoteInfo IceControllerRemoteInfo_t;
-
 typedef struct IceControllerSocketContext
 {
+    IceControllerSocketContextState_t state;
     IceCandidateType_t candidateType; /* server socket of host/srflx/relay candidate or client socket connecting with remote. */
     IceCandidate_t * pLocalCandidate;
+    IceCandidate_t * pRemoteCandidate;
     int socketFd;
-    Socket_t udpSocket;
-    IceControllerRemoteInfo_t * pRemoteInfo;
 } IceControllerSocketContext_t;
 
 typedef struct DtlsTestCredentials
@@ -208,65 +240,6 @@ typedef struct DtlsTestContext {
     DtlsNetworkCredentials_t xNetworkCredentials;
 } DtlsTestContext_t;
 
-typedef struct IceControllerSignalingRemoteInfo
-{
-    /* Remote client ID is used to provide the destination of Signaling message. */
-    uint8_t isUsed;
-    char remoteUserName[ ICE_CONTROLLER_USER_NAME_LENGTH + 1 ];
-    char remotePassword[ ICE_CONTROLLER_PASSWORD_LENGTH + 1 ];
-    // Reserve 1 space for NULL terminator, the other one is for ':' between remote username & local username
-    char combinedName[ ( ICE_CONTROLLER_USER_NAME_LENGTH << 1 ) + 2 ];
-    char remoteClientId[ SIGNALING_CONTROLLER_REMOTE_ID_MAX_LENGTH ];
-    size_t remoteClientIdLength;
-    char remoteCertFingerprint[ ICE_CONTROLLER_CERTIFICATE_FINGERPRINT_LENGTH + 1 ];
-    size_t remoteCertFingerprintLength;
-
-    IceControllerSocketContext_t socketsContexts[ ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT ];
-    size_t socketsContextsCount;
-
-    /* For ICE component. */
-    IceContext_t iceContext;
-    IceCandidate_t localCandidatesBuffer[ ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ];
-    IceCandidate_t remoteCandidatesBuffer[ ICE_CONTROLLER_MAX_REMOTE_CANDIDATE_COUNT ];
-    IceCandidatePair_t candidatePairsBuffer[ ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT ];
-    TransactionIdStore_t transactionIdStore;
-    TransactionIdSlot_t transactionIdsBuffer[ ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT ];
-    IceCandidatePair_t * pNominationPair;
-
-    /* For DTLS. */
-    DtlsTestContext_t dtlsTestContext;
-    mbedtls_x509_crt answerCert;
-    mbedtls_pk_context answerKey;
-    char answerCertFingerprint[CERTIFICATE_FINGERPRINT_LENGTH];
-    unsigned char private_key_pcs_pem[PRIVATE_KEY_PCS_PEM_SIZE];
-} IceControllerRemoteInfo_t;
-
-typedef struct IceControllerDetectRxPacket
-{
-    IceControllerSocketContext_t * pSocketContext;
-} IceControllerDetectRxPacket_t;
-
-typedef enum IceControllerRequestType
-{
-    ICE_CONTROLLER_REQUEST_TYPE_NONE = 0,
-    ICE_CONTROLLER_REQUEST_TYPE_ADD_REMOTE_CANDIDATE,
-    ICE_CONTROLLER_REQUEST_TYPE_CONNECTIVITY_CHECK,
-    ICE_CONTROLLER_REQUEST_TYPE_DETECT_RX_PACKET,
-} IceControllerRequestType_t;
-
-typedef struct IceControllerRequestMessage
-{
-    IceControllerRequestType_t requestType;
-
-    /* Decode the request message based on request type. */
-    union RequestContent_t
-    {
-        IceControllerCandidate_t remoteCandidate; /* ICE_CONTROLLER_REQUEST_TYPE_ADD_REMOTE_CANDIDATE */
-        IceControllerRemoteInfo_t * pRemoteInfo; /* ICE_CONTROLLER_REQUEST_TYPE_CONNECTIVITY_CHECK */
-        IceControllerDetectRxPacket_t detectRxPacket; /* ICE_CONTROLLER_REQUEST_TYPE_DETECT_RX_PACKET */
-    } requestContent;
-} IceControllerRequestMessage_t;
-
 typedef struct IceControllerIceServer
 {
     IceControllerIceServerType_t serverType; /* STUN or TURN */
@@ -291,27 +264,16 @@ typedef struct IceControllerStunMsgHeader
 
 typedef struct IceControllerSocketListenerContext
 {
-    int fds[ AWS_MAX_VIEWER_NUM * ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ];
-    size_t fdsCount;
-    IceControllerSocketContext_t * pFdsMapContext[ AWS_MAX_VIEWER_NUM * ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ]; /* To map corresponding socket context with fds. */
-
-    SemaphoreHandle_t socketListenerMutex;
     uint8_t executeSocketListener;
+    OnRecvRtpRtcpPacketCallback_t onRecvRtpRtcpPacketCallbackFunc;
+    void * pOnRecvRtpRtcpPacketCallbackCustomContext;
 } IceControllerSocketListenerContext_t;
 
 typedef struct IceControllerContext
 {
     /* The signaling controller context initialized by application. */
     SignalingControllerContext_t * pSignalingControllerContext;
-
-    char localUserName[ ICE_CONTROLLER_USER_NAME_LENGTH + 1 ];
-    char localPassword[ ICE_CONTROLLER_PASSWORD_LENGTH + 1 ];
-    char localCname[ ICE_CONTROLLER_CNAME_LENGTH + 1 ];
-
-    IceControllerRemoteInfo_t remoteInfo[ AWS_MAX_VIEWER_NUM ];
-    IceEndpoint_t localEndpoints[ ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ];
-    size_t localIceEndpointsCount;
-    size_t candidateFoundationCounter;
+    IceContext_t iceContext;
 
     IceControllerIceServer_t iceServers[ SIGNALING_CONTROLLER_ICE_SERVER_MAX_ICE_CONFIG_COUNT + 1 ]; /* Reserve 1 space for default STUN server. */
     size_t iceServersCount;
@@ -320,10 +282,28 @@ typedef struct IceControllerContext
 
     TimerHandler_t connectivityCheckTimer;
 
-    /* Request queue. */
-    MessageQueueHandler_t requestQueue;
-
     IceControllerSocketListenerContext_t socketListenerContext;
+
+    /* Original remote info. */
+    IceControllerSocketContext_t socketsContexts[ ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ];
+    size_t socketsContextsCount;
+    IceControllerSocketContext_t * pNominatedSocketContext;
+
+    /* For ICE component. */
+    IceEndpoint_t localEndpoints[ ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ];
+    size_t localIceEndpointsCount;
+    size_t candidateFoundationCounter;
+    IceCandidate_t localCandidatesBuffer[ ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT ];
+    IceCandidate_t remoteCandidatesBuffer[ ICE_CONTROLLER_MAX_REMOTE_CANDIDATE_COUNT ];
+    IceCandidatePair_t candidatePairsBuffer[ ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT ];
+    TransactionIdStore_t transactionIdStore;
+    TransactionIdSlot_t transactionIdsBuffer[ ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT ];
+
+    OnIceEventCallback_t onIceEventCallbackFunc;
+    void * pOnIceEventCustomContext;
+
+    /* Mutex to protect global variables shared between Ice controller and socket listener. */
+    SemaphoreHandle_t socketMutex;
 } IceControllerContext_t;
 
 #ifdef __cplusplus

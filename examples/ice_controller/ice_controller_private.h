@@ -9,38 +9,25 @@ extern "C" {
 
 #include "ice_controller_data_types.h"
 
-#define ICE_CONTROLLER_CANDIDATE_TYPE_HOST_STRING "host"
-#define ICE_CONTROLLER_CANDIDATE_TYPE_SRFLX_STRING "srflx"
-#define ICE_CONTROLLER_CANDIDATE_TYPE_PRFLX_STRING "prflx"
-#define ICE_CONTROLLER_CANDIDATE_TYPE_RELAY_STRING "relay"
-#define ICE_CONTROLLER_CANDIDATE_TYPE_UNKNOWN_STRING "unknown"
-#define ICE_CANDIDATE_JSON_TEMPLATE "{\"candidate\":\"%.*s\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0}"
-#define ICE_CANDIDATE_JSON_MAX_LENGTH ( 1024 )
-#define ICE_CANDIDATE_JSON_CANDIDATE_IPV4_TEMPLATE "candidate:%u 1 udp %lu %d.%d.%d.%d %d typ %s raddr 0.0.0.0 rport 0 generation 0 network-cost 999"
-#define ICE_CANDIDATE_JSON_CANDIDATE_IPV6_TEMPLATE "candidate:%u 1 udp %lu %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X "\
-    "%d typ %s raddr ::/0 rport 0 generation 0 network-cost 999"
-#define ICE_CANDIDATE_JSON_CANDIDATE_MAX_LENGTH ( 512 )
-
-IceControllerResult_t IceControllerNet_InitRemoteInfo( IceControllerRemoteInfo_t * pRemoteInfo );
 IceControllerResult_t IceControllerNet_ConvertIpString( const char * pIpAddr,
                                                         size_t ipAddrLength,
                                                         IceEndpoint_t * pDestinationIceEndpoint );
 IceControllerResult_t IceControllerNet_Htons( uint16_t port,
                                               uint16_t * pOutPort );
-IceControllerResult_t IceControllerNet_AddLocalCandidates( IceControllerContext_t * pCtx,
-                                                           IceControllerRemoteInfo_t * pRemoteInfo );
-IceControllerResult_t IceControllerNet_AttachPolling( IceControllerContext_t * pCtx,
-                                                      IceControllerSocketContext_t * pSocketContext );
-IceControllerResult_t IceControllerNet_DetectRxPacket( IceControllerContext_t * pCtx,
-                                                       IceControllerSocketContext_t * pSocketContext );
-IceControllerResult_t IceControllerNet_HandleRxPacket( IceControllerContext_t * pCtx,
-                                                       IceControllerSocketContext_t * pSocketContext );
+IceControllerResult_t IceControllerNet_AddLocalCandidates( IceControllerContext_t * pCtx );
+IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t * pCtx,
+                                                         IceControllerSocketContext_t * pSocketContext,
+                                                         uint8_t * pReceiveBuffer,
+                                                         size_t receiveBufferLength,
+                                                         IceEndpoint_t * pRemoteIceEndpoint );
 IceControllerResult_t IceControllerNet_DnsLookUp( char * pUrl,
                                                   IceTransportAddress_t * pIceTransportAddress );
 IceControllerResult_t IceControllerNet_SendPacket( IceControllerSocketContext_t * pSocketContext,
                                                    IceEndpoint_t * pDestinationIceEndpoint,
                                                    uint8_t * pBuffer,
                                                    size_t length );
+void IceControllerNet_FreeSocketContext( IceControllerContext_t * pCtx,
+                                         IceControllerSocketContext_t * pSocketContext );
 const char * IceControllerNet_LogIpAddressInfo( const IceEndpoint_t * pIceEndpoint,
                                                 char * pIpBuffer,
                                                 size_t ipBufferLength );
@@ -48,13 +35,9 @@ void IceControllerNet_LogStunPacket( uint8_t * pStunPacket,
                                      size_t stunPacketSize );
 void IceController_PrintMetrics( IceControllerContext_t * pCtx );
 
-IceControllerResult_t IceControllerSocketListener_InitializeTask( void * pParameter );
-IceControllerResult_t IceControllerSocketListener_AppendSocketHandler( IceControllerContext_t * pCtx,
-                                                                       int socketFd,
-                                                                       IceControllerSocketContext_t * pSocketContext );
-IceControllerResult_t IceControllerSocketListener_RemoveSocketHandler( IceControllerContext_t * pCtx,
-                                                                       int socketFd,
-                                                                       IceControllerSocketContext_t * pSocketContext );
+IceControllerResult_t IceControllerSocketListener_Init( IceControllerContext_t * pCtx,
+                                                        OnRecvRtpRtcpPacketCallback_t onRecvRtpRtcpPacketCallbackFunc,
+                                                        void * pOnRecvRtpRtcpPacketCallbackContext );
 IceControllerResult_t IceControllerSocketListener_StartPolling( IceControllerContext_t * pCtx );
 IceControllerResult_t IceControllerSocketListener_StopPolling( IceControllerContext_t * pCtx );
 
