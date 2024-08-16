@@ -67,57 +67,57 @@ struct xSOCKET
  *
  * @return Non-zero value on error, 0 on success.
  */
-BaseType_t UDP_Sockets_Connect(Socket_t *pUdpSocket,
-                               const char *pHostName,
-                               uint16_t port,
-                               uint32_t receiveTimeoutMs,
-                               uint32_t sendTimeoutMs)
+BaseType_t UDP_Sockets_Connect( Socket_t * pUdpSocket,
+                                const char * pHostName,
+                                uint16_t port,
+                                uint32_t receiveTimeoutMs,
+                                uint32_t sendTimeoutMs )
 {
     int xFd = -1;
     BaseType_t xRet = UDP_SOCKETS_ERRNO_NONE;
-    struct addrinfo xHints, *pxAddrList, *pxCur;
+    struct addrinfo xHints, * pxAddrList, * pxCur;
     char xPortStr[6];
 
-    memset(&xHints, 0, sizeof(xHints));
+    memset( &xHints, 0, sizeof( xHints ) );
     xHints.ai_family = AF_UNSPEC;
     xHints.ai_socktype = SOCK_DGRAM;
     xHints.ai_protocol = IPPROTO_UDP;
-    snprintf(xPortStr, sizeof(xPortStr), "%d", port);
-    if (getaddrinfo(pHostName, xPortStr, &xHints, &pxAddrList) != 0)
+    snprintf( xPortStr, sizeof( xPortStr ), "%d", port );
+    if( getaddrinfo( pHostName, xPortStr, &xHints, &pxAddrList ) != 0 )
     {
-        LogError(("Failed to connect to server: DNS resolution failed: Hostname=%s.",
-                  pHostName));
+        LogError( ( "Failed to connect to server: DNS resolution failed: Hostname=%s.",
+                    pHostName ) );
         return UDP_SOCKETS_ERRNO_ERROR;
     }
 
     /* Try the sockaddrs until a connection succeeds */
     xRet = UDP_SOCKETS_ERRNO_ERROR;
-    for (pxCur = pxAddrList; pxCur != NULL; pxCur = pxCur->ai_next)
+    for( pxCur = pxAddrList; pxCur != NULL; pxCur = pxCur->ai_next )
     {
-        xFd = (*pUdpSocket)->xFd;
-        if (xFd < 0)
+        xFd = ( *pUdpSocket )->xFd;
+        if( xFd < 0 )
         {
-            LogError(("Failed to create new socket."));
+            LogError( ( "Failed to create new socket." ) );
             xRet = UDP_SOCKETS_ERRNO_ENOMEM;
             continue;
         }
 
-        if (connect(xFd, pxCur->ai_addr, pxCur->ai_addrlen) == 0)
+        if( connect( xFd, pxCur->ai_addr, pxCur->ai_addrlen ) == 0 )
         {
             xRet = UDP_SOCKETS_ERRNO_NONE;
-            LogInfo(("Established UDP connection with %s.", pHostName));
+            LogInfo( ( "Established UDP connection with %s.", pHostName ) );
             break;
         }
         else
         {
-            LogInfo(("Connecting failed with %s.", pHostName));
+            LogInfo( ( "Connecting failed with %s.", pHostName ) );
         }
 
         // close(xFd);
         xRet = UDP_SOCKETS_ERRNO_ERROR;
     }
 
-    freeaddrinfo(pxAddrList);
+    freeaddrinfo( pxAddrList );
 
     // if (xRet == UDP_SOCKETS_ERRNO_NONE)
     // {
@@ -148,10 +148,10 @@ BaseType_t UDP_Sockets_Connect(Socket_t *pUdpSocket,
  *
  * @param[in] udpSocket The socket descriptor.
  */
-void UDP_Sockets_Disconnect(Socket_t udpSocket)
+void UDP_Sockets_Disconnect( Socket_t udpSocket )
 {
-    (void)shutdown(udpSocket->xFd, SHUT_RDWR);
-    (void)close(udpSocket->xFd);
+    ( void )shutdown( udpSocket->xFd, SHUT_RDWR );
+    ( void )close( udpSocket->xFd );
     // vPortFree(udpSocket);
 }
 
@@ -168,32 +168,32 @@ void UDP_Sockets_Disconnect(Socket_t udpSocket)
  * * On success, the number of bytes actually sent is returned.
  * * If an error occurred, a negative value is returned. @ref SocketsErrors
  */
-int32_t UDP_Sockets_Send(Socket_t xSocket,
-                         const void *pvBuffer,
-                         size_t xBufferLength)
+int32_t UDP_Sockets_Send( Socket_t xSocket,
+                          const void * pvBuffer,
+                          size_t xBufferLength )
 {
     int xWriteRet;
     int xReturnStatus;
 
-    configASSERT(xSocket != NULL);
-    configASSERT(pvBuffer != NULL);
+    configASSERT( xSocket != NULL );
+    configASSERT( pvBuffer != NULL );
 
-    xWriteRet = write(xSocket->xFd, pvBuffer, xBufferLength);
-    if (xWriteRet >= 0)
+    xWriteRet = write( xSocket->xFd, pvBuffer, xBufferLength );
+    if( xWriteRet >= 0 )
     {
         xReturnStatus = xWriteRet;
     }
     else
     {
-        switch (errno)
+        switch( errno )
         {
-        case EPIPE:
-        case ECONNRESET:
-            xReturnStatus = UDP_SOCKETS_ERRNO_ENOTCONN;
-            break;
-        default:
-            xReturnStatus = UDP_SOCKETS_ERRNO_ERROR;
-            break;
+            case EPIPE:
+            case ECONNRESET:
+                xReturnStatus = UDP_SOCKETS_ERRNO_ENOTCONN;
+                break;
+            default:
+                xReturnStatus = UDP_SOCKETS_ERRNO_ERROR;
+                break;
         }
     }
     return xReturnStatus;
@@ -216,36 +216,36 @@ int32_t UDP_Sockets_Send(Socket_t xSocket,
  *   is set using @ref SOCKETS_SO_RCVTIMEO).
  * * If an error occurred, a negative value is returned. @ref SocketsErrors
  */
-int32_t UDP_Sockets_Recv(Socket_t xSocket,
-                         void *pvBuffer,
-                         size_t xBufferLength)
+int32_t UDP_Sockets_Recv( Socket_t xSocket,
+                          void * pvBuffer,
+                          size_t xBufferLength )
 {
     int xReadRet;
     int xReturnStatus;
 
-    configASSERT(xSocket != NULL);
-    configASSERT(pvBuffer != NULL);
+    configASSERT( xSocket != NULL );
+    configASSERT( pvBuffer != NULL );
 
-    xReadRet = read(xSocket->xFd, pvBuffer, xBufferLength);
-    if (xReadRet >= 0)
+    xReadRet = read( xSocket->xFd, pvBuffer, xBufferLength );
+    if( xReadRet >= 0 )
     {
         xReturnStatus = xReadRet;
     }
     else
     {
-        switch (errno)
+        switch( errno )
         {
-        case EWOULDBLOCK:
-        case EINTR:
-            xReturnStatus = 0;
-            break;
-        case EPIPE:
-        case ECONNRESET:
-            xReturnStatus = UDP_SOCKETS_ERRNO_ENOTCONN;
-            break;
-        default:
-            xReturnStatus = UDP_SOCKETS_ERRNO_ERROR;
-            break;
+            case EWOULDBLOCK:
+            case EINTR:
+                xReturnStatus = 0;
+                break;
+            case EPIPE:
+            case ECONNRESET:
+                xReturnStatus = UDP_SOCKETS_ERRNO_ENOTCONN;
+                break;
+            default:
+                xReturnStatus = UDP_SOCKETS_ERRNO_ERROR;
+                break;
         }
     }
     return xReturnStatus;

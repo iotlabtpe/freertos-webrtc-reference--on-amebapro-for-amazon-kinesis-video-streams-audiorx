@@ -83,12 +83,12 @@ static void HandleRequest( PeerConnectionSession_t * pSession,
         switch( requestMsg.requestType )
         {
             case PEER_CONNECTION_SESSION_REQUEST_TYPE_ADD_REMOTE_CANDIDATE:
-                (void) HandleAddRemoteCandidateRequest( pSession,
-                                                       &requestMsg );
+                ( void ) HandleAddRemoteCandidateRequest( pSession,
+                                                          &requestMsg );
                 break;
             case PEER_CONNECTION_SESSION_REQUEST_TYPE_CONNECTIVITY_CHECK:
-                (void) HandleConnectivityCheckRequest( pSession,
-                                                      &requestMsg );
+                ( void ) HandleConnectivityCheckRequest( pSession,
+                                                         &requestMsg );
                 break;
             default:
                 /* Unknown request, drop it. */
@@ -309,10 +309,10 @@ static int32_t OnIceEventLocalCandidateReady( PeerConnectionSession_t * pSession
         }
         else
         {
-            LogDebug( ("Sent local candidate to remote peer, msg(%d): %.*s",
-            written,
-            written,
-            pBuffer) );
+            LogDebug( ( "Sent local candidate to remote peer, msg(%d): %.*s",
+                        written,
+                        written,
+                        pBuffer ) );
         }
     }
 

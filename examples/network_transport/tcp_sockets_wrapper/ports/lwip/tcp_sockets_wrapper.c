@@ -184,13 +184,13 @@ int32_t TCP_Sockets_Send( Socket_t xSocket,
     {
         switch( errno )
         {
-        case EPIPE:
-        case ECONNRESET:
-            xReturnStatus = TCP_SOCKETS_ERRNO_ENOTCONN;
-            break;
-        default:
-            xReturnStatus = TCP_SOCKETS_ERRNO_ERROR;
-            break;
+            case EPIPE:
+            case ECONNRESET:
+                xReturnStatus = TCP_SOCKETS_ERRNO_ENOTCONN;
+                break;
+            default:
+                xReturnStatus = TCP_SOCKETS_ERRNO_ERROR;
+                break;
         }
     }
     return xReturnStatus;
@@ -232,17 +232,17 @@ int32_t TCP_Sockets_Recv( Socket_t xSocket,
     {
         switch( errno )
         {
-        case EWOULDBLOCK:
-        case EINTR:
-            xReturnStatus = 0;
-            break;
-        case EPIPE:
-        case ECONNRESET:
-            xReturnStatus = TCP_SOCKETS_ERRNO_ENOTCONN;
-            break;
-        default:
-            xReturnStatus = TCP_SOCKETS_ERRNO_ERROR;
-            break;
+            case EWOULDBLOCK:
+            case EINTR:
+                xReturnStatus = 0;
+                break;
+            case EPIPE:
+            case ECONNRESET:
+                xReturnStatus = TCP_SOCKETS_ERRNO_ENOTCONN;
+                break;
+            default:
+                xReturnStatus = TCP_SOCKETS_ERRNO_ERROR;
+                break;
         }
     }
     return xReturnStatus;

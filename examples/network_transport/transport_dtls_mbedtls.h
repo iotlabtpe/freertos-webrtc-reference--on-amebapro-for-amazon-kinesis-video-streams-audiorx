@@ -53,7 +53,7 @@
                           _error_string, \
                           sizeof( _error_string ) ); \
         LogError( ( "Error 0x%04x: %s\n", ( unsigned int )-( err ), _error_string ) ); \
-    } while ( 0 )
+    } while( 0 )
 
 /* Include header that defines log levels. */
 #include "logging.h"
@@ -102,10 +102,10 @@
  * Reminder: if this list is expanded mbedtls_ssl_check_srtp_profile_value
  * must be updated too.
  */
-#define MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80     ((uint16_t) 0x0001)
-#define MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_32     ((uint16_t) 0x0002)
-#define MBEDTLS_TLS_SRTP_NULL_HMAC_SHA1_80          ((uint16_t) 0x0005)
-#define MBEDTLS_TLS_SRTP_NULL_HMAC_SHA1_32          ((uint16_t) 0x0006)
+#define MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80     ( ( uint16_t ) 0x0001 )
+#define MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_32     ( ( uint16_t ) 0x0002 )
+#define MBEDTLS_TLS_SRTP_NULL_HMAC_SHA1_80          ( ( uint16_t ) 0x0005 )
+#define MBEDTLS_TLS_SRTP_NULL_HMAC_SHA1_32          ( ( uint16_t ) 0x0006 )
 
 /* This one is not iana defined, but for code readability. */
 #define MBEDTLS_TLS_SRTP_UNSET                      ( ( uint16_t ) 0x0000 )
@@ -122,7 +122,7 @@ typedef struct
     // client random bytes + server random bytes
     uint8_t randBytes[2 * MAX_DTLS_RANDOM_BYTES_LEN];
     mbedtls_tls_prf_types tlsProfile;
-} TlsKeys, *pTlsKeys;
+} TlsKeys, * pTlsKeys;
 
 
 
@@ -198,7 +198,7 @@ typedef struct
     uint8_t key_length;
 
     KVS_SRTP_PROFILE srtpProfile;
-} DtlsKeyingMaterial, *pDtlsKeyingMaterial_t;
+} DtlsKeyingMaterial, * pDtlsKeyingMaterial_t;
 
 
 /**
@@ -259,7 +259,7 @@ DtlsTransportStatus_t
 DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
               DtlsNetworkCredentials_t * pNetworkCredentials,
               const char * pHostName,
-              uint16_t port);
+              uint16_t port );
 
 /**
  * @brief Gracefully disconnect an established DTLS connection.
@@ -381,7 +381,7 @@ int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t *,
                                                        char *,
                                                        const size_t );
 
-int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t * ,
+int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t *,
                                            pDtlsKeyingMaterial_t );
 
 int32_t dtlsCertificateDemToPem( const unsigned char *,

@@ -346,14 +346,14 @@ static int32_t setPrivateKey( DtlsSSLContext_t * pSslContext,
 /*-----------------------------------------------------------*/
 
 int dtlsSessionKeyDerivationCallback( void * customData,
-                                                 const unsigned char * pMasterSecret,
-                                                 const unsigned char * pKeyBlock,
-                                                 size_t maclen,
-                                                 size_t keylen,
-                                                 size_t ivlen,
-                                                 const unsigned char clientRandom[MAX_DTLS_RANDOM_BYTES_LEN],
-                                                 const unsigned char serverRandom[MAX_DTLS_RANDOM_BYTES_LEN],
-                                                 mbedtls_tls_prf_types tlsProfile )
+                                      const unsigned char * pMasterSecret,
+                                      const unsigned char * pKeyBlock,
+                                      size_t maclen,
+                                      size_t keylen,
+                                      size_t ivlen,
+                                      const unsigned char clientRandom[MAX_DTLS_RANDOM_BYTES_LEN],
+                                      const unsigned char serverRandom[MAX_DTLS_RANDOM_BYTES_LEN],
+                                      mbedtls_tls_prf_types tlsProfile )
 {
     ( ( void ) pKeyBlock );
     ( ( void ) maclen );
@@ -637,7 +637,7 @@ static DtlsTransportStatus_t dtlsHandshake( DtlsNetworkContext_t * pNetworkConte
         do
         {
             mbedtlsError = mbedtls_ssl_handshake( &( pDtlsTransportParams->dtlsSslContext.context ) );
-        } while ( ( mbedtlsError == MBEDTLS_ERR_SSL_WANT_READ ) || ( mbedtlsError == MBEDTLS_ERR_SSL_WANT_WRITE ) );
+        } while( ( mbedtlsError == MBEDTLS_ERR_SSL_WANT_READ ) || ( mbedtlsError == MBEDTLS_ERR_SSL_WANT_WRITE ) );
 
         if( mbedtlsError != 0 )
         {
@@ -1242,15 +1242,15 @@ int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t * pSslContext,
                                                       &negotiatedSRTPProfile );
         switch( negotiatedSRTPProfile.chosen_dtls_srtp_profile )
         {
-        case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80:
-            pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_80;
-            break;
-        case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32:
-            pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_32;
-            break;
-        default:
-            LogError( ( "STATUS_SSL_UNKNOWN_SRTP_PROFILE" ) );
-            retStatus = -1;
+            case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80:
+                pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_80;
+                break;
+            case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32:
+                pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_32;
+                break;
+            default:
+                LogError( ( "STATUS_SSL_UNKNOWN_SRTP_PROFILE" ) );
+                retStatus = -1;
         }
     }
     return retStatus;

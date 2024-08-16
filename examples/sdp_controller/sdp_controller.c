@@ -1938,24 +1938,24 @@ static SdpControllerResult_t PopulateSingleMedia( char ** ppBuffer,
 
         switch( targetDirection )
         {
-        case TRANSCEIVER_TRACK_DIRECTION_SENDRECV:
-            pTargetAttribute->pAttributeName = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SENDRECV;
-            pTargetAttribute->attributeNameLength = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SENDRECV_LENGTH;
-            break;
-        case TRANSCEIVER_TRACK_DIRECTION_SENDONLY:
-            pTargetAttribute->pAttributeName = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SENDONLY;
-            pTargetAttribute->attributeNameLength = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SENDONLY_LENGTH;
-            break;
-        case TRANSCEIVER_TRACK_DIRECTION_RECVONLY:
-            pTargetAttribute->pAttributeName = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_RECVONLY;
-            pTargetAttribute->attributeNameLength = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_RECVONLY_LENGTH;
-            break;
-        case TRANSCEIVER_TRACK_DIRECTION_INACTIVE:
-        default:
-            // https://www.w3.org/TR/webrtc/#dom-rtcrtptransceiverdirection
-            LogWarn( ( "Incorrect/no transceiver direction set...this attribute will be set to inactive, target: %d", targetDirection ) );
-            pTargetAttribute->pAttributeName = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_INACTIVE;
-            pTargetAttribute->attributeNameLength = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_INACTIVE_LENGTH;
+            case TRANSCEIVER_TRACK_DIRECTION_SENDRECV:
+                pTargetAttribute->pAttributeName = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SENDRECV;
+                pTargetAttribute->attributeNameLength = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SENDRECV_LENGTH;
+                break;
+            case TRANSCEIVER_TRACK_DIRECTION_SENDONLY:
+                pTargetAttribute->pAttributeName = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SENDONLY;
+                pTargetAttribute->attributeNameLength = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SENDONLY_LENGTH;
+                break;
+            case TRANSCEIVER_TRACK_DIRECTION_RECVONLY:
+                pTargetAttribute->pAttributeName = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_RECVONLY;
+                pTargetAttribute->attributeNameLength = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_RECVONLY_LENGTH;
+                break;
+            case TRANSCEIVER_TRACK_DIRECTION_INACTIVE:
+            default:
+                // https://www.w3.org/TR/webrtc/#dom-rtcrtptransceiverdirection
+                LogWarn( ( "Incorrect/no transceiver direction set...this attribute will be set to inactive, target: %d", targetDirection ) );
+                pTargetAttribute->pAttributeName = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_INACTIVE;
+                pTargetAttribute->attributeNameLength = SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_INACTIVE_LENGTH;
         }
 
         *pTargetAttributeCount += 1;
