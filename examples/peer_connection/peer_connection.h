@@ -31,6 +31,14 @@ PeerConnectionResult_t PeerConnection_GetTransceivers( PeerConnectionContext_t *
                                                        size_t * pTransceiversCount );
 PeerConnectionResult_t PeerConnection_GetLocalUserInfo( PeerConnectionContext_t * pCtx,
                                                         PeerConnectionUserInfo_t * pLocalUserInfo );
+PeerConnectionResult_t PeerConnection_CreateSession( PeerConnectionContext_t * pCtx,
+                                                     const char * pRemoteClientId,
+                                                     size_t remoteClientIdLength,
+                                                     const char ** ppLocalFingerprint,
+                                                     size_t * pLocalFingerprint );
+PeerConnectionResult_t PeerConnection_CloseSession( PeerConnectionContext_t * pCtx,
+                                                    const char * pRemoteClientId,
+                                                    size_t remoteClientIdLength );
 
 #ifdef __cplusplus
 }

@@ -31,11 +31,13 @@ MessageQueueResult_t MessageQueue_Create( MessageQueueHandler_t * pMessageQueueH
 
         if( pMessageQueueHandler->messageQueue == NULL )
         {
+            LogError( ( "Fail to create message queue for %s", pQueueName ) );
             ret = MESSAGE_QUEUE_RESULT_MQ_OPEN_FAILED;
         }
         else
         {
-            pMessageQueueHandler->pQueueName = pQueueName;
+            memset( pMessageQueueHandler->pQueueName, 0, MESSAGE_QUEUE_NAME_MAX_LENGTH + 1 );
+            strncpy( pMessageQueueHandler->pQueueName, pQueueName, MESSAGE_QUEUE_NAME_MAX_LENGTH );
             pMessageQueueHandler->messageMaxLength = messageMaxLength;
             pMessageQueueHandler->messageQueueMaxNum = messageQueueMaxNum;
         }

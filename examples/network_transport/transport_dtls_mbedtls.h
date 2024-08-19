@@ -53,7 +53,7 @@
                           _error_string, \
                           sizeof( _error_string ) ); \
         LogError( ( "Error 0x%04x: %s\n", ( unsigned int )-( err ), _error_string ) ); \
-    } while ( 0 )
+    } while( 0 )
 
 /* Include header that defines log levels. */
 #include "logging.h"
@@ -63,6 +63,68 @@
 
 /* Transport interface include. */
 #include "transport_interface.h"
+
+
+/*! \addtogroup DTLSStatusCodes
+ * WEBRTC DTLS related codes. Values are derived from STATUS_DTLS_BASE (0x59000000)
+ *  @{
+ */
+#define STATUS_WEBRTC_BASE 0x55000000
+#define STATUS_SDP_BASE STATUS_WEBRTC_BASE + 0x01000000
+#define STATUS_STUN_BASE STATUS_SDP_BASE + 0x01000000
+#define STATUS_NETWORKING_BASE STATUS_STUN_BASE + 0x01000000
+#define STATUS_DTLS_BASE STATUS_NETWORKING_BASE + 0x01000000
+#define STATUS_CERTIFICATE_GENERATION_FAILED STATUS_DTLS_BASE + 0x00000001
+#define STATUS_SSL_CTX_CREATION_FAILED STATUS_DTLS_BASE + 0x00000002
+#define STATUS_SSL_REMOTE_CERTIFICATE_VERIFICATION_FAILED STATUS_DTLS_BASE + 0x00000003
+#define STATUS_SSL_PACKET_BEFORE_DTLS_READY STATUS_DTLS_BASE + 0x00000004
+#define STATUS_SSL_UNKNOWN_SRTP_PROFILE STATUS_DTLS_BASE + 0x00000005
+#define STATUS_SSL_INVALID_CERTIFICATE_BITS STATUS_DTLS_BASE + 0x00000006
+#define STATUS_DTLS_SESSION_ALREADY_FREED STATUS_DTLS_BASE + 0x00000007
+/*!@} */
+
+/* SRTP */
+#define CERTIFICATE_FINGERPRINT_LENGTH 160
+#define MAX_SRTP_MASTER_KEY_LEN 16
+#define MAX_SRTP_SALT_KEY_LEN 14
+#define MAX_DTLS_RANDOM_BYTES_LEN 32
+#define MAX_DTLS_MASTER_KEY_LEN 48
+
+#define KEYING_EXTRACTOR_LABEL "EXTRACTOR-dtls_srtp"
+
+
+/*
+ * For code readability use a typedef for DTLS-SRTP profiles
+ *
+ * Use_srtp extension protection profiles values as defined in
+ * http://www.iana.org/assignments/srtp-protection/srtp-protection.xhtml
+ *
+ * Reminder: if this list is expanded mbedtls_ssl_check_srtp_profile_value
+ * must be updated too.
+ */
+#define MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80     ( ( uint16_t ) 0x0001 )
+#define MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_32     ( ( uint16_t ) 0x0002 )
+#define MBEDTLS_TLS_SRTP_NULL_HMAC_SHA1_80          ( ( uint16_t ) 0x0005 )
+#define MBEDTLS_TLS_SRTP_NULL_HMAC_SHA1_32          ( ( uint16_t ) 0x0006 )
+
+/* This one is not iana defined, but for code readability. */
+#define MBEDTLS_TLS_SRTP_UNSET                      ( ( uint16_t ) 0x0000 )
+
+typedef enum
+{
+    KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_80 = MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80,
+    KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_32 = MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32,
+} KVS_SRTP_PROFILE;
+
+typedef struct
+{
+    uint8_t masterSecret[MAX_DTLS_MASTER_KEY_LEN];
+    // client random bytes + server random bytes
+    uint8_t randBytes[2 * MAX_DTLS_RANDOM_BYTES_LEN];
+    mbedtls_tls_prf_types tlsProfile;
+} TlsKeys, * pTlsKeys;
+
+
 
 /**
  * @brief Secured connection context.
@@ -111,6 +173,34 @@ typedef struct DtlsTransportParams
     DtlsSessionTimer_t * xSessionTimer;
 } DtlsTransportParams_t;
 
+
+/**
+ * @brief Each compilation unit that consumes the NetworkContext must define it.
+ * It should contain a single pointer as seen below whenever the header file
+ * of this transport implementation is included to your project.
+ *
+ * @note When using multiple transports in the same compilation unit,
+ *       define this pointer as void *.
+ */
+struct DtlsNetworkContext
+{
+    DtlsTransportParams_t * pParams;
+};
+typedef struct DtlsNetworkContext DtlsNetworkContext_t;
+
+
+// DtlsKeyingMaterial is information extracted via https://tools.ietf.org/html/rfc5705
+// also includes the use_srtp value from Handshake
+typedef struct
+{
+    uint8_t clientWriteKey[MAX_SRTP_MASTER_KEY_LEN + MAX_SRTP_SALT_KEY_LEN];
+    uint8_t serverWriteKey[MAX_SRTP_MASTER_KEY_LEN + MAX_SRTP_SALT_KEY_LEN];
+    uint8_t key_length;
+
+    KVS_SRTP_PROFILE srtpProfile;
+} DtlsKeyingMaterial, * pDtlsKeyingMaterial_t;
+
+
 /**
  * @brief Contains the credentials necessary for tls connection setup.
  */
@@ -137,7 +227,21 @@ typedef struct DtlsNetworkCredentials
     size_t clientCertSize;      /**< @brief Size associated with #NetworkCredentials.pClientCert. */
     const uint8_t * pPrivateKey; /**< @brief String representing the client certificate's private key. */
     size_t privateKeySize;      /**< @brief Size associated with #NetworkCredentials.pPrivateKey. */
+
+    DtlsKeyingMaterial dtlsKeyingMaterial; /**< @brief derivated SRTP keys */
 } DtlsNetworkCredentials_t;
+
+typedef struct DtlsSession {
+    DtlsNetworkCredentials_t credentials;
+
+    /* The transport layer interface used by the HTTP Client library. */
+    TransportInterface_t xTransportInterface;
+    /* The network context for the transport layer interface. */
+
+    DtlsNetworkContext_t xNetworkContext;
+    DtlsTransportParams_t xDtlsTransportParams;
+    DtlsNetworkCredentials_t xNetworkCredentials;
+} DtlsSession_t;
 
 /**
  * @brief DTLS Connect / Disconnect return status.
@@ -157,30 +261,24 @@ typedef enum DtlsTransportStatus
  * @brief Create a DTLS connection with sockets.
  *
  * @param[out] pNetworkContext Pointer to a network context to contain the
- * initialized socket handle.
- * @param[in] pHostName The hostname of the remote endpoint.
- * @param[in] port The destination port.
+ * connected socket handle.
  * @param[in] pNetworkCredentials Credentials for the TLS connection.
- * @param[in] receiveTimeoutMs Receive socket timeout.
- * @param[in] sendTimeoutMs Send socket timeout.
  *
  * @return #DTLS_TRANSPORT_SUCCESS, #DTLS_TRANSPORT_INSUFFICIENT_MEMORY, #DTLS_TRANSPORT_INVALID_CREDENTIALS,
  * #DTLS_TRANSPORT_HANDSHAKE_FAILED, #DTLS_TRANSPORT_INTERNAL_ERROR, or #DTLS_TRANSPORT_CONNECT_FAILURE.
  */
 DtlsTransportStatus_t
-DTLS_Connect( NetworkContext_t * pNetworkContext,
+DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
+              DtlsNetworkCredentials_t * pNetworkCredentials,
               const char * pHostName,
-              uint16_t port,
-              const DtlsNetworkCredentials_t * pNetworkCredentials,
-              uint32_t receiveTimeoutMs,
-              uint32_t sendTimeoutMs );
+              uint16_t port );
 
 /**
  * @brief Gracefully disconnect an established DTLS connection.
  *
  * @param[in] pNetworkContext Network context.
  */
-void DTLS_Disconnect( NetworkContext_t * pNetworkContext );
+void DTLS_Disconnect( DtlsNetworkContext_t * pNetworkContext );
 
 /**
  * @brief Receives data from an established DTLS connection.
@@ -196,7 +294,7 @@ void DTLS_Disconnect( NetworkContext_t * pNetworkContext );
  * 0 if the socket times out without reading any bytes;
  * negative value on error.
  */
-int32_t DTLS_recv( NetworkContext_t * pNetworkContext,
+int32_t DTLS_recv( DtlsNetworkContext_t * pNetworkContext,
                    void * pBuffer,
                    size_t bytesToRecv );
 
@@ -214,7 +312,7 @@ int32_t DTLS_recv( NetworkContext_t * pNetworkContext,
  * 0 if the socket times out without sending any bytes;
  * else a negative value to represent error.
  */
-int32_t DTLS_send( NetworkContext_t * pNetworkContext,
+int32_t DTLS_send( DtlsNetworkContext_t * pNetworkContext,
                    const void * pBuffer,
                    size_t bytesToSend );
 /**
@@ -224,7 +322,7 @@ int32_t DTLS_send( NetworkContext_t * pNetworkContext,
  *
  * @return The socket descriptor if value >= 0. It returns -1 when failure.
  */
-int32_t DTLS_GetSocketFd( NetworkContext_t * pNetworkContext );
+int32_t DTLS_GetSocketFd( DtlsNetworkContext_t * pNetworkContext );
 
 #ifdef MBEDTLS_DTLS_DEBUG_C
 
@@ -279,62 +377,6 @@ void dtls_mbedtls_string_printf( void * dtlsSslContext,
 /// DTLS related status codes
 /////////////////////////////////////////////////////
 
-/*! \addtogroup DTLSStatusCodes
- * WEBRTC DTLS related codes. Values are derived from STATUS_DTLS_BASE (0x59000000)
- *  @{
- */
-#define STATUS_WEBRTC_BASE 0x55000000
-#define STATUS_SDP_BASE STATUS_WEBRTC_BASE + 0x01000000
-#define STATUS_STUN_BASE STATUS_SDP_BASE + 0x01000000
-#define STATUS_NETWORKING_BASE STATUS_STUN_BASE + 0x01000000
-#define STATUS_DTLS_BASE STATUS_NETWORKING_BASE + 0x01000000
-#define STATUS_CERTIFICATE_GENERATION_FAILED STATUS_DTLS_BASE + 0x00000001
-#define STATUS_SSL_CTX_CREATION_FAILED STATUS_DTLS_BASE + 0x00000002
-#define STATUS_SSL_REMOTE_CERTIFICATE_VERIFICATION_FAILED STATUS_DTLS_BASE + 0x00000003
-#define STATUS_SSL_PACKET_BEFORE_DTLS_READY STATUS_DTLS_BASE + 0x00000004
-#define STATUS_SSL_UNKNOWN_SRTP_PROFILE STATUS_DTLS_BASE + 0x00000005
-#define STATUS_SSL_INVALID_CERTIFICATE_BITS STATUS_DTLS_BASE + 0x00000006
-#define STATUS_DTLS_SESSION_ALREADY_FREED STATUS_DTLS_BASE + 0x00000007
-/*!@} */
-
-/* SRTP */
-#define CERTIFICATE_FINGERPRINT_LENGTH 160
-#define MAX_SRTP_MASTER_KEY_LEN 16
-#define MAX_SRTP_SALT_KEY_LEN 14
-#define MAX_DTLS_RANDOM_BYTES_LEN 32
-#define MAX_DTLS_MASTER_KEY_LEN 48
-
-#define KEYING_EXTRACTOR_LABEL "EXTRACTOR-dtls_srtp"
-
-/* This one is not iana defined, but for code readability. */
-#define MBEDTLS_TLS_SRTP_UNSET                      ( ( uint16_t ) 0x0000 )
-
-typedef enum
-{
-    KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_80 = MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80,
-    KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_32 = MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32,
-} KVS_SRTP_PROFILE;
-
-typedef struct
-{
-    uint8_t masterSecret[MAX_DTLS_MASTER_KEY_LEN];
-    // client random bytes + server random bytes
-    uint8_t randBytes[2 * MAX_DTLS_RANDOM_BYTES_LEN];
-    mbedtls_tls_prf_types tlsProfile;
-} TlsKeys, *pTlsKeys;
-
-// DtlsKeyingMaterial is information extracted via https://tools.ietf.org/html/rfc5705
-// also includes the use_srtp value from Handshake
-typedef struct
-{
-    uint8_t clientWriteKey[MAX_SRTP_MASTER_KEY_LEN + MAX_SRTP_SALT_KEY_LEN];
-    uint8_t serverWriteKey[MAX_SRTP_MASTER_KEY_LEN + MAX_SRTP_SALT_KEY_LEN];
-    uint8_t key_length;
-
-    KVS_SRTP_PROFILE srtpProfile;
-} DtlsKeyingMaterial, *PDtlsKeyingMaterial;
-
-
 int32_t createCertificateAndKey( int32_t,
                                  BaseType_t,
                                  mbedtls_x509_crt *,
@@ -350,6 +392,9 @@ int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt *,
 int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t *,
                                                        char *,
                                                        const size_t );
+
+int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t *,
+                                           pDtlsKeyingMaterial_t );
 
 int32_t dtlsCertificateDemToPem( const unsigned char *,
                                  size_t,

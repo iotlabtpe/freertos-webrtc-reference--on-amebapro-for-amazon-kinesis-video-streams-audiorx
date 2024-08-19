@@ -21,6 +21,7 @@
 #define DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID "myKvsVideoStream"
 #define DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID "myVideoTrack"
 #define DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID "myAudioTrack"
+#define DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH ( 8 ) // the length of "sha-256 "
 
 #define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect
 
@@ -29,7 +30,9 @@ static void wifi_common_init( void );
 static long long GetCurrentTimeSec( void );
 static uint8_t respondWithSdpAnswer( const char * pRemoteClientId,
                                      size_t remoteClientIdLength,
-                                     DemoContext_t * pDemoContext );
+                                     DemoContext_t * pDemoContext,
+                                     const char * pLocalFingerprint,
+                                     size_t localFingerprintLength );
 static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCtx,
                                      DemoSessionInformation_t * pSessionInformation,
                                      const char * pRemoteClientId,
@@ -43,7 +46,9 @@ static void Master_Task( void * pParameter );
 
 extern uint8_t populateSdpContent( DemoSessionInformation_t * pRemoteSessionDescription,
                                    DemoSessionInformation_t * pLocalSessionDescription,
-                                   PeerConnectionContext_t * pPeerConnectionContext );
+                                   PeerConnectionContext_t * pPeerConnectionContext,
+                                   const char * pLocalFingerprint,
+                                   size_t localFingerprintLength );
 extern uint8_t serializeSdpMessage( DemoSessionInformation_t * pSessionInDescriptionAnswer,
                                     DemoContext_t * pDemoContext );
 extern uint8_t addressSdpOffer( const char * pEventSdpOffer,
@@ -61,7 +66,7 @@ static void platform_init( void )
     long long sec;
     /* mbedtls init */
     crypto_init();
-    platform_set_malloc_free(( void (*) ) calloc, (void (*)(void *))free);
+    platform_set_malloc_free( ( void ( * ) )calloc, ( void ( * )( void * ) )free );
 
     /* Show backtrace if exception. */
     sys_backtrace_enable();
@@ -124,7 +129,9 @@ static long long GetCurrentTimeSec( void )
 
 static uint8_t respondWithSdpAnswer( const char * pRemoteClientId,
                                      size_t remoteClientIdLength,
-                                     DemoContext_t * pDemoContext )
+                                     DemoContext_t * pDemoContext,
+                                     const char * pLocalFingerprint,
+                                     size_t localFingerprintLength )
 {
     uint8_t skipProcess = 0;
     SignalingControllerResult_t signalingControllerReturn;
@@ -135,7 +142,7 @@ static uint8_t respondWithSdpAnswer( const char * pRemoteClientId,
     };
 
     /* Prepare SDP answer and send it back to remote peer. */
-    skipProcess = populateSdpContent( &pDemoContext->sessionInformationSdpOffer, &pDemoContext->sessionInformationSdpAnswer, &pDemoContext->peerConnectionContext );
+    skipProcess = populateSdpContent( &pDemoContext->sessionInformationSdpOffer, &pDemoContext->sessionInformationSdpAnswer, &pDemoContext->peerConnectionContext, pLocalFingerprint, localFingerprintLength );
 
     if( !skipProcess )
     {
@@ -180,6 +187,8 @@ static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCt
         remoteInfo.remoteUserNameLength = demoContext.sessionInformationSdpOffer.sdpDescription.iceUfragLength;
         remoteInfo.pRemotePassword = demoContext.sessionInformationSdpOffer.sdpDescription.pIcePwd;
         remoteInfo.remotePasswordLength = demoContext.sessionInformationSdpOffer.sdpDescription.icePwdLength;
+        remoteInfo.pRemoteCertFingerprint = demoContext.sessionInformationSdpOffer.sdpDescription.pFingerprint + DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
+        remoteInfo.remoteCertFingerprintLength = demoContext.sessionInformationSdpOffer.sdpDescription.fingerprintLength - DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
 
         peerConnectionResult = PeerConnection_SetRemoteDescription( pPeerConnectionCtx, &remoteInfo );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
@@ -304,11 +313,41 @@ static int addTransceivers( DemoContext_t * pDemoContext )
     return ret;
 }
 
+static uint8_t CreatePeerConnectionSession( PeerConnectionContext_t * pPeerConnectionContext,
+                                            const char * pRemoteClientId,
+                                            size_t remoteClientIdLength,
+                                            const char ** ppLocalFingerprint,
+                                            size_t * pLocalFingerprint )
+{
+    uint8_t skipProcess = 0;
+    PeerConnectionResult_t peerConnectionResult;
+
+    if( ( pPeerConnectionContext == NULL ) || ( pRemoteClientId == NULL ) )
+    {
+        LogError( ( "Invalid input, pPeerConnectionContext: %p, pRemoteClientId: %p", pPeerConnectionContext, pRemoteClientId ) );
+        skipProcess = 1;
+    }
+
+    if( !skipProcess )
+    {
+        peerConnectionResult = PeerConnection_CreateSession( pPeerConnectionContext, pRemoteClientId, remoteClientIdLength, ppLocalFingerprint, pLocalFingerprint );
+        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+        {
+            LogWarn( ( "PeerConnection_CreateSession fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
+            skipProcess = 1;
+        }
+    }
+
+    return skipProcess;
+}
+
 static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEvent,
                                        void * pUserContext )
 {
     uint8_t skipProcess = 0;
     PeerConnectionResult_t peerConnectionResult;
+    const char * pLocalFingerprint = NULL;
+    size_t localFingerprintLength = 0;
 
     ( void ) pUserContext;
 
@@ -321,38 +360,43 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEven
 
     switch( pEvent->messageType )
     {
-    case SIGNALING_TYPE_MESSAGE_SDP_OFFER:
-        skipProcess = addressSdpOffer( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &demoContext );
+        case SIGNALING_TYPE_MESSAGE_SDP_OFFER:
+            skipProcess = addressSdpOffer( pEvent->pDecodeMessage, pEvent->decodeMessageLength, &demoContext );
 
-        if( !skipProcess )
-        {
-            skipProcess = respondWithSdpAnswer( pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &demoContext );
-        }
+            if( !skipProcess )
+            {
+                skipProcess = CreatePeerConnectionSession( &demoContext.peerConnectionContext, pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &pLocalFingerprint, &localFingerprintLength );
+            }
 
-        if( !skipProcess )
-        {
-            skipProcess = setRemoteDescription( &demoContext.peerConnectionContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
-        }
-        break;
-    case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:
-        break;
-    case SIGNALING_TYPE_MESSAGE_ICE_CANDIDATE:
-        peerConnectionResult = PeerConnection_AddRemoteCandidate( &demoContext.peerConnectionContext,
-                                                                  pEvent->pRemoteClientId, pEvent->remoteClientIdLength,
-                                                                  pEvent->pDecodeMessage, pEvent->decodeMessageLength );
-        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
-        {
-            LogWarn( ( "PeerConnection_AddRemoteCandidate fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
-        }
-        break;
-    case SIGNALING_TYPE_MESSAGE_GO_AWAY:
-        break;
-    case SIGNALING_TYPE_MESSAGE_RECONNECT_ICE_SERVER:
-        break;
-    case SIGNALING_TYPE_MESSAGE_STATUS_RESPONSE:
-        break;
-    default:
-        break;
+            if( !skipProcess )
+            {
+                skipProcess = respondWithSdpAnswer( pEvent->pRemoteClientId, pEvent->remoteClientIdLength, &demoContext, pLocalFingerprint, localFingerprintLength );
+            }
+
+            if( !skipProcess )
+            {
+                skipProcess = setRemoteDescription( &demoContext.peerConnectionContext, &demoContext.sessionInformationSdpOffer, pEvent->pRemoteClientId, pEvent->remoteClientIdLength );
+            }
+            break;
+        case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:
+            break;
+        case SIGNALING_TYPE_MESSAGE_ICE_CANDIDATE:
+            peerConnectionResult = PeerConnection_AddRemoteCandidate( &demoContext.peerConnectionContext,
+                                                                      pEvent->pRemoteClientId, pEvent->remoteClientIdLength,
+                                                                      pEvent->pDecodeMessage, pEvent->decodeMessageLength );
+            if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+            {
+                LogWarn( ( "PeerConnection_AddRemoteCandidate fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
+            }
+            break;
+        case SIGNALING_TYPE_MESSAGE_GO_AWAY:
+            break;
+        case SIGNALING_TYPE_MESSAGE_RECONNECT_ICE_SERVER:
+            break;
+        case SIGNALING_TYPE_MESSAGE_STATUS_RESPONSE:
+            break;
+        default:
+            break;
     }
 
     return 0;

@@ -764,67 +764,67 @@ static SignalingControllerResult_t handleEvent( SignalingControllerContext_t * p
 
     switch( pEventMsg->event )
     {
-    case SIGNALING_CONTROLLER_EVENT_SEND_WSS_MESSAGE:
-        /* Allocate the ring buffer to store constructed signaling messages. */
-        pEventContentSend = &pEventMsg->eventContent;
-        callbackEventStatus = SIGNALING_CONTROLLER_EVENT_STATUS_SENT_FAIL;
+        case SIGNALING_CONTROLLER_EVENT_SEND_WSS_MESSAGE:
+            /* Allocate the ring buffer to store constructed signaling messages. */
+            pEventContentSend = &pEventMsg->eventContent;
+            callbackEventStatus = SIGNALING_CONTROLLER_EVENT_STATUS_SENT_FAIL;
 
-        /* Then fill the event information, like correlation ID, recipient client ID and base64 encoded message.
-         * Note that the message now is not based encoded yet. */
-        pCtx->base64BufferLength = SIGNALING_CONTROLLER_MAX_CONTENT_LENGTH;
-        retBase64 = Base64_Encode( pEventContentSend->pDecodeMessage, pEventContentSend->decodeMessageLength, pCtx->base64Buffer, &pCtx->base64BufferLength );
-        if( retBase64 != BASE64_RESULT_OK )
-        {
-            ret = SIGNALING_CONTROLLER_RESULT_BASE64_ENCODE_FAIL;
-        }
-
-        if( ret == SIGNALING_CONTROLLER_RESULT_OK )
-        {
-            /* Construct signaling message into ring buffer. */
-            memset( &wssSendMessage, 0, sizeof( WssSendMessage_t ) );
-
-            // Prepare the buffer to send
-            wssSendMessage.messageType = pEventContentSend->messageType;
-            wssSendMessage.pBase64EncodedMessage = pCtx->base64Buffer;
-            wssSendMessage.base64EncodedMessageLength = pCtx->base64BufferLength;
-            wssSendMessage.pCorrelationId = pEventContentSend->correlationId;
-            wssSendMessage.correlationIdLength = pEventContentSend->correlationIdLength;
-            wssSendMessage.pRecipientClientId = pEventContentSend->remoteClientId;
-            wssSendMessage.recipientClientIdLength = pEventContentSend->remoteClientIdLength;
-
-            /* We must preserve LWS_PRE ahead of buffer for libwebsockets. */
-            pCtx->constructedSignalingBufferLength = SIGNALING_CONTROLLER_MAX_CONTENT_LENGTH;
-            retSignal = Signaling_ConstructWssMessage( &wssSendMessage, pCtx->constructedSignalingBuffer, &pCtx->constructedSignalingBufferLength );
-            if( retSignal != SIGNALING_RESULT_OK )
+            /* Then fill the event information, like correlation ID, recipient client ID and base64 encoded message.
+             * Note that the message now is not based encoded yet. */
+            pCtx->base64BufferLength = SIGNALING_CONTROLLER_MAX_CONTENT_LENGTH;
+            retBase64 = Base64_Encode( pEventContentSend->pDecodeMessage, pEventContentSend->decodeMessageLength, pCtx->base64Buffer, &pCtx->base64BufferLength );
+            if( retBase64 != BASE64_RESULT_OK )
             {
-                LogError( ( "Fail to construct Wss message, result: %d", retSignal ) );
-                ret = SIGNALING_CONTROLLER_RESULT_CONSTRUCT_SIGNALING_MSG_FAIL;
+                ret = SIGNALING_CONTROLLER_RESULT_BASE64_ENCODE_FAIL;
             }
-        }
 
-        if( ret == SIGNALING_CONTROLLER_RESULT_OK )
-        {
-            LogDebug( ( "Constructed WSS message length: %u, message: \n%.*s", pCtx->constructedSignalingBufferLength,
-                        ( int ) pCtx->constructedSignalingBufferLength, pCtx->constructedSignalingBuffer ) );
+            if( ret == SIGNALING_CONTROLLER_RESULT_OK )
+            {
+                /* Construct signaling message into ring buffer. */
+                memset( &wssSendMessage, 0, sizeof( WssSendMessage_t ) );
 
-            /* Finally, sent it to websocket layer. */
-            websocketRet = Websocket_Send( pCtx->constructedSignalingBuffer, pCtx->constructedSignalingBufferLength );
-            if( websocketRet != WEBSOCKET_RESULT_OK )
-            {
-                LogError( ( "Fail to construct Wss message, result: %d", retSignal ) );
-                ret = SIGNALING_CONTROLLER_RESULT_CONSTRUCT_SIGNALING_MSG_FAIL;
-                callbackEventStatus = SIGNALING_CONTROLLER_EVENT_STATUS_SENT_FAIL;
+                // Prepare the buffer to send
+                wssSendMessage.messageType = pEventContentSend->messageType;
+                wssSendMessage.pBase64EncodedMessage = pCtx->base64Buffer;
+                wssSendMessage.base64EncodedMessageLength = pCtx->base64BufferLength;
+                wssSendMessage.pCorrelationId = pEventContentSend->correlationId;
+                wssSendMessage.correlationIdLength = pEventContentSend->correlationIdLength;
+                wssSendMessage.pRecipientClientId = pEventContentSend->remoteClientId;
+                wssSendMessage.recipientClientIdLength = pEventContentSend->remoteClientIdLength;
+
+                /* We must preserve LWS_PRE ahead of buffer for libwebsockets. */
+                pCtx->constructedSignalingBufferLength = SIGNALING_CONTROLLER_MAX_CONTENT_LENGTH;
+                retSignal = Signaling_ConstructWssMessage( &wssSendMessage, pCtx->constructedSignalingBuffer, &pCtx->constructedSignalingBufferLength );
+                if( retSignal != SIGNALING_RESULT_OK )
+                {
+                    LogError( ( "Fail to construct Wss message, result: %d", retSignal ) );
+                    ret = SIGNALING_CONTROLLER_RESULT_CONSTRUCT_SIGNALING_MSG_FAIL;
+                }
             }
-            else
+
+            if( ret == SIGNALING_CONTROLLER_RESULT_OK )
             {
-                callbackEventStatus = SIGNALING_CONTROLLER_EVENT_STATUS_SENT_DONE;
+                LogDebug( ( "Constructed WSS message length: %u, message: \n%.*s", pCtx->constructedSignalingBufferLength,
+                            ( int ) pCtx->constructedSignalingBufferLength, pCtx->constructedSignalingBuffer ) );
+
+                /* Finally, sent it to websocket layer. */
+                websocketRet = Websocket_Send( pCtx->constructedSignalingBuffer, pCtx->constructedSignalingBufferLength );
+                if( websocketRet != WEBSOCKET_RESULT_OK )
+                {
+                    LogError( ( "Fail to construct Wss message, result: %d", retSignal ) );
+                    ret = SIGNALING_CONTROLLER_RESULT_CONSTRUCT_SIGNALING_MSG_FAIL;
+                    callbackEventStatus = SIGNALING_CONTROLLER_EVENT_STATUS_SENT_FAIL;
+                }
+                else
+                {
+                    callbackEventStatus = SIGNALING_CONTROLLER_EVENT_STATUS_SENT_DONE;
+                }
             }
-        }
-        break;
-    default:
-        /* Ignore unknown event. */
-        LogWarn( ( "Received unknown event %d", pEventMsg->event ) );
-        break;
+            break;
+        default:
+            /* Ignore unknown event. */
+            LogWarn( ( "Received unknown event %d", pEventMsg->event ) );
+            break;
     }
 
     if( ( pEventMsg->onCompleteCallback != NULL ) && ( callbackEventStatus != SIGNALING_CONTROLLER_EVENT_STATUS_NONE ) )

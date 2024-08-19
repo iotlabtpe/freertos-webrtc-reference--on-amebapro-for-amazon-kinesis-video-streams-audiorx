@@ -9,6 +9,7 @@ extern "C" {
 
 #include <stdio.h>
 #include "transport_mbedtls.h"
+#include "transport_dtls_mbedtls.h"
 #include "core_http_client.h"
 #include "sigv4.h"
 

@@ -13,6 +13,8 @@ extern "C" {
 #include "FreeRTOS.h"
 #include "queue.h"
 
+#define MESSAGE_QUEUE_NAME_MAX_LENGTH ( 20 )
+
 typedef enum MessageQueueResult
 {
     MESSAGE_QUEUE_RESULT_OK = 0,
@@ -28,7 +30,7 @@ typedef enum MessageQueueResult
 
 typedef struct MessageQueueHandler
 {
-    const char * pQueueName;
+    char pQueueName[ MESSAGE_QUEUE_NAME_MAX_LENGTH + 1 ]; // +1 for NULL terminator
     QueueHandle_t messageQueue;
 
     /* Message queue setting. */

@@ -8,13 +8,13 @@ static Base64Result_t Base64_InterpretReturnValue( int errorCode )
 
     switch( errorCode )
     {
-    case MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL:
-        ret = BASE64_RESULT_BUFFER_TOO_SMALL;
-        break;
-    case MBEDTLS_ERR_BASE64_INVALID_CHARACTER:
-    default:
-        ret = BASE64_RESULT_INVALID_INPUT;
-        break;
+        case MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL:
+            ret = BASE64_RESULT_BUFFER_TOO_SMALL;
+            break;
+        case MBEDTLS_ERR_BASE64_INVALID_CHARACTER:
+        default:
+            ret = BASE64_RESULT_INVALID_INPUT;
+            break;
     }
 
     return ret;

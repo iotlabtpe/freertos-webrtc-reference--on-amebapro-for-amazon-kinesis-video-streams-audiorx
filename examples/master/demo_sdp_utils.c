@@ -611,7 +611,9 @@ static uint8_t populateSessionAttributes( char ** ppBuffer,
 
 uint8_t populateSdpContent( DemoSessionInformation_t * pRemoteSessionDescription,
                             DemoSessionInformation_t * pLocalSessionDescription,
-                            PeerConnectionContext_t * pPeerConnectionContext )
+                            PeerConnectionContext_t * pPeerConnectionContext,
+                            const char * pLocalFingerprint,
+                            size_t localFingerprintLength )
 {
     uint8_t skipProcess = 0;
     size_t remainLength = DEMO_SDP_BUFFER_MAX_LENGTH;
@@ -631,7 +633,7 @@ uint8_t populateSdpContent( DemoSessionInformation_t * pRemoteSessionDescription
         memset( pLocalSessionDescription, 0, sizeof( DemoSessionInformation_t ) );
 
         /* Add media descriptions. */
-        retSdpController = SdpController_PopulateMediaDescriptions( &pSdpBuffer, &remainLength, &pLocalSessionDescription->sdpDescription, &pRemoteSessionDescription->sdpDescription, pPeerConnectionContext );
+        retSdpController = SdpController_PopulateMediaDescriptions( &pSdpBuffer, &remainLength, &pLocalSessionDescription->sdpDescription, &pRemoteSessionDescription->sdpDescription, pPeerConnectionContext, pLocalFingerprint, localFingerprintLength );
         if( retSdpController != SDP_CONTROLLER_RESULT_OK )
         {
             LogError( ( "Fail to populate media descriptions, return: %d", retSdpController ) );

@@ -61,22 +61,14 @@
 /* OS specific port header. */
 #include "transport_dtls_mbedtls_port.h"
 
+
 /*-----------------------------------------------------------*/
 
-/**
- * @brief Each compilation unit that consumes the NetworkContext must define it.
- * It should contain a single pointer as seen below whenever the header file
- * of this transport implementation is included to your project.
- *
- * @note When using multiple transports in the same compilation unit,
- *       define this pointer as void *.
- */
-struct NetworkContext
-{
-    DtlsTransportParams_t * pParams;
+/**  https://tools.ietf.org/html/rfc5764#section-4.1.2 */
+mbedtls_ssl_srtp_profile DTLS_SRTP_SUPPORTED_PROFILES[] = {
+    MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80,
+    MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32
 };
-
-/*-----------------------------------------------------------*/
 
 /**
  * @brief Utility for converting the high-level code in an mbedTLS error to
@@ -122,9 +114,9 @@ static void DtlsSslContextFree( DtlsSSLContext_t * pSslContext );
  *
  * @return 0 on success; otherwise, failure;
  */
-static int32_t setRootCa( DtlsSSLContext_t * pSslContext,
-                          const uint8_t * pRootCa,
-                          size_t rootCaSize );
+// static int32_t setRootCa( DtlsSSLContext_t * pSslContext,
+//                           const uint8_t * pRootCa,
+//                           size_t rootCaSize );
 
 /**
  * @brief Set X509 certificate as client certificate for the server to
@@ -168,46 +160,31 @@ static int32_t setPrivateKey( DtlsSSLContext_t * pSslContext,
  * @return 0 on success; otherwise, failure;
  */
 static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
-                               const DtlsNetworkCredentials_t * pNetworkCredentials );
-
-/**
- * @brief Set optional configurations for the DTLS connection.
- *
- * This function is used to set SNI and ALPN protocols.
- *
- * @param[in] pSslContext SSL context to which the optional configurations are
- * to be set.
- * @param[in] pHostName Remote host name, used for server name indication.
- * @param[in] pNetworkCredentials DTLS setup parameters.
- */
-static void setOptionalConfigurations( DtlsSSLContext_t * pSslContext,
-                                       const char * pHostName,
-                                       const DtlsNetworkCredentials_t * pNetworkCredentials );
+                               DtlsNetworkCredentials_t * pNetworkCredentials );
 
 /**
  * @brief Setup DTLS by initializing contexts and setting configurations.
  *
- * @param[in] pNetworkContext Network context.
+ * @param[in] pDtlsNetworkContext Network context.
  * @param[in] pHostName Remote host name, used for server name indication.
  * @param[in] pNetworkCredentials DTLS setup parameters.
  *
  * @return #DTLS_TRANSPORT_SUCCESS, #DTLS_TRANSPORT_INSUFFICIENT_MEMORY,
  * #DTLS_TRANSPORT_INVALID_CREDENTIALS, or #DTLS_TRANSPORT_INTERNAL_ERROR.
  */
-static DtlsTransportStatus_t dtlsSetup( NetworkContext_t * pNetworkContext,
-                                        const char * pHostName,
-                                        const DtlsNetworkCredentials_t * pNetworkCredentials );
+static DtlsTransportStatus_t dtlsSetup( DtlsNetworkContext_t * pDtlsNetworkContext,
+                                        DtlsNetworkCredentials_t * pNetworkCredentials );
 
 /**
  * @brief Perform the DTLS handshake on a UDP connection.
  *
- * @param[in] pNetworkContext Network context.
+ * @param[in] pDtlsNetworkContext Network context.
  * @param[in] pNetworkCredentials DTLS setup parameters.
  *
  * @return #DTLS_TRANSPORT_SUCCESS, #DTLS_TRANSPORT_HANDSHAKE_FAILED, or
  * #DTLS_TRANSPORT_INTERNAL_ERROR.
  */
-static DtlsTransportStatus_t dtlsHandshake( NetworkContext_t * pNetworkContext,
+static DtlsTransportStatus_t dtlsHandshake( DtlsNetworkContext_t * pNetworkContext,
                                             const DtlsNetworkCredentials_t * pNetworkCredentials );
 
 /**
@@ -273,38 +250,38 @@ static void DtlsSslContextFree( DtlsSSLContext_t * pSslContext )
 }
 /*-----------------------------------------------------------*/
 
-static int32_t setRootCa( DtlsSSLContext_t * pSslContext,
-                          const uint8_t * pRootCa,
-                          size_t rootCaSize )
-{
-    int32_t mbedtlsError = -1;
+// static int32_t setRootCa( DtlsSSLContext_t * pSslContext,
+//                           const uint8_t * pRootCa,
+//                           size_t rootCaSize )
+// {
+//     int32_t mbedtlsError = -1;
 
-    configASSERT( pSslContext != NULL );
-    configASSERT( pRootCa != NULL );
+//     configASSERT( pSslContext != NULL );
+//     configASSERT( pRootCa != NULL );
 
-    LogInfo( ( "Before mbedtls_x509_crt_parse." ) );
-    /* Parse the server root CA certificate into the SSL context. */
-    mbedtlsError = mbedtls_x509_crt_parse( &( pSslContext->rootCa ),
-                                           pRootCa,
-                                           rootCaSize );
+//     LogInfo( ( "Before mbedtls_x509_crt_parse." ) );
+//     /* Parse the server root CA certificate into the SSL context. */
+//     mbedtlsError = mbedtls_x509_crt_parse( &( pSslContext->rootCa ),
+//                                            pRootCa,
+//                                            rootCaSize );
 
-    if( mbedtlsError != 0 )
-    {
-        LogError( ( "Failed to parse server root CA certificate: mbedTLSError= "
-                    "%s : %s.",
-                    mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
-                    mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
-    }
-    else
-    {
-        LogInfo( ( "Before mbedtls_ssl_conf_ca_chain." ) );
-        mbedtls_ssl_conf_ca_chain( &( pSslContext->config ),
-                                   &( pSslContext->rootCa ),
-                                   NULL );
-    }
+//     if( mbedtlsError != 0 )
+//     {
+//         LogError( ( "Failed to parse server root CA certificate: mbedTLSError= "
+//                     "%s : %s.",
+//                     mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
+//                     mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
+//     }
+//     else
+//     {
+//         LogInfo( ( "Before mbedtls_ssl_conf_ca_chain." ) );
+//         mbedtls_ssl_conf_ca_chain( &( pSslContext->config ),
+//                                    &( pSslContext->rootCa ),
+//                                    NULL );
+//     }
 
-    return mbedtlsError;
-}
+//     return mbedtlsError;
+// }
 /*-----------------------------------------------------------*/
 
 static int32_t setClientCertificate( DtlsSSLContext_t * pSslContext,
@@ -368,9 +345,43 @@ static int32_t setPrivateKey( DtlsSSLContext_t * pSslContext,
 }
 /*-----------------------------------------------------------*/
 
-static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
-                               const DtlsNetworkCredentials_t * pNetworkCredentials )
+int dtlsSessionKeyDerivationCallback( void * customData,
+                                      const unsigned char * pMasterSecret,
+                                      const unsigned char * pKeyBlock,
+                                      size_t maclen,
+                                      size_t keylen,
+                                      size_t ivlen,
+                                      const unsigned char clientRandom[MAX_DTLS_RANDOM_BYTES_LEN],
+                                      const unsigned char serverRandom[MAX_DTLS_RANDOM_BYTES_LEN],
+                                      mbedtls_tls_prf_types tlsProfile )
 {
+    ( ( void ) pKeyBlock );
+    ( ( void ) maclen );
+    ( ( void  )keylen );
+    ( ( void ) ivlen );
+    DtlsSSLContext_t * pSslContext = customData;
+
+    pTlsKeys pKeys = ( pTlsKeys ) & pSslContext->privKey;
+
+    memcpy( pKeys->masterSecret,
+            pMasterSecret,
+            sizeof( pKeys->masterSecret ) );
+    memcpy( pKeys->randBytes,
+            clientRandom,
+            MAX_DTLS_RANDOM_BYTES_LEN );
+    memcpy( pKeys->randBytes + MAX_DTLS_RANDOM_BYTES_LEN,
+            serverRandom,
+            MAX_DTLS_RANDOM_BYTES_LEN );
+    pKeys->tlsProfile = tlsProfile;
+
+    return 0;
+}
+
+/*-----------------------------------------------------------*/
+static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
+                               DtlsNetworkCredentials_t * pNetworkCredentials )
+{
+    LogDebug( ( "setCredentials" ) );
     int32_t mbedtlsError = 0;
 
     configASSERT( pSslContext != NULL );
@@ -382,116 +393,157 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
 
     /* Set SSL authmode and the RNG context. */
     mbedtls_ssl_conf_authmode( &( pSslContext->config ),
-                               MBEDTLS_SSL_VERIFY_REQUIRED );
+                               MBEDTLS_SSL_VERIFY_OPTIONAL );
+    LogDebug( ( "before mbedtls_ssl_conf_rng" ) );
     mbedtls_ssl_conf_rng( &( pSslContext->config ),
                           mbedtls_ctr_drbg_random,
                           &( pSslContext->ctrDrbgContext ) );
+    LogDebug( ( "before mbedtls_ssl_conf_cert_profile" ) );
     mbedtls_ssl_conf_cert_profile( &( pSslContext->config ),
                                    &( pSslContext->certProfile ) );
 
-    LogInfo( ( "Before setRootCa." ) );
-    mbedtlsError = setRootCa( pSslContext,
-                              pNetworkCredentials->pRootCa,
-                              pNetworkCredentials->rootCaSize );
-
-    if( ( pNetworkCredentials->pClientCert != NULL ) && ( pNetworkCredentials->pPrivateKey != NULL ) )
+    if( pNetworkCredentials->pClientCert != NULL )
     {
-        if( mbedtlsError == 0 )
+        if( pNetworkCredentials->pPrivateKey != NULL )
         {
-            LogInfo( ( "Before setClientCertificate." ) );
-            mbedtlsError = setClientCertificate( pSslContext,
-                                                 pNetworkCredentials->pClientCert,
-                                                 pNetworkCredentials->clientCertSize );
-        }
+            if( mbedtlsError == 0 )
+            {
+                LogInfo( ( "Before setClientCertificate." ) );
+                mbedtlsError = setClientCertificate( pSslContext,
+                                                     pNetworkCredentials->pClientCert,
+                                                     pNetworkCredentials->clientCertSize );
+            }
 
-        if( mbedtlsError == 0 )
-        {
-            LogInfo( ( "Before setPrivateKey." ) );
-            mbedtlsError = setPrivateKey( pSslContext,
-                                          pNetworkCredentials->pPrivateKey,
-                                          pNetworkCredentials->privateKeySize );
-        }
+            if( mbedtlsError == 0 )
+            {
+                LogInfo( ( "Before setPrivateKey." ) );
+                mbedtlsError = setPrivateKey( pSslContext,
+                                              pNetworkCredentials->pPrivateKey,
+                                              pNetworkCredentials->privateKeySize );
+            }
 
-        if( mbedtlsError == 0 )
-        {
-            LogInfo( ( "Before mbedtls_ssl_conf_own_cert." ) );
-            mbedtlsError = mbedtls_ssl_conf_own_cert( &( pSslContext->config ),
-                                                      &( pSslContext->clientCert ),
-                                                      &( pSslContext->privKey ) );
+            if( mbedtlsError == 0 )
+            {
+                LogInfo( ( "Before mbedtls_ssl_conf_own_cert." ) );
+                mbedtlsError = mbedtls_ssl_conf_own_cert( &( pSslContext->config ),
+                                                          &( pSslContext->clientCert ),
+                                                          &( pSslContext->privKey ) );
+            }
+
+            if( mbedtlsError == 0 )
+            {
+                LogInfo( ( "Before mbedtls_ssl_conf_dtls_cookies." ) );
+                mbedtls_ssl_conf_dtls_cookies( &( pSslContext->config ),
+                                               NULL,
+                                               NULL,
+                                               NULL );
+            }
+            if( mbedtlsError == 0 )
+            {
+                LogInfo( ( "Before mbedtls_ssl_conf_dtls_srtp_protection_profiles." ) );
+                mbedtlsError = mbedtls_ssl_conf_dtls_srtp_protection_profiles( &pSslContext->config,
+                                                                               DTLS_SRTP_SUPPORTED_PROFILES,
+                                                                               ARRAY_SIZE( DTLS_SRTP_SUPPORTED_PROFILES ) );
+                if( mbedtlsError != 0 )
+                {
+                    LogError( ( "mbedtls_ssl_conf_dtls_srtp_protection_profiles failed" ) );
+                    MBEDTLS_ERROR_DESCRIPTION( mbedtlsError );
+                }
+            }
+            if( mbedtlsError == 0 )
+            {
+                LogInfo( ( "Before mbedtls_ssl_conf_export_keys_ext_cb." ) );
+
+
+                mbedtls_ssl_conf_export_keys_ext_cb( &pSslContext->config,
+                                                     dtlsSessionKeyDerivationCallback,
+                                                     &pNetworkCredentials->dtlsKeyingMaterial );
+
+            }
+
         }
+        else
+        {
+            LogError( ( "pNetworkCredentials->pPrivateKey == NULL" ) );
+            mbedtlsError = -1;
+        }
+    }
+    else
+    {
+        LogError( ( "pNetworkCredentials->pClientCert == NULL" ) );
+        mbedtlsError = -1;
     }
 
     return mbedtlsError;
 }
 /*-----------------------------------------------------------*/
 
-static void setOptionalConfigurations( DtlsSSLContext_t * pSslContext,
-                                       const char * pHostName,
-                                       const DtlsNetworkCredentials_t * pNetworkCredentials )
-{
-    int32_t mbedtlsError = -1;
+// static void setOptionalConfigurations( DtlsSSLContext_t * pSslContext,
+//                                        const char * pHostName,
+//                                        const DtlsNetworkCredentials_t * pNetworkCredentials )
+// {
+//     int32_t mbedtlsError = -1;
 
-    configASSERT( pSslContext != NULL );
-    configASSERT( pHostName != NULL );
-    configASSERT( pNetworkCredentials != NULL );
+//     configASSERT( pSslContext != NULL );
+//     configASSERT( pHostName != NULL );
+//     configASSERT( pNetworkCredentials != NULL );
 
-    if( pNetworkCredentials->pAlpnProtos != NULL )
-    {
-        /* Include an application protocol list in the DTLS ClientHello
-         * message. */
-        mbedtlsError = mbedtls_ssl_conf_alpn_protocols( &( pSslContext->config ),
-                                                        pNetworkCredentials->pAlpnProtos );
+//     if( pNetworkCredentials->pAlpnProtos != NULL )
+//     {
+//         /* Include an application protocol list in the DTLS ClientHello
+//          * message. */
+//         mbedtlsError = mbedtls_ssl_conf_alpn_protocols( &( pSslContext->config ),
+//                                                         pNetworkCredentials->pAlpnProtos );
 
-        if( mbedtlsError != 0 )
-        {
-            LogError( ( "Failed to configure ALPN protocol in mbed DTLS: mbedTLSError= "
-                        "%s : %s.",
-                        mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
-                        mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
-        }
-    }
+//         if( mbedtlsError != 0 )
+//         {
+//             LogError( ( "Failed to configure ALPN protocol in mbed DTLS: mbedTLSError= "
+//                         "%s : %s.",
+//                         mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
+//                         mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
+//         }
+//     }
 
-    /* Enable SNI if requested. */
-    if( pNetworkCredentials->disableSni == pdFALSE )
-    {
-        printf( "Set host name %s\n",
-                pHostName );
-        mbedtlsError = mbedtls_ssl_set_hostname( &( pSslContext->context ),
-                                                 pHostName );
+//     /* Enable SNI if requested. */
+//     if( pNetworkCredentials->disableSni == pdFALSE )
+//     {
+//         printf( "Set host name %s\n",
+//                 pHostName );
+//         mbedtlsError = mbedtls_ssl_set_hostname( &( pSslContext->context ),
+//                                                  pHostName );
 
-        if( mbedtlsError != 0 )
-        {
-            LogError( ( "Failed to set server name: mbedTLSError= %s : %s.", mbedtlsHighLevelCodeOrDefault( mbedtlsError ), mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
-        }
-    }
+//         if( mbedtlsError != 0 )
+//         {
+//             LogError( ( "Failed to set server name: mbedTLSError= %s : %s.", mbedtlsHighLevelCodeOrDefault( mbedtlsError ), mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
+//         }
+//     }
 
-    /* Set Maximum Fragment Length if enabled. */
-    // #ifdef MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
+//     /* Set Maximum Fragment Length if enabled. */
+//     // #ifdef MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
 
-    //     /* Enable the max fragment extension. 4096 bytes is currently the
-    //     largest fragment size permitted.
-    //      * See RFC 8449 https://tools.ietf.org/html/rfc8449 for more
-    //      information.
-    //      *
-    //      * Smaller values can be found in "mbedtls/include/ssl.h".
-    //      */
-    //     mbedtlsError = mbedtls_ssl_conf_max_frag_len( &( pSslContext->config
-    //     ), MBEDTLS_SSL_MAX_FRAG_LEN_4096 );
+//     //     /* Enable the max fragment extension. 4096 bytes is currently the
+//     //     largest fragment size permitted.
+//     //      * See RFC 8449 https://tools.ietf.org/html/rfc8449 for more
+//     //      information.
+//     //      *
+//     //      * Smaller values can be found in "mbedtls/include/ssl.h".
+//     //      */
+//     //     mbedtlsError = mbedtls_ssl_conf_max_frag_len( &( pSslContext->config
+//     //     ), MBEDTLS_SSL_MAX_FRAG_LEN_4096 );
 
-    //     if( mbedtlsError != 0 )
-    //     {
-    //         LogError( ( "Failed to maximum fragment length extension:
-    //         mbedTLSError= %s : %s.",
-    //                     mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
-    //                     mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
-    //     }
-    // #endif /* ifdef MBEDTLS_SSL_MAX_FRAGMENT_LENGTH */
-}
+//     //     if( mbedtlsError != 0 )
+//     //     {
+//     //         LogError( ( "Failed to maximum fragment length extension:
+//     //         mbedTLSError= %s : %s.",
+//     //                     mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
+//     //                     mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
+//     //     }
+//     // #endif /* ifdef MBEDTLS_SSL_MAX_FRAGMENT_LENGTH */
+// }
 /*-----------------------------------------------------------*/
 
-static DtlsTransportStatus_t dtlsSetup( NetworkContext_t * pNetworkContext,
-                                        const char * pHostName,
-                                        const DtlsNetworkCredentials_t * pNetworkCredentials )
+static DtlsTransportStatus_t dtlsSetup( DtlsNetworkContext_t * pNetworkContext,
+                                        DtlsNetworkCredentials_t * pNetworkCredentials )
 {
     DtlsTransportParams_t * pDtlsTransportParams = NULL;
     DtlsTransportStatus_t returnStatus = DTLS_TRANSPORT_SUCCESS;
@@ -499,9 +551,8 @@ static DtlsTransportStatus_t dtlsSetup( NetworkContext_t * pNetworkContext,
 
     configASSERT( pNetworkContext != NULL );
     configASSERT( pNetworkContext->pParams != NULL );
-    configASSERT( pHostName != NULL );
     configASSERT( pNetworkCredentials != NULL );
-    configASSERT( pNetworkCredentials->pRootCa != NULL );
+    // configASSERT( pNetworkCredentials->pRootCa != NULL );
 
     pDtlsTransportParams = pNetworkContext->pParams;
     /* Initialize the mbed DTLS context structures. */
@@ -531,21 +582,13 @@ static DtlsTransportStatus_t dtlsSetup( NetworkContext_t * pNetworkContext,
         {
             returnStatus = DTLS_TRANSPORT_INVALID_CREDENTIALS;
         }
-        else
-        {
-            /* Optionally set SNI and ALPN protocols. */
-            LogInfo( ( "Before setOptionalConfigurations." ) );
-            setOptionalConfigurations( &( pDtlsTransportParams->dtlsSslContext ),
-                                       pHostName,
-                                       pNetworkCredentials );
-        }
     }
 
     return returnStatus;
 }
 /*-----------------------------------------------------------*/
 
-static DtlsTransportStatus_t dtlsHandshake( NetworkContext_t * pNetworkContext,
+static DtlsTransportStatus_t dtlsHandshake( DtlsNetworkContext_t * pNetworkContext,
                                             const DtlsNetworkCredentials_t * pNetworkCredentials )
 {
     DtlsTransportParams_t * pDtlsTransportParams = NULL;
@@ -594,7 +637,7 @@ static DtlsTransportStatus_t dtlsHandshake( NetworkContext_t * pNetworkContext,
         do
         {
             mbedtlsError = mbedtls_ssl_handshake( &( pDtlsTransportParams->dtlsSslContext.context ) );
-        } while ( ( mbedtlsError == MBEDTLS_ERR_SSL_WANT_READ ) || ( mbedtlsError == MBEDTLS_ERR_SSL_WANT_WRITE ) );
+        } while( ( mbedtlsError == MBEDTLS_ERR_SSL_WANT_READ ) || ( mbedtlsError == MBEDTLS_ERR_SSL_WANT_WRITE ) );
 
         if( mbedtlsError != 0 )
         {
@@ -672,36 +715,54 @@ static DtlsTransportStatus_t initMbedtls( mbedtls_entropy_context * pEntropyCont
 /*-----------------------------------------------------------*/
 
 DtlsTransportStatus_t
-DTLS_Connect( NetworkContext_t * pNetworkContext,
+DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
+              DtlsNetworkCredentials_t * pNetworkCredentials,
               const char * pHostName,
-              uint16_t port,
-              const DtlsNetworkCredentials_t * pNetworkCredentials,
-              uint32_t receiveTimeoutMs,
-              uint32_t sendTimeoutMs )
+              uint16_t port )
 {
     DtlsTransportParams_t * pDtlsTransportParams = NULL;
     DtlsTransportStatus_t returnStatus = DTLS_TRANSPORT_SUCCESS;
     BaseType_t socketStatus = 0;
     BaseType_t isSocketConnected = pdFALSE, isTlsSetup = pdFALSE;
 
-    if( ( pNetworkContext == NULL ) || ( pNetworkContext->pParams == NULL ) || ( pHostName == NULL ) || ( pNetworkCredentials == NULL ) )
+    if( NULL == pNetworkCredentials->pClientCert )
+    {
+        LogError( ( "NULL == pNetworkCredentials->pClientCert" ) );
+    }
+
+    if( NULL == pNetworkCredentials->pPrivateKey )
+    {
+        LogError( ( "NULL == pNetworkCredentials->pClientCert" ) );
+    }
+
+    if( ( pNetworkContext == NULL ) || ( pNetworkContext->pParams == NULL ) || ( pNetworkCredentials == NULL ) || ( pHostName == NULL ) )
     {
         LogError( ( "Invalid input parameter(s): Arguments cannot be NULL. "
                     "pNetworkContext=%p, "
-                    "pHostName=%p, _pNetworkCredentials=%p.",
+                    "pNetworkCredentials=%p,"
+                    " pHostName: %s.",
                     pNetworkContext,
-                    pHostName,
-                    pNetworkCredentials ) );
+                    pNetworkCredentials,
+                    pHostName ) );
         returnStatus = DTLS_TRANSPORT_INVALID_PARAMETER;
     }
-    else if( ( pNetworkCredentials->pRootCa == NULL ) )
-    {
-        LogError( ( "pRootCa cannot be NULL." ) );
-        returnStatus = DTLS_TRANSPORT_INVALID_PARAMETER;
-    }
+    // else if( ( pNetworkCredentials->pRootCa == NULL ) )
+    // {
+    //     LogError( ( "pRootCa cannot be NULL." ) );
+    //     returnStatus = DTLS_TRANSPORT_INVALID_PARAMETER;
+    // }
     else
     {
         /* Empty else for MISRA 15.7 compliance. */
+    }
+
+    /* Initialize mbedtls. */
+    if( returnStatus == DTLS_TRANSPORT_SUCCESS )
+    {
+        pDtlsTransportParams = pNetworkContext->pParams;
+
+        returnStatus = initMbedtls( &( pDtlsTransportParams->dtlsSslContext.entropyContext ),
+                                    &( pDtlsTransportParams->dtlsSslContext.ctrDrbgContext ) );
     }
 
     /* Establish a UDP connection with the server. */
@@ -711,14 +772,11 @@ DTLS_Connect( NetworkContext_t * pNetworkContext,
 
         pDtlsTransportParams = pNetworkContext->pParams;
 
-        /* Initialize udpSocket. */
-        pDtlsTransportParams->udpSocket = NULL;
-
         socketStatus = UDP_Sockets_Connect( &( pDtlsTransportParams->udpSocket ),
                                             pHostName,
                                             port,
-                                            receiveTimeoutMs,
-                                            sendTimeoutMs );
+                                            1000,
+                                            1000 );
 
         if( socketStatus != 0 )
         {
@@ -727,20 +785,12 @@ DTLS_Connect( NetworkContext_t * pNetworkContext,
         }
     }
 
-    /* Initialize mbedtls. */
+    /* Initialize DTLS contexts and set credentials. */
     if( returnStatus == DTLS_TRANSPORT_SUCCESS )
     {
         isSocketConnected = pdTRUE;
 
-        returnStatus = initMbedtls( &( pDtlsTransportParams->dtlsSslContext.entropyContext ),
-                                    &( pDtlsTransportParams->dtlsSslContext.ctrDrbgContext ) );
-    }
-
-    /* Initialize DTLS contexts and set credentials. */
-    if( returnStatus == DTLS_TRANSPORT_SUCCESS )
-    {
         returnStatus = dtlsSetup( pNetworkContext,
-                                  pHostName,
                                   pNetworkCredentials );
     }
 
@@ -792,7 +842,7 @@ DTLS_Connect( NetworkContext_t * pNetworkContext,
 }
 /*-----------------------------------------------------------*/
 
-void DTLS_Disconnect( NetworkContext_t * pNetworkContext )
+void DTLS_Disconnect( DtlsNetworkContext_t * pNetworkContext )
 {
     DtlsTransportParams_t * pTlsTransportParams = NULL;
     BaseType_t dtlsStatus = 0;
@@ -828,17 +878,13 @@ void DTLS_Disconnect( NetworkContext_t * pNetworkContext )
                        ( dtlsStatus == MBEDTLS_ERR_SSL_WANT_READ ) ? "WANT_READ" : "WANT_WRITE" ) );
         }
 
-
-        /* Call socket shutdown function to close connection. */
-        UDP_Sockets_Disconnect( pTlsTransportParams->udpSocket );
-
         /* Free mbed DTLS contexts. */
         DtlsSslContextFree( &( pTlsTransportParams->dtlsSslContext ) );
     }
 }
 /*-----------------------------------------------------------*/
 
-int32_t DTLS_recv( NetworkContext_t * pNetworkContext,
+int32_t DTLS_recv( DtlsNetworkContext_t * pNetworkContext,
                    void * pBuffer,
                    size_t bytesToRecv )
 {
@@ -894,7 +940,7 @@ int32_t DTLS_recv( NetworkContext_t * pNetworkContext,
 }
 /*-----------------------------------------------------------*/
 
-int32_t DTLS_send( NetworkContext_t * pNetworkContext,
+int32_t DTLS_send( DtlsNetworkContext_t * pNetworkContext,
                    const void * pBuffer,
                    size_t bytesToSend )
 {
@@ -950,7 +996,6 @@ int32_t DTLS_send( NetworkContext_t * pNetworkContext,
 }
 /*-----------------------------------------------------------*/
 
-/* SRTP functions */
 int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt * pCert,
                                           char * pBuff,
                                           const size_t bufLen )
@@ -971,17 +1016,6 @@ int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt * pCert,
     {
         /* Empty else marker. */
     }
-
-    if( bufLen < CERTIFICATE_FINGERPRINT_LENGTH )
-    {
-        LogError( ( "bufLen < CERTIFICATE_FINGERPRINT_LENGTH " ) );
-        retStatus = -1;
-    }
-    else
-    {
-        /* Empty else marker. */
-    }
-
 
     pMdInfo = mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 );
     if( ( pMdInfo == NULL ) )
@@ -1008,6 +1042,17 @@ int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt * pCert,
     }
 
     size = mbedtls_md_get_size( pMdInfo );
+
+    if( bufLen < 3 * size )
+    {
+        LogError( ( "buffer to store fingerprint too small buffer: %i size: %li", bufLen, size ) );
+        retStatus = -1;
+    }
+    else
+    {
+        /* Empty else marker. */
+    }
+
     for( i = 0; i < size; i++ )
     {
         sprintf( pBuff,
@@ -1051,15 +1096,16 @@ int32_t dtlsSessionGetLocalCertificateFingerprint( DtlsSSLContext_t * pSslContex
 /*-----------------------------------------------------------*/
 
 int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslContext,
-                                                       char * pExpectedFingerprint, const size_t fingerprintMaxLen )
+                                                       char * pExpectedFingerprint,
+                                                       const size_t fingerprintMaxLen )
 {
     int32_t retStatus = 0;
-    char actualFingerprint[fingerprintMaxLen];
+    char actualFingerprint[ CERTIFICATE_FINGERPRINT_LENGTH ];
     mbedtls_x509_crt * pRemoteCertificate = NULL;
 
-    if( ( pSslContext == NULL ) || ( pExpectedFingerprint == NULL ) || fingerprintMaxLen < sizeof(actualFingerprint))
+    if( ( pSslContext == NULL ) || ( pExpectedFingerprint == NULL ) || ( CERTIFICATE_FINGERPRINT_LENGTH < fingerprintMaxLen ) )
     {
-        LogError( ( "invalid input, pSslContext || pExpectedFingerprint == NULL || fingerprintMaxLen < sizeof(actualFingerprint) " ) );
+        LogError( ( "invalid input, pSslContext || pExpectedFingerprint == NULL || CERTIFICATE_FINGERPRINT_LENGTH < fingerprintMaxLen(%u)", fingerprintMaxLen ) );
         retStatus = -1;
     }
     else
@@ -1079,10 +1125,10 @@ int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslCo
     }
 
     if( dtlsCreateCertificateFingerprint( pRemoteCertificate,
-                                    actualFingerprint, sizeof(actualFingerprint)) != 0 )
+                                          actualFingerprint,
+                                          CERTIFICATE_FINGERPRINT_LENGTH ) != 0 )
     {
         LogError( ( "Failed to calculate certificate fingerprint" ) );
-        retStatus = -1;
     }
     else
     {
@@ -1093,7 +1139,7 @@ int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslCo
                  actualFingerprint,
                  fingerprintMaxLen ) != 0 )
     {
-        LogError( ( "STATUS_SSL_REMOTE_CERTIFICATE_VERIFICATION_FAILED" ) );
+        LogError( ( "STATUS_SSL_REMOTE_CERTIFICATE_VERIFICATION_FAILED \nexpected fingerprint:\n %s \nactual fingerprint:\n %s", pExpectedFingerprint, actualFingerprint ) );
         retStatus = -1;
     }
     else
@@ -1125,7 +1171,7 @@ static void mbedtls_ssl_get_dtls_srtp_negotiation_result( const mbedtls_ssl_cont
 /*-----------------------------------------------------------*/
 
 int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t * pSslContext,
-                                           PDtlsKeyingMaterial pDtlsKeyingMaterial )
+                                           pDtlsKeyingMaterial_t pDtlsKeyingMaterial )
 {
     int32_t retStatus = 0;
     uint32_t offset = 0;
@@ -1146,19 +1192,22 @@ int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t * pSslContext,
 
     pKeys = ( pTlsKeys ) & pSslContext->privKey;
 
-    if( mbedtls_ssl_tls_prf( pKeys->tlsProfile,
-                             pKeys->masterSecret,
-                             ARRAY_SIZE( pKeys->masterSecret ),
-                             KEYING_EXTRACTOR_LABEL,
-                             pKeys->randBytes,
-                             ARRAY_SIZE( pKeys->randBytes ),
-                             keyingMaterialBuffer,
-                             ARRAY_SIZE( keyingMaterialBuffer ) ) != 0 )
+    //TODO necessary?
+    // https://mbed-tls.readthedocs.io/en/latest/kb/how-to/tls_prf/
+    pKeys->tlsProfile = MBEDTLS_SSL_TLS_PRF_SHA256;
+
+    retStatus = mbedtls_ssl_tls_prf( pKeys->tlsProfile,
+                                     pKeys->masterSecret,
+                                     ARRAY_SIZE( pKeys->masterSecret ),
+                                     KEYING_EXTRACTOR_LABEL,
+                                     pKeys->randBytes,
+                                     ARRAY_SIZE( pKeys->randBytes ),
+                                     keyingMaterialBuffer,
+                                     ARRAY_SIZE( keyingMaterialBuffer ) );
+    if( retStatus != 0 )
     {
-        LogError( ( "Failed TLS-PRF function for key derivation: mbedTLSError= "
-                    "%s : %s.",
-                    mbedtlsHighLevelCodeOrDefault( sslRet ),
-                    mbedtlsLowLevelCodeOrDefault( sslRet ) ) );
+        LogError( ( "Failed TLS-PRF function for key derivation, funct: %d",pKeys->tlsProfile  ) );
+        MBEDTLS_ERROR_DESCRIPTION( retStatus );
         retStatus = -1;
     }
     else
@@ -1166,42 +1215,44 @@ int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t * pSslContext,
         /* Empty else marker. */
     }
 
-    pDtlsKeyingMaterial->key_length = MAX_SRTP_MASTER_KEY_LEN + MAX_SRTP_SALT_KEY_LEN;
-
-    memcpy( pDtlsKeyingMaterial->clientWriteKey,
-            &keyingMaterialBuffer[offset],
-            MAX_SRTP_MASTER_KEY_LEN );
-    offset += MAX_SRTP_MASTER_KEY_LEN;
-
-    memcpy( pDtlsKeyingMaterial->serverWriteKey,
-            &keyingMaterialBuffer[offset],
-            MAX_SRTP_MASTER_KEY_LEN );
-    offset += MAX_SRTP_MASTER_KEY_LEN;
-
-    memcpy( pDtlsKeyingMaterial->clientWriteKey + MAX_SRTP_MASTER_KEY_LEN,
-            &keyingMaterialBuffer[offset],
-            MAX_SRTP_SALT_KEY_LEN );
-    offset += MAX_SRTP_SALT_KEY_LEN;
-
-    memcpy( pDtlsKeyingMaterial->serverWriteKey + MAX_SRTP_MASTER_KEY_LEN,
-            &keyingMaterialBuffer[offset],
-            MAX_SRTP_SALT_KEY_LEN );
-
-    mbedtls_ssl_get_dtls_srtp_negotiation_result( &pSslContext->context,
-                                                  &negotiatedSRTPProfile );
-    switch( negotiatedSRTPProfile.chosen_dtls_srtp_profile )
+    if( retStatus == 0 )
     {
-    case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80:
-        pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_80;
-        break;
-    case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32:
-        pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_32;
-        break;
-    default:
-        LogError( ( "STATUS_SSL_UNKNOWN_SRTP_PROFILE" ) );
-        retStatus = -1;
-    }
+        pDtlsKeyingMaterial->key_length = MAX_SRTP_MASTER_KEY_LEN + MAX_SRTP_SALT_KEY_LEN;
 
+        memcpy( pDtlsKeyingMaterial->clientWriteKey,
+                &keyingMaterialBuffer[offset],
+                MAX_SRTP_MASTER_KEY_LEN );
+        offset += MAX_SRTP_MASTER_KEY_LEN;
+
+        memcpy( pDtlsKeyingMaterial->serverWriteKey,
+                &keyingMaterialBuffer[offset],
+                MAX_SRTP_MASTER_KEY_LEN );
+        offset += MAX_SRTP_MASTER_KEY_LEN;
+
+        memcpy( pDtlsKeyingMaterial->clientWriteKey + MAX_SRTP_MASTER_KEY_LEN,
+                &keyingMaterialBuffer[offset],
+                MAX_SRTP_SALT_KEY_LEN );
+        offset += MAX_SRTP_SALT_KEY_LEN;
+
+        memcpy( pDtlsKeyingMaterial->serverWriteKey + MAX_SRTP_MASTER_KEY_LEN,
+                &keyingMaterialBuffer[offset],
+                MAX_SRTP_SALT_KEY_LEN );
+
+        mbedtls_ssl_get_dtls_srtp_negotiation_result( &pSslContext->context,
+                                                      &negotiatedSRTPProfile );
+        switch( negotiatedSRTPProfile.chosen_dtls_srtp_profile )
+        {
+            case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80:
+                pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_80;
+                break;
+            case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32:
+                pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_32;
+                break;
+            default:
+                LogError( ( "STATUS_SSL_UNKNOWN_SRTP_PROFILE" ) );
+                retStatus = -1;
+        }
+    }
     return retStatus;
 }
 /*-----------------------------------------------------------*/
@@ -1350,8 +1401,8 @@ int32_t createCertificateAndKey( int32_t certificateBits,
                                 struct tm now, notAfter;
 
                                 now.tm_year = 2024 - 1900;
-                                now.tm_mon = 6;
-                                now.tm_mday = 30;
+                                now.tm_mon = 8;
+                                now.tm_mday = 12;
                                 now.tm_hour = 0;
                                 now.tm_min = 0;
                                 now.tm_sec = 0;

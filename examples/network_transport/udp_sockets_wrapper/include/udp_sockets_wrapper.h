@@ -54,9 +54,20 @@
 #define UDP_SOCKETS_ERRNO_EINTR               ( -11 ) /*!< Interrupted system call */
 
 #ifndef SOCKET_T_TYPEDEFED
-    struct xSOCKET;
-    typedef struct xSOCKET * Socket_t; /**< @brief Socket handle data type. */
+struct xSOCKET;
+typedef struct xSOCKET * Socket_t;     /**< @brief Socket handle data type. */
 #endif
+
+/**
+ * @brief Create an UDP socket descriptor.
+ *
+ * @param[out] pUdpSocket The output parameter to return the created socket descriptor.
+ * @param[in] assignFd The existing socket descriptor to be assigned to pUdpSocket.
+ *
+ * @return Non-zero value on error, 0 on success.
+ */
+BaseType_t UDP_Sockets_CreateAndAssign( Socket_t * pUdpSocket,
+                                        int assignFd );
 
 /**
  * @brief Establish a connection to server.

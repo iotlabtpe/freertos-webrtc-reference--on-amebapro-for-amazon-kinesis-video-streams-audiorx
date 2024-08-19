@@ -123,13 +123,13 @@ NetworkingUtilsResult_t NetworkingUtils_GetUrlHost( char * pUrl,
         {
             switch( *pCurPtr )
             {
-            case '/':
-            case ':':
-            case '?':
-                foundEndMark = 1;
-                break;
-            default:
-                pCurPtr++;
+                case '/':
+                case ':':
+                case '?':
+                    foundEndMark = 1;
+                    break;
+                default:
+                    pCurPtr++;
             }
         }
     }

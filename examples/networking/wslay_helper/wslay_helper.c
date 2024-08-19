@@ -10,6 +10,7 @@
 
 #include "errno.h"
 #include "lwip/sockets.h"
+#include "lwip_netconf.h"
 
 NetworkingWslayContext_t networkingWslayContext;
 
@@ -1002,7 +1003,8 @@ static WebsocketResult_t InitializeWakeUpSocket( void )
         }
         else
         {
-            LogDebug( ( "Creating wake up socket at port %u", ntohs( networkingWslayContext.socketWakeUpAddr.sin_port ) ) );
+            memcpy( &networkingWslayContext.socketWakeUpAddr.sin_addr, LwIP_GetIP( 0 ), sizeof( struct in_addr ) );
+            LogDebug( ( "Creating wake up socket at IP/port 0x%x/%u", networkingWslayContext.socketWakeUpAddr.sin_addr.s_addr, ntohs( networkingWslayContext.socketWakeUpAddr.sin_port ) ) );
         }
     }
 
