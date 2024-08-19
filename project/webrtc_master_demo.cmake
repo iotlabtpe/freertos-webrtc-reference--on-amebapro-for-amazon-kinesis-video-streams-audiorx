@@ -61,6 +61,8 @@ set(REPO_ROOT_DIRECTORY ${repo_root})
 # set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
 #      "${REPO_ROOT_DIRECTORY}/examples/master/" )
 
+include( ${REPO_ROOT_DIRECTORY}/patch/apply_patches.cmake )
+
 file(
   GLOB
   WEBRTC_APPLICATION_MASTER_SOURCE_FILES

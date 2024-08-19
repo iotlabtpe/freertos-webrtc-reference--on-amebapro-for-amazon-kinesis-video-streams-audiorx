@@ -13,9 +13,6 @@ git submodule update --init --recursive
 ```
 
 ## Setup
-1. Open `libraries/ambpro2_sdk/component/lwip/api/lwipopts.h`:
-   * Set `LWIP_IPV6` to `1`.
-   * Define `LWIP_NETIF_LOOPBACK` as `1`.
 1. Copy `examples/master/demo_config_template.h` and rename it to `examples/master/demo_config.h` and set the following:
    * Set `AWS_KVS_CHANNEL_NAME` to your signaling channel name.
    * Set `AWS_ACCESS_KEY_ID` to your access key.
