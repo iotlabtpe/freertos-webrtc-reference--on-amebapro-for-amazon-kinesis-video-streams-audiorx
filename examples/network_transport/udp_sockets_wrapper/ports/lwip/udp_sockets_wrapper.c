@@ -54,6 +54,34 @@ struct xSOCKET
     int xFd;
 };
 
+BaseType_t UDP_Sockets_CreateAndAssign( Socket_t * pUdpSocket,
+                                        int assignFd )
+{
+    BaseType_t xRet = UDP_SOCKETS_ERRNO_NONE;
+
+    if( pUdpSocket == NULL )
+    {
+        xRet = UDP_SOCKETS_ERRNO_EINVAL;
+        LogError( ( "Invalid input, pUdpSocket: %p", pUdpSocket ) );
+    }
+
+    if( xRet == UDP_SOCKETS_ERRNO_NONE )
+    {
+        *pUdpSocket = pvPortMalloc( sizeof( *pUdpSocket ) );
+        if( *pUdpSocket == NULL )
+        {
+            LogError( ( "Failed to allow new socket context." ) );
+            xRet = UDP_SOCKETS_ERRNO_ENOMEM;
+        }
+        else
+        {
+            ( *pUdpSocket )->xFd = assignFd;
+        }
+    }
+
+    return xRet;
+}
+
 /**
  * @brief Establish a connection to server.
  *

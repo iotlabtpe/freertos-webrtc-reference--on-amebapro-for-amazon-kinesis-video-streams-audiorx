@@ -28,11 +28,13 @@ static void ReleaseOtherSockets( IceControllerContext_t * pCtx,
     {
         if( xSemaphoreTake( pCtx->socketMutex, portMAX_DELAY ) == pdTRUE )
         {
+            LogDebug( ( "Closing sockets other than: %d", pChosenSocketContext->socketFd ) );
             for( i = 0; i < pCtx->socketsContextsCount; i++ )
             {
-                if( &pCtx->socketsContexts[i] != pChosenSocketContext )
+                if( pCtx->socketsContexts[i].socketFd != pChosenSocketContext->socketFd )
                 {
                     /* Release all unused socket contexts. */
+                    LogDebug( ( "Closing socket: %d", pCtx->socketsContexts[i].socketFd ) );
                     IceControllerNet_FreeSocketContext( pCtx, &pCtx->socketsContexts[i] );
                 }
             }
@@ -49,7 +51,9 @@ static void ReleaseOtherSockets( IceControllerContext_t * pCtx,
 static void HandleRxPacket( IceControllerContext_t * pCtx,
                             IceControllerSocketContext_t * pSocketContext,
                             OnRecvRtpRtcpPacketCallback_t onRecvRtpRtcpPacketCallbackFunc,
-                            void * pOnRecvRtpRtcpPacketCallbackCustomContext )
+                            void * pOnRecvRtpRtcpPacketCallbackCustomContext,
+                            OnIceEventCallback_t onIceEventCallbackFunc,
+                            void * pOnIceEventCallbackCustomContext )
 {
     uint8_t skipProcess = 0;
     int readBytes;
@@ -62,6 +66,8 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
     StunResult_t retStun;
     StunContext_t stunContext;
     StunHeader_t stunHeader;
+    int32_t retPeerToPeerConnectionFound;
+    IceControllerCallbackContent_t peerToPeerConnectionFoundContent;
 
     if( ( pCtx == NULL ) || ( pSocketContext == NULL ) )
     {
@@ -169,18 +175,35 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
                                                      receiveBuffer,
                                                      readBytes,
                                                      &remoteIceEndpoint );
-            if( ret == ICE_CONTROLLER_RESULT_FOUND_CONNECTION )
+            if( ( ret == ICE_CONTROLLER_RESULT_FOUND_CONNECTION ) && ( pCtx->pNominatedSocketContext->state != ICE_CONTROLLER_SOCKET_CONTEXT_STATE_PASS_HANDSHAKE ) )
             {
                 /* Found nominated pair, execute DTLS handshake and release all other resources. */
+                if( onIceEventCallbackFunc )
+                {
+                    peerToPeerConnectionFoundContent.requestContent.peerTopeerConnectionFoundMsg.socketFd = pSocketContext->socketFd;
+                    peerToPeerConnectionFoundContent.requestContent.peerTopeerConnectionFoundMsg.pLocalCandidate = pSocketContext->pLocalCandidate;
+                    peerToPeerConnectionFoundContent.requestContent.peerTopeerConnectionFoundMsg.pRemoteCandidate = pSocketContext->pRemoteCandidate;
+                    retPeerToPeerConnectionFound = onIceEventCallbackFunc( pOnIceEventCallbackCustomContext, ICE_CONTROLLER_CB_EVENT_PEER_TO_PEER_CONNECTION_FOUND, &peerToPeerConnectionFoundContent );
+                    if( retPeerToPeerConnectionFound != 0 )
+                    {
+                        LogError( ( "Fail to handle peer to peer connection found event, ret: %ld", retPeerToPeerConnectionFound ) );
+                    }
+                }
+                else
+                {
+                    LogWarn( ( "No callback function to handle P2P connection found event." ) );
+                }
+                /* Set state to pass handshake in ReleaseOtherSockets. */
                 ReleaseOtherSockets( pCtx, pSocketContext );
-                skipProcess = 1;
-                break;
+                LogDebug( ( "Released all other socket contexts" ) );
             }
             else if( ret != ICE_CONTROLLER_RESULT_OK )
             {
                 LogError( ( "Fail to handle this RX packet, readBytes: %d", readBytes ) );
-                skipProcess = 1;
-                break;
+            }
+            else
+            {
+                /* Handle STUN packet successfully, keep processing. */
             }
         }
     }
@@ -201,6 +224,8 @@ static void pollingSockets( IceControllerContext_t * pCtx )
     size_t fdsCount;
     OnRecvRtpRtcpPacketCallback_t onRecvRtpRtcpPacketCallbackFunc;
     void * pOnRecvRtpRtcpPacketCallbackCustomContext = NULL;
+    OnIceEventCallback_t onIceEventCallbackFunc;
+    void * pOnIceEventCallbackCustomContext = NULL;
 
     FD_ZERO( &rfds );
 
@@ -213,6 +238,8 @@ static void pollingSockets( IceControllerContext_t * pCtx )
         fdsCount = pCtx->socketsContextsCount;
         onRecvRtpRtcpPacketCallbackFunc = pCtx->socketListenerContext.onRecvRtpRtcpPacketCallbackFunc;
         pOnRecvRtpRtcpPacketCallbackCustomContext = pCtx->socketListenerContext.pOnRecvRtpRtcpPacketCallbackCustomContext;
+        onIceEventCallbackFunc = pCtx->onIceEventCallbackFunc;
+        pOnIceEventCallbackCustomContext = pCtx->pOnIceEventCustomContext;
 
         /* We have finished accessing the shared resource.  Release the mutex. */
         xSemaphoreGive( pCtx->socketMutex );
@@ -265,7 +292,9 @@ static void pollingSockets( IceControllerContext_t * pCtx )
             {
                 LogDebug( ( "Detect packets on fd %d, idx: %d", fds[i], i ) );
 
-                HandleRxPacket( pCtx, &pCtx->socketsContexts[i], onRecvRtpRtcpPacketCallbackFunc, pOnRecvRtpRtcpPacketCallbackCustomContext );
+                HandleRxPacket( pCtx, &pCtx->socketsContexts[i],
+                                onRecvRtpRtcpPacketCallbackFunc, pOnRecvRtpRtcpPacketCallbackCustomContext,
+                                onIceEventCallbackFunc, pOnIceEventCallbackCustomContext );
             }
         }
     }

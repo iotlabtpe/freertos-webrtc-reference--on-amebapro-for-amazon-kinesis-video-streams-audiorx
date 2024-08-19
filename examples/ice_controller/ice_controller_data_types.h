@@ -58,6 +58,7 @@ typedef enum IceControllerCallbackEvent
     ICE_CONTROLLER_CB_EVENT_NONE = 0,
     ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY,
     ICE_CONTROLLER_CB_EVENT_CONNECTIVITY_CHECK_TIMEOUT,
+    ICE_CONTROLLER_CB_EVENT_PEER_TO_PEER_CONNECTION_FOUND,
     ICE_CONTROLLER_CB_EVENT_MAX,
 } IceControllerCallbackEvent_t;
 
@@ -67,12 +68,20 @@ typedef struct IceControllerLocalCandidateReadyMsg
     size_t localCandidateIndex;
 } IceControllerLocalCandidateReadyMsg_t;
 
+typedef struct IceControllerPeerToPeerConnectionFoundMsg
+{
+    int socketFd;
+    IceCandidate_t * pLocalCandidate;
+    IceCandidate_t * pRemoteCandidate;
+} IceControllerPeerToPeerConnectionFoundMsg_t;
+
 typedef struct IceControllerCallbackContent
 {
     union MessageContent_t
     {
         IceControllerLocalCandidateReadyMsg_t localCandidateReadyMsg; /* ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY */
         /* NULL for ICE_CONTROLLER_CB_EVENT_CONNECTIVITY_CHECK_TIMEOUT */
+        IceControllerPeerToPeerConnectionFoundMsg_t peerTopeerConnectionFoundMsg; /* ICE_CONTROLLER_CB_EVENT_PEER_TO_PEER_CONNECTION_FOUND */
     } requestContent;
 } IceControllerCallbackContent_t;
 
@@ -90,9 +99,6 @@ typedef enum IceControllerResult
     ICE_CONTROLLER_RESULT_BAD_PARAMETER,
     ICE_CONTROLLER_RESULT_IPV6_NOT_SUPPORT,
     ICE_CONTROLLER_RESULT_IP_BUFFER_TOO_SMALL,
-    ICE_CONTROLLER_RESULT_RFDS_TOO_SMALL,
-    ICE_CONTROLLER_RESULT_CANDIDATE_BUFFER_TOO_SMALL,
-    ICE_CONTROLLER_RESULT_CANDIDATE_STRING_BUFFER_TOO_SMALL,
     ICE_CONTROLLER_RESULT_STUN_URL_BUFFER_TOO_SMALL,
     ICE_CONTROLLER_RESULT_USERNAME_BUFFER_TOO_SMALL,
     ICE_CONTROLLER_RESULT_PASSWORD_BUFFER_TOO_SMALL,
@@ -100,13 +106,10 @@ typedef enum IceControllerResult
     ICE_CONTROLLER_RESULT_CANDIDATE_SEND_FAIL,
     ICE_CONTROLLER_RESULT_INVALID_IP_ADDR,
     ICE_CONTROLLER_RESULT_INVALID_JSON,
-    ICE_CONTROLLER_RESULT_INVALID_REMOTE_CLIENT_ID,
     ICE_CONTROLLER_RESULT_INVALID_REMOTE_USERNAME,
-    ICE_CONTROLLER_RESULT_INVALID_RX_PACKET_FAMILY,
     ICE_CONTROLLER_RESULT_INVALID_ICE_SERVER,
     ICE_CONTROLLER_RESULT_INVALID_ICE_SERVER_PORT,
     ICE_CONTROLLER_RESULT_INVALID_ICE_SERVER_PROTOCOL,
-    ICE_CONTROLLER_RESULT_UNKNOWN_REMOTE_CLIENT_ID,
     ICE_CONTROLLER_RESULT_FAIL_CREATE_ICE_AGENT,
     ICE_CONTROLLER_RESULT_FAIL_SOCKET_CREATE,
     ICE_CONTROLLER_RESULT_FAIL_SOCKET_BIND,
@@ -114,12 +117,7 @@ typedef enum IceControllerResult
     ICE_CONTROLLER_RESULT_FAIL_SOCKET_SENDTO,
     ICE_CONTROLLER_RESULT_FAIL_ADD_HOST_CANDIDATE,
     ICE_CONTROLLER_RESULT_FAIL_ADD_REMOTE_CANDIDATE,
-    ICE_CONTROLLER_RESULT_FAIL_MQ_INIT,
-    ICE_CONTROLLER_RESULT_FAIL_MQ_SEND,
-    ICE_CONTROLLER_RESULT_FAIL_MQ_ATTACH_POLL,
     ICE_CONTROLLER_RESULT_FAIL_TIMER_INIT,
-    ICE_CONTROLLER_RESULT_FAIL_POLLING,
-    ICE_CONTROLLER_RESULT_FAIL_RECVFROM,
     ICE_CONTROLLER_RESULT_FAIL_QUERY_ICE_SERVER_CONFIGS,
     ICE_CONTROLLER_RESULT_FAIL_SNPRINTF,
     ICE_CONTROLLER_RESULT_FAIL_DNS_QUERY,
@@ -137,8 +135,6 @@ typedef enum IceControllerResult
     ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_TYPE_ID,
     ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_TYPE,
     ICE_CONTROLLER_RESULT_JSON_CANDIDATE_LACK_OF_ELEMENT,
-    ICE_CONTROLLER_RESULT_EXCEED_REMOTE_PEER,
-    ICE_CONTROLLER_RESULT_NO_MORE_RX_PACKET,
     ICE_CONTROLLER_RESULT_FOUND_CONNECTION,
 } IceControllerResult_t;
 
@@ -201,44 +197,6 @@ typedef struct IceControllerSocketContext
     IceCandidate_t * pRemoteCandidate;
     int socketFd;
 } IceControllerSocketContext_t;
-
-typedef struct DtlsTestCredentials
-{
-    /* user-agent */
-    char * pUserAgent;
-    size_t userAgentLength;
-
-    /* Region */
-    char * pRegion;
-    size_t regionLength;
-
-    /* AKSK */
-    char * pAccessKeyId;
-    size_t accessKeyIdLength;
-    char * pSecretAccessKey;
-    size_t secretAccessKeyLength;
-
-    /* CA Cert Path */
-    char * pCaCertPath;
-    char * pCaCertPem;
-
-    /* Or CA PEM */
-    const uint8_t * pRootCa;
-    size_t rootCaSize;
-
-} DtlsTestCredentials_t;
-
-typedef struct DtlsTestContext {
-    DtlsTestCredentials_t credentials;
-
-    /* The transport layer interface used by the HTTP Client library. */
-    TransportInterface_t xTransportInterface;
-    /* The network context for the transport layer interface. */
-
-    DtlsNetworkContext_t xNetworkContext;
-    DtlsTransportParams_t xDtlsTransportParams;
-    DtlsNetworkCredentials_t xNetworkCredentials;
-} DtlsTestContext_t;
 
 typedef struct IceControllerIceServer
 {

@@ -563,7 +563,6 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
                             {
                                 TimerController_ResetTimer( &pCtx->connectivityCheckTimer );
                                 IceController_PrintMetrics( pCtx );
-                                ( void ) IceControllerSocketListener_StopPolling( pCtx );
                             }
 
                             /* Update socket context. */

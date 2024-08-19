@@ -5,6 +5,8 @@
 #include "peer_connection.h"
 #include "signaling_controller.h"
 
+#include "lwip/sockets.h"
+
 #define PEER_CONNECTION_SESSION_TASK_NAME "PcSessionTsk"
 #define PEER_CONNECTION_SESSION_RX_TASK_NAME "PcRxTsk" // For Ice controller to monitor socket Rx path
 #define PEER_CONNECTION_MESSAGE_QUEUE_NAME "/PcSessionMq"
@@ -33,6 +35,9 @@ static PeerConnectionResult_t HandleAddRemoteCandidateRequest( PeerConnectionSes
                                                                PeerConnectionSessionRequestMessage_t * pRequestMessage );
 static PeerConnectionResult_t HandleConnectivityCheckRequest( PeerConnectionSession_t * pSession,
                                                               PeerConnectionSessionRequestMessage_t * pRequestMessage );
+static int32_t ExecuteDtlsHandshake( PeerConnectionSession_t * pSession,
+                                     int socketFd,
+                                     IceCandidate_t * pRemoteCandidate );
 
 static void PeerConnection_SessionTask( void * pParameter )
 {
@@ -347,6 +352,29 @@ static int32_t OnIceEventConnectivityCheck( PeerConnectionSession_t * pSession )
     return ret;
 }
 
+static int32_t OnIceEventPeerToPeerConnectionFound( PeerConnectionSession_t * pSession,
+                                                    int socketFd,
+                                                    IceCandidate_t * pRemoteCandidate )
+{
+    int32_t ret = 0;
+
+    if( ( pSession == NULL ) ||
+        ( pRemoteCandidate == NULL ) ||
+        ( socketFd < 0 ) )
+    {
+        LogError( ( "Invalid input, pSession: %p, pRemoteCandidate: %p, socketFd: %d", pSession, pRemoteCandidate, socketFd ) );
+        ret = -10;
+    }
+
+    if( ret == 0 )
+    {
+        /* Execute DTLS handshaking. */
+        ret = ExecuteDtlsHandshake( pSession, socketFd, pRemoteCandidate );
+    }
+
+    return ret;
+}
+
 static int32_t HandleIceEventCallback( void * pCustomContext,
                                        IceControllerCallbackEvent_t event,
                                        IceControllerCallbackContent_t * pEventMsg )
@@ -354,6 +382,7 @@ static int32_t HandleIceEventCallback( void * pCustomContext,
     int32_t ret = 0;
     PeerConnectionSession_t * pSession = ( PeerConnectionSession_t * ) pCustomContext;
     IceControllerLocalCandidateReadyMsg_t * pLocalCandidateReadyMsg = NULL;
+    IceControllerPeerToPeerConnectionFoundMsg_t * pPeerToPeerConnectionFoundMsg = NULL;
 
     if( ( pCustomContext == NULL ) )
     {
@@ -385,9 +414,134 @@ static int32_t HandleIceEventCallback( void * pCustomContext,
             case ICE_CONTROLLER_CB_EVENT_CONNECTIVITY_CHECK_TIMEOUT:
                 ret = OnIceEventConnectivityCheck( pSession );
                 break;
+            case ICE_CONTROLLER_CB_EVENT_PEER_TO_PEER_CONNECTION_FOUND:
+                pPeerToPeerConnectionFoundMsg = &pEventMsg->requestContent.peerTopeerConnectionFoundMsg;
+                ret = OnIceEventPeerToPeerConnectionFound( pSession, pPeerToPeerConnectionFoundMsg->socketFd, pPeerToPeerConnectionFoundMsg->pRemoteCandidate );
+                break;
             default:
                 LogError( ( "Unknown event: %d", event ) );
                 break;
+        }
+    }
+
+    return ret;
+}
+
+static int32_t ExecuteDtlsHandshake( PeerConnectionSession_t * pSession,
+                                     int socketFd,
+                                     IceCandidate_t * pRemoteCandidate )
+{
+    int32_t ret = 0;
+    DtlsTransportStatus_t xNetworkStatus = DTLS_TRANSPORT_SUCCESS;
+    BaseType_t retUdpTransport;
+    DtlsSession_t * pDtlsSession = NULL;
+    char remoteIpAddr[ INET_ADDRSTRLEN ];
+    const char * pRemoteIpPos;
+
+    if( ( pSession == NULL ) || ( pRemoteCandidate == NULL ) || ( socketFd < 0 ) )
+    {
+        LogError( ( "Invalid input, pSession: %p, pRemoteCandidate: %p, socketFd: %d", pSession, pRemoteCandidate, socketFd ) );
+        ret = -20;
+    }
+
+    if( ret == 0 )
+    {
+        /* Set the pParams member of the network context with desired transport. */
+        pDtlsSession = &pSession->dtlsSession;
+        pDtlsSession->xNetworkContext.pParams = &pDtlsSession->xDtlsTransportParams;
+        retUdpTransport = UDP_Sockets_CreateAndAssign( &pDtlsSession->xNetworkContext.pParams->udpSocket, socketFd );
+        if( retUdpTransport != UDP_SOCKETS_ERRNO_NONE )
+        {
+            LogError( ( "Fail to create UDP socket descriptor, ret: %ld", retUdpTransport ) );
+            ret = -21;
+        }
+    }
+
+    if( ret == 0 )
+    {
+        /* Set transport interface. */
+        pDtlsSession->xTransportInterface.pNetworkContext = ( NetworkContext_t * ) &pDtlsSession->xNetworkContext;
+        pDtlsSession->xTransportInterface.send = ( TransportSend_t ) DTLS_send;
+        pDtlsSession->xTransportInterface.recv = ( TransportRecv_t ) DTLS_recv;
+
+        // /* Set the network credentials. */
+        /* Disable SNI server name indication*/
+        // https://mbed-tls.readthedocs.io/en/latest/kb/how-to/use-sni/
+        pDtlsSession->xNetworkCredentials.disableSni = pdTRUE;
+
+        pRemoteIpPos = inet_ntop( AF_INET,
+                                  pRemoteCandidate->endpoint.transportAddress.address,
+                                  remoteIpAddr,
+                                  INET_ADDRSTRLEN );
+        LogInfo( ( "Start DTLS handshaking with %s:%d", pRemoteIpPos ? pRemoteIpPos : "UNKNOWN", pRemoteCandidate->endpoint.transportAddress.port ) );
+        if( pRemoteIpPos == NULL )
+        {
+            LogError( ( "Unknown remote candidate." ) );
+            ret = -22;
+        }
+    }
+
+    if( ret == 0 )
+    {
+        if( NULL == pSession->pCtx->dtlsContext.localCert.raw.p )
+        {
+            LogError( ( "Fail to get answer cert: NULL == pSession->pCtx->dtlsContext.localCert.raw.p" ) );
+            ret = -23;
+        }
+        else
+        {
+            /* Assign local cert to the DTLS session. */
+            LogDebug( ( "setting pDtlsSession->xNetworkCredentials.pClientCert" ) );
+            pDtlsSession->xNetworkCredentials.pClientCert = pSession->pCtx->dtlsContext.localCert.raw.p;
+            pDtlsSession->xNetworkCredentials.clientCertSize = pSession->pCtx->dtlsContext.localCert.raw.len;
+
+            /* Assign local key to the DTLS session. */
+            LogDebug( ( "setting pDtlsSession->xNetworkCredentials.pPrivateKey" ) );
+            pDtlsSession->xNetworkCredentials.pPrivateKey = ( uint8_t * ) pSession->pCtx->dtlsContext.privateKeyPcsPem;
+            pDtlsSession->xNetworkCredentials.privateKeySize = PRIVATE_KEY_PCS_PEM_SIZE;
+
+            /* Attempt to create a DTLS connection. */
+            xNetworkStatus = DTLS_Connect( &pDtlsSession->xNetworkContext,
+                                           &pDtlsSession->xNetworkCredentials,
+                                           pRemoteIpPos,
+                                           pRemoteCandidate->endpoint.transportAddress.port );
+
+            if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
+            {
+                LogError( ( "Fail to connect with server with return % d ", xNetworkStatus ) );
+                ret = -24;
+            }
+        }
+    }
+
+    if( ret == 0 )
+    {
+        /* Verify remote fingerprint (if remote cert fingerprint is the expected one) */
+        xNetworkStatus = dtlsSessionVerifyRemoteCertificateFingerprint( &pDtlsSession->xNetworkContext.pParams->dtlsSslContext,
+                                                                        pSession->remoteCertFingerprint,
+                                                                        pSession->remoteCertFingerprintLength );
+
+        if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
+        {
+            LogError( ( "Fail to dtlsSessionVerifyRemoteCertificateFingerprint with return %d ", xNetworkStatus ) );
+            ret = -25;
+        }
+    }
+
+    if( ret == 0 )
+    {
+        /* Retrieve key material into DTLS session. */
+        xNetworkStatus = dtlsSessionPopulateKeyingMaterial( &pDtlsSession->xNetworkContext.pParams->dtlsSslContext,
+                                                            &pDtlsSession->xNetworkCredentials.dtlsKeyingMaterial );
+
+        if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
+        {
+            LogError( ( "Fail to dtlsSessionPopulateKeyingMaterial with return %d ", xNetworkStatus ) );
+            ret = -26;
+        }
+        else
+        {
+            LogDebug( ( "dtlsSessionPopulateKeyingMaterial with key_length: %i ", pDtlsSession->xNetworkCredentials.dtlsKeyingMaterial.key_length ) );
         }
     }
 
@@ -413,10 +567,12 @@ static int32_t HandleRtpRtcpPackets( void * pCustomContext,
         if( ( bufferLength >= 2 ) && ( pBuffer[1] >= 192 ) && ( pBuffer[1] <= 223 ) )
         {
             /* RTCP packet */
+            LogInfo( ( "Receiving RTCP packets with length %u", bufferLength ) );
         }
         else
         {
             /* RTP packet */
+            LogInfo( ( "Receiving RTP packets with length %u", bufferLength ) );
         }
     }
 
@@ -669,7 +825,7 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t * pCtx,
             if( retMessageQueue != MESSAGE_QUEUE_RESULT_OK )
             {
                 LogError( ( "Fail to open message queue" ) );
-                ret = ICE_CONTROLLER_RESULT_FAIL_MQ_INIT;
+                ret = PEER_CONNECTION_RESULT_FAIL_MQ_INIT;
                 break;
             }
 
@@ -698,7 +854,7 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t * pCtx,
             ( void ) snprintf( tempName, sizeof( tempName ), "%s%02d", PEER_CONNECTION_SESSION_RX_TASK_NAME, i );
             if( xTaskCreate( IceControllerSocketListener_Task,
                              tempName,
-                             4096,
+                             10240,
                              &pCtx->peerConnectionSessions[i].iceControllerContext,
                              tskIDLE_PRIORITY + 1,
                              NULL ) != pdPASS )
@@ -708,6 +864,7 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t * pCtx,
             }
 
             pCtx->peerConnectionSessions[i].pSignalingControllerContext = pSignalingControllerContext;
+            pCtx->peerConnectionSessions[i].pCtx = pCtx;
         }
     }
 
@@ -981,7 +1138,7 @@ PeerConnectionResult_t PeerConnection_CreateSession( PeerConnectionContext_t * p
                                                      size_t * pLocalFingerprint )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
-    DtlsTestContext_t * pDtlsSession = NULL;
+    DtlsSession_t * pDtlsSession = NULL;
     PeerConnectionSession_t * pSession = NULL;
 
     if( ( pCtx == NULL ) ||
@@ -1015,7 +1172,7 @@ PeerConnectionResult_t PeerConnection_CreateSession( PeerConnectionContext_t * p
         pDtlsSession = &pSession->dtlsSession;
         memset( pDtlsSession,
                 0,
-                sizeof( DtlsTestContext_t ) );
+                sizeof( DtlsSession_t ) );
 
         if( pCtx->dtlsContext.localCert.raw.p != NULL )
         {

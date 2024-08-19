@@ -38,15 +38,13 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_ADD_REMOTE_CANDIDATE,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_CONNECTIVITY_CHECK,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_DESTROY,
-    PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SET_REMOTE_DESCRIPTION,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_DESERIALIZE_CANDIDATE,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_REMOTE_CANDIDATE,
-    PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_CREATE_DTLS_SESSION,
-    PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_GET_LOCAL_FINGERPRINT,
     PEER_CONNECTION_RESULT_FAIL_CREATE_CERT,
     PEER_CONNECTION_RESULT_FAIL_CREATE_CERT_AND_KEY,
     PEER_CONNECTION_RESULT_FAIL_CREATE_CERT_FINGERPRINT,
     PEER_CONNECTION_RESULT_FAIL_WRITE_KEY_PEM,
+    PEER_CONNECTION_RESULT_FAIL_MQ_INIT,
     PEER_CONNECTION_RESULT_FAIL_MQ_SEND,
 } PeerConnectionResult_t;
 
@@ -90,6 +88,8 @@ typedef struct PeerConnectionSessionRequestMessage
     } requestContent;
 } PeerConnectionSessionRequestMessage_t;
 
+typedef struct PeerConnectionContext PeerConnectionContext_t;
+
 typedef struct PeerConnectionSession
 {
     /* The signaling controller context initialized by application. */
@@ -116,7 +116,10 @@ typedef struct PeerConnectionSession
     MessageQueueHandler_t requestQueue;
 
     /* DTLS session. */
-    DtlsTestContext_t dtlsSession;
+    DtlsSession_t dtlsSession;
+
+    /* Pointer that points to peer connection context. */
+    PeerConnectionContext_t * pCtx;
 } PeerConnectionSession_t;
 
 typedef struct PeerConnectionDtlsContext

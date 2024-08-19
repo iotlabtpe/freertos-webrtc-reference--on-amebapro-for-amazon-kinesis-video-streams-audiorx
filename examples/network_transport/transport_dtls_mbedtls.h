@@ -231,6 +231,18 @@ typedef struct DtlsNetworkCredentials
     DtlsKeyingMaterial dtlsKeyingMaterial; /**< @brief derivated SRTP keys */
 } DtlsNetworkCredentials_t;
 
+typedef struct DtlsSession {
+    DtlsNetworkCredentials_t credentials;
+
+    /* The transport layer interface used by the HTTP Client library. */
+    TransportInterface_t xTransportInterface;
+    /* The network context for the transport layer interface. */
+
+    DtlsNetworkContext_t xNetworkContext;
+    DtlsTransportParams_t xDtlsTransportParams;
+    DtlsNetworkCredentials_t xNetworkCredentials;
+} DtlsSession_t;
+
 /**
  * @brief DTLS Connect / Disconnect return status.
  */
