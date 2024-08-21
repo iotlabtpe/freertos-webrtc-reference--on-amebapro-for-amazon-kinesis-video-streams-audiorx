@@ -20,8 +20,8 @@
 #define DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID "myVideoTrack"
 #define DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID "myAudioTrack"
 
-#define DEMO_TRANSCEIVER_VIDEO_MESSAGE_QUEUE_NAME "/TxVideoMq"
-#define DEMO_TRANSCEIVER_AUDIO_MESSAGE_QUEUE_NAME "/TxAudioMq"
+#define DEMO_TRANSCEIVER_VIDEO_DATA_QUEUE_NAME "/TxVideoMq"
+#define DEMO_TRANSCEIVER_AUDIO_DATA_QUEUE_NAME "/TxAudioMq"
 #define DEMO_TRANSCEIVER_MAX_QUEUE_MSG_NUM ( 10 )
 
 static void VideoTx_Task( void * pParameter );
@@ -31,9 +31,9 @@ static void VideoTx_Task( void * pParameter )
 {
     AppMediaSourceContext_t * pVideoContext = ( AppMediaSourceContext_t * )pParameter;
     MessageQueueResult_t retMessageQueue;
-    AppMediaSourceRequestMessage_t requestMsg;
-    size_t requestMsgLength;
     uint8_t skipProcess = 0;
+    webrtc_frame_t frame;
+    size_t frameLength;
 
     if( pVideoContext == NULL )
     {
@@ -44,22 +44,19 @@ static void VideoTx_Task( void * pParameter )
     /* Handle event. */
     while( skipProcess == 0 )
     {
-        requestMsgLength = sizeof( AppMediaSourceRequestMessage_t );
-        retMessageQueue = MessageQueue_Recv( &pVideoContext->requestQueue,
-                                             &requestMsg,
-                                             &requestMsgLength );
+        /* Recevied message from data queue. */
+        frameLength = sizeof( webrtc_frame_t );
+        retMessageQueue = MessageQueue_Recv( &pVideoContext->dataQueue,
+                                             &frame,
+                                             &frameLength );
         if( retMessageQueue == MESSAGE_QUEUE_RESULT_OK )
         {
-            /* Received message, process it. */
-            LogDebug( ( "Receive request type: %d", requestMsg.requestType ) );
-            switch( requestMsg.requestType )
+            /* Received a media frame. */
+            LogDebug( ( "Video Tx frame(%ld), type: %lu, timestamp: %lu", frame.size, frame.type, frame.timestamp ) );
+
+            if( frame.freeData )
             {
-                case APP_MEDIA_SOURCE_REQUEST_TYPE_REMOTE_PEER_READY:
-                    break;
-                default:
-                    /* Unknown request, drop it. */
-                    LogDebug( ( "Dropping unknown request %d", requestMsg.requestType ) );
-                    break;
+                vPortFree( frame.pData );
             }
         }
     }
@@ -74,9 +71,9 @@ static void AudioTx_Task( void * pParameter )
 {
     AppMediaSourceContext_t * pAudioContext = ( AppMediaSourceContext_t * )pParameter;
     MessageQueueResult_t retMessageQueue;
-    AppMediaSourceRequestMessage_t requestMsg;
-    size_t requestMsgLength;
     uint8_t skipProcess = 0;
+    webrtc_frame_t frame;
+    size_t frameLength;
 
     if( pAudioContext == NULL )
     {
@@ -87,22 +84,19 @@ static void AudioTx_Task( void * pParameter )
     /* Handle event. */
     while( skipProcess == 0 )
     {
-        requestMsgLength = sizeof( AppMediaSourceRequestMessage_t );
-        retMessageQueue = MessageQueue_Recv( &pAudioContext->requestQueue,
-                                             &requestMsg,
-                                             &requestMsgLength );
+        /* Recevied message from data queue. */
+        frameLength = sizeof( webrtc_frame_t );
+        retMessageQueue = MessageQueue_Recv( &pAudioContext->dataQueue,
+                                             &frame,
+                                             &frameLength );
         if( retMessageQueue == MESSAGE_QUEUE_RESULT_OK )
         {
-            /* Received message, process it. */
-            LogDebug( ( "Receive request type: %d", requestMsg.requestType ) );
-            switch( requestMsg.requestType )
+            /* Received a media frame. */
+            LogDebug( ( "Audio Tx frame(%ld), type: %lu, timestamp: %lu", frame.size, frame.type, frame.timestamp ) );
+
+            if( frame.freeData )
             {
-                case APP_MEDIA_SOURCE_REQUEST_TYPE_REMOTE_PEER_READY:
-                    break;
-                default:
-                    /* Unknown request, drop it. */
-                    LogDebug( ( "Dropping unknown request %d", requestMsg.requestType ) );
-                    break;
+                vPortFree( frame.pData );
             }
         }
     }
@@ -116,8 +110,6 @@ static void AudioTx_Task( void * pParameter )
 static int32_t OnPcEventRemotePeerReady( AppMediaSourceContext_t * pMediaSource )
 {
     int32_t ret = 0;
-    MessageQueueResult_t retMessageQueue;
-    AppMediaSourceRequestMessage_t requestMsg;
 
     if( pMediaSource == NULL )
     {
@@ -125,17 +117,13 @@ static int32_t OnPcEventRemotePeerReady( AppMediaSourceContext_t * pMediaSource 
         ret = -1;
     }
 
-    if( ret == 0 )
+    if( ( ret == 0 ) && ( pMediaSource->pSourcesContext->isPortStarted == 0 ) )
     {
-        requestMsg.requestType = APP_MEDIA_SOURCE_REQUEST_TYPE_REMOTE_PEER_READY;
-
-        retMessageQueue = MessageQueue_Send( &pMediaSource->requestQueue,
-                                             &requestMsg,
-                                             sizeof( AppMediaSourceRequestMessage_t ) );
-        if( retMessageQueue != MESSAGE_QUEUE_RESULT_OK )
+        /* Start media transmission. */
+        ret = AppMediaSourcePort_Start();
+        if( ret == 0 )
         {
-            LogError( ( "Fail to send message queue, error: %d", retMessageQueue ) );
-            ret = -2;
+            pMediaSource->pSourcesContext->isPortStarted = 1;
         }
     }
 
@@ -181,13 +169,13 @@ static int32_t InitializeVideoSource( AppMediaSourceContext_t * pVideoSource )
 
     if( ret == 0 )
     {
-        retMessageQueue = MessageQueue_Create( &pVideoSource->requestQueue,
-                                               DEMO_TRANSCEIVER_VIDEO_MESSAGE_QUEUE_NAME,
-                                               sizeof( AppMediaSourceRequestMessage_t ),
+        retMessageQueue = MessageQueue_Create( &pVideoSource->dataQueue,
+                                               DEMO_TRANSCEIVER_VIDEO_DATA_QUEUE_NAME,
+                                               sizeof( webrtc_frame_t ),
                                                DEMO_TRANSCEIVER_MAX_QUEUE_MSG_NUM );
         if( retMessageQueue != MESSAGE_QUEUE_RESULT_OK )
         {
-            LogError( ( "Fail to open video transceiver message queue." ) );
+            LogError( ( "Fail to open video transceiver data queue." ) );
             ret = -1;
         }
     }
@@ -200,6 +188,22 @@ static int32_t InitializeVideoSource( AppMediaSourceContext_t * pVideoSource )
             LogError( ( "xTaskCreate(VideoTask) failed" ) );
             ret = -1;
         }
+    }
+
+    if( ret == 0 )
+    {
+        /* Initialize video transceiver. */
+        pVideoSource->transceiver.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
+        pVideoSource->transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
+        TRANSCEIVER_ENABLE_CODEC( pVideoSource->transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT );
+        pVideoSource->transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
+        pVideoSource->transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_VIDEO_BIT_RATE;
+        strncpy( pVideoSource->transceiver.streamId, DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID, sizeof( pVideoSource->transceiver.streamId ) );
+        pVideoSource->transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
+        strncpy( pVideoSource->transceiver.trackId, DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID, sizeof( pVideoSource->transceiver.trackId ) );
+        pVideoSource->transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID );
+        pVideoSource->transceiver.onPcEventCallbackFunc = HandlePcEventCallback;
+        pVideoSource->transceiver.pOnPcEventCustomContext = pVideoSource;
     }
 
     return ret;
@@ -218,13 +222,13 @@ static int32_t InitializeAudioSource( AppMediaSourceContext_t * pAudioSource )
 
     if( ret == 0 )
     {
-        retMessageQueue = MessageQueue_Create( &pAudioSource->requestQueue,
-                                               DEMO_TRANSCEIVER_AUDIO_MESSAGE_QUEUE_NAME,
-                                               sizeof( AppMediaSourceRequestMessage_t ),
+        retMessageQueue = MessageQueue_Create( &pAudioSource->dataQueue,
+                                               DEMO_TRANSCEIVER_AUDIO_DATA_QUEUE_NAME,
+                                               sizeof( webrtc_frame_t ),
                                                DEMO_TRANSCEIVER_MAX_QUEUE_MSG_NUM );
         if( retMessageQueue != MESSAGE_QUEUE_RESULT_OK )
         {
-            LogError( ( "Fail to open audio transceiver message queue." ) );
+            LogError( ( "Fail to open audio transceiver data queue." ) );
             ret = -1;
         }
     }
@@ -239,6 +243,64 @@ static int32_t InitializeAudioSource( AppMediaSourceContext_t * pAudioSource )
         }
     }
 
+    if( ret == 0 )
+    {
+        /* Initialize audio transceiver. */
+        pAudioSource->transceiver.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
+        pAudioSource->transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
+        TRANSCEIVER_ENABLE_CODEC( pAudioSource->transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT );
+        pAudioSource->transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
+        pAudioSource->transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_AUDIO_BIT_RATE;
+        strncpy( pAudioSource->transceiver.streamId, DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID, sizeof( pAudioSource->transceiver.streamId ) );
+        pAudioSource->transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
+        strncpy( pAudioSource->transceiver.trackId, DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID, sizeof( pAudioSource->transceiver.trackId ) );
+        pAudioSource->transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID );
+        pAudioSource->transceiver.onPcEventCallbackFunc = HandlePcEventCallback;
+        pAudioSource->transceiver.pOnPcEventCustomContext = pAudioSource;
+        pAudioSource->transceiver.ssrc = ( uint32_t ) rand();
+    }
+
+    return ret;
+}
+
+static int32_t OnFrameReadyToSend( void * pCtx,
+                                   webrtc_frame_t * pFrame )
+{
+    int32_t ret = 0;
+    AppMediaSourceContext_t * pMediaSource = ( AppMediaSourceContext_t * )pCtx;
+    MessageQueueResult_t retMessageQueue;
+    webrtc_frame_t dropFrame;
+    size_t dropFrameSize;
+
+    if( ( pCtx == NULL ) || ( pFrame == NULL ) )
+    {
+        LogError( ( "Invalid input, pCtx: %p, pFrame: %p", pCtx, pFrame ) );
+        ret = -1;
+    }
+
+    if( ret == 0 )
+    {
+        retMessageQueue = MessageQueue_IsFull( &pMediaSource->dataQueue );
+        /* Drop oldest packet if full. */
+        if( retMessageQueue == MESSAGE_QUEUE_RESULT_MQ_IS_FULL )
+        {
+            dropFrameSize = sizeof( webrtc_frame_t );
+            ( void ) MessageQueue_Recv( &pMediaSource->dataQueue, &dropFrame, &dropFrameSize );
+        }
+    }
+
+    if( ret == 0 )
+    {
+        retMessageQueue = MessageQueue_Send( &pMediaSource->dataQueue,
+                                             pFrame,
+                                             sizeof( webrtc_frame_t ) );
+        if( retMessageQueue != MESSAGE_QUEUE_RESULT_OK )
+        {
+            LogError( ( "Fail to send frame ready message to queue, error: %d", retMessageQueue ) );
+            ret = -1;
+        }
+    }
+
     return ret;
 }
 
@@ -246,71 +308,70 @@ int32_t AppMediaSource_Init( AppMediaSourcesContext_t * pCtx )
 {
     int32_t ret = 0;
 
-    ret = InitializeVideoSource( &pCtx->videoContext );
+    if( pCtx == NULL )
+    {
+        LogError( ( "Invalid input, pCtx: %p", pCtx ) );
+        ret = -1;
+    }
+
+    if( ret == 0 )
+    {
+        memset( pCtx, 0, sizeof( AppMediaSourcesContext_t ) );
+        ret = InitializeVideoSource( &pCtx->videoContext );
+    }
 
     if( ret == 0 )
     {
         ret = InitializeAudioSource( &pCtx->audioContext );
     }
 
-    return ret;
-}
-
-int32_t AppMediaSource_ConstructVideoTransceiver( AppMediaSourcesContext_t * pCtx,
-                                                  Transceiver_t * pVideoTranceiver )
-{
-    int32_t ret = 0;
-
-    if( ( pCtx == NULL ) || ( pVideoTranceiver == NULL ) )
+    if( ret == 0 )
     {
-        LogError( ( "Invalid input, pCtx: %p, pVideoTranceiver: %p", pCtx, pVideoTranceiver ) );
-        ret = -1;
+        pCtx->videoContext.pSourcesContext = pCtx;
+        pCtx->audioContext.pSourcesContext = pCtx;
     }
 
     if( ret == 0 )
     {
-        /* Initialize video transceiver. */
-        pVideoTranceiver->trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
-        pVideoTranceiver->direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
-        TRANSCEIVER_ENABLE_CODEC( pVideoTranceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT );
-        pVideoTranceiver->rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
-        pVideoTranceiver->rollingbufferBitRate = DEFAULT_TRANSCEIVER_VIDEO_BIT_RATE;
-        strncpy( pVideoTranceiver->streamId, DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID, sizeof( pVideoTranceiver->streamId ) );
-        pVideoTranceiver->streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
-        strncpy( pVideoTranceiver->trackId, DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID, sizeof( pVideoTranceiver->trackId ) );
-        pVideoTranceiver->trackIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID );
-        pVideoTranceiver->onPcEventCallbackFunc = HandlePcEventCallback;
-        pVideoTranceiver->pOnPcEventCustomContext = &pCtx->videoContext;
+        ret = AppMediaSourcePort_Init( OnFrameReadyToSend, &pCtx->videoContext, OnFrameReadyToSend, &pCtx->audioContext );
     }
 
     return ret;
 }
 
-int32_t AppMediaSource_ConstructAudioTransceiver( AppMediaSourcesContext_t * pCtx,
-                                                  Transceiver_t * pAudioTranceiver )
+int32_t AppMediaSource_GetVideoTransceiver( AppMediaSourcesContext_t * pCtx,
+                                            Transceiver_t ** ppVideoTranceiver )
 {
     int32_t ret = 0;
 
-    if( ( pCtx == NULL ) || ( pAudioTranceiver == NULL ) )
+    if( ( pCtx == NULL ) || ( ppVideoTranceiver == NULL ) )
     {
-        LogError( ( "Invalid input, pCtx: %p, pAudioTranceiver: %p", pCtx, pAudioTranceiver ) );
+        LogError( ( "Invalid input, pCtx: %p, ppVideoTranceiver: %p", pCtx, ppVideoTranceiver ) );
         ret = -1;
     }
 
     if( ret == 0 )
     {
-        /* Initialize audio transceiver. */
-        pAudioTranceiver->trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
-        pAudioTranceiver->direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
-        TRANSCEIVER_ENABLE_CODEC( pAudioTranceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT );
-        pAudioTranceiver->rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
-        pAudioTranceiver->rollingbufferBitRate = DEFAULT_TRANSCEIVER_AUDIO_BIT_RATE;
-        strncpy( pAudioTranceiver->streamId, DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID, sizeof( pAudioTranceiver->streamId ) );
-        pAudioTranceiver->streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
-        strncpy( pAudioTranceiver->trackId, DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID, sizeof( pAudioTranceiver->trackId ) );
-        pAudioTranceiver->trackIdLength = strlen( DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID );
-        pAudioTranceiver->onPcEventCallbackFunc = HandlePcEventCallback;
-        pAudioTranceiver->pOnPcEventCustomContext = &pCtx->audioContext;
+        *ppVideoTranceiver = &pCtx->videoContext.transceiver;
+    }
+
+    return ret;
+}
+
+int32_t AppMediaSource_GetAudioTransceiver( AppMediaSourcesContext_t * pCtx,
+                                            Transceiver_t ** ppAudioTranceiver )
+{
+    int32_t ret = 0;
+
+    if( ( pCtx == NULL ) || ( ppAudioTranceiver == NULL ) )
+    {
+        LogError( ( "Invalid input, pCtx: %p, pAudioTranceiver: %p", pCtx, ppAudioTranceiver ) );
+        ret = -1;
+    }
+
+    if( ret == 0 )
+    {
+        *ppAudioTranceiver = &pCtx->audioContext.transceiver;
     }
 
     return ret;

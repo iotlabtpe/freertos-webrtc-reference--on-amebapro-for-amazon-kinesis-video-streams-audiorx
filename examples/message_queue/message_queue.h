@@ -21,6 +21,8 @@ typedef enum MessageQueueResult
     MESSAGE_QUEUE_RESULT_NOT_SUPPORT,
     MESSAGE_QUEUE_RESULT_MQ_IS_EMPTY,
     MESSAGE_QUEUE_RESULT_MQ_HAVE_MESSAGE,
+    MESSAGE_QUEUE_RESULT_MQ_IS_FULL,
+    MESSAGE_QUEUE_RESULT_MQ_IS_NOT_FULL,
     MESSAGE_QUEUE_RESULT_BAD_PARAMETER,
     MESSAGE_QUEUE_RESULT_MQ_OPEN_FAILED,
     MESSAGE_QUEUE_RESULT_MQ_SEND_FAILED,
@@ -51,6 +53,7 @@ MessageQueueResult_t MessageQueue_Recv( MessageQueueHandler_t * pMessageQueueHan
                                         void * pMessage,
                                         size_t * pMessageLength );
 MessageQueueResult_t MessageQueue_IsEmpty( MessageQueueHandler_t * pMessageQueueHandler );
+MessageQueueResult_t MessageQueue_IsFull( MessageQueueHandler_t * pMessageQueueHandler );
 
 #ifdef __cplusplus
 }

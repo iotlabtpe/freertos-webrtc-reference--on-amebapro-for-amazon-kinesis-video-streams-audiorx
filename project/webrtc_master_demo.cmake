@@ -81,7 +81,8 @@ file(
   "${REPO_ROOT_DIRECTORY}/examples/string_utils/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/ice_controller/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/timer_controller/*.c"
-  "${REPO_ROOT_DIRECTORY}/examples/app_media_source/*.c" )
+  "${REPO_ROOT_DIRECTORY}/examples/app_media_source/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/app_media_source/port/ameba_pro2/*.c" )
 
 set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/master/"
@@ -102,7 +103,8 @@ set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/string_utils"
      "${REPO_ROOT_DIRECTORY}/examples/ice_controller"
      "${REPO_ROOT_DIRECTORY}/examples/timer_controller"
-     "${REPO_ROOT_DIRECTORY}/examples/app_media_source" )
+     "${REPO_ROOT_DIRECTORY}/examples/app_media_source"
+     "${REPO_ROOT_DIRECTORY}/examples/app_media_source/port/ameba_pro2" )
 
 # Include dependencies
 # Include coreHTTP

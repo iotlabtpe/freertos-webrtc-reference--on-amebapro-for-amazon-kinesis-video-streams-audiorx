@@ -377,11 +377,11 @@ static int32_t OnIceEventPeerToPeerConnectionFound( PeerConnectionSession_t * pS
     {
         for( i = 0; i < pSession->pCtx->transceiverCount; i++ )
         {
-            if( pSession->pCtx->transceivers[i].onPcEventCallbackFunc )
+            if( pSession->pCtx->pTransceivers[i]->onPcEventCallbackFunc )
             {
-                pSession->pCtx->transceivers[i].onPcEventCallbackFunc( pSession->pCtx->transceivers[i].pOnPcEventCustomContext,
-                                                                       TRANSCEIVER_CB_EVENT_REMOTE_PEER_READY,
-                                                                       NULL );
+                pSession->pCtx->pTransceivers[i]->onPcEventCallbackFunc( pSession->pCtx->pTransceivers[i]->pOnPcEventCustomContext,
+                                                                         TRANSCEIVER_CB_EVENT_REMOTE_PEER_READY,
+                                                                         NULL );
             }
         }
 
@@ -674,16 +674,32 @@ static PeerConnectionResult_t DestroyIceController( PeerConnectionSession_t * pS
     return ret;
 }
 
-static Transceiver_t * AllocateFreeTransceiver( PeerConnectionContext_t * pCtx )
+static PeerConnectionResult_t AllocateTransceiver( PeerConnectionContext_t * pCtx,
+                                                   Transceiver_t * pTransceiver )
 {
-    Transceiver_t * pReturn = NULL;
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
 
-    if( pCtx && ( pCtx->transceiverCount < PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ) )
+    if( pCtx == NULL )
     {
-        pReturn = &pCtx->transceivers[ pCtx->transceiverCount++ ];
+        LogError( ( "Invalid input, pCtx: %p", pCtx ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
 
-    return pReturn;
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        if( pCtx->transceiverCount < PEER_CONNECTION_TRANSCEIVER_MAX_COUNT )
+        {
+            pCtx->pTransceivers[ pCtx->transceiverCount++ ] = pTransceiver;
+            pTransceiver->ssrc = ( uint32_t ) rand();
+        }
+        else
+        {
+            LogWarn( ( "No space to add transceiver" ) );
+            ret = PEER_CONNECTION_RESULT_NO_FREE_TRANSCEIVER;
+        }
+    }
+
+    return ret;
 }
 
 static PeerConnectionSession_t * GetExistingSession( PeerConnectionContext_t * pCtx,
@@ -1070,10 +1086,9 @@ PeerConnectionResult_t PeerConnection_AddRemoteCandidate( PeerConnectionContext_
 }
 
 PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t * pCtx,
-                                                      const Transceiver_t transceiver )
+                                                      Transceiver_t * pTransceiver )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
-    Transceiver_t * pTargetTransceiver;
 
     if( pCtx == NULL )
     {
@@ -1082,40 +1097,35 @@ PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t * 
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        pTargetTransceiver = AllocateFreeTransceiver( pCtx );
-        if( pTargetTransceiver == NULL )
-        {
-            LogWarn( ( "No space to add transceiver" ) );
-            ret = PEER_CONNECTION_RESULT_NO_FREE_TRANSCEIVER;
-        }
-    }
-
-    if( ret == PEER_CONNECTION_RESULT_OK )
-    {
-        memcpy( pTargetTransceiver, &transceiver, sizeof( Transceiver_t ) );
-        pTargetTransceiver->ssrc = ( uint32_t ) rand();
+        ret = AllocateTransceiver( pCtx, pTransceiver );
     }
 
     return ret;
 }
 
 PeerConnectionResult_t PeerConnection_GetTransceivers( PeerConnectionContext_t * pCtx,
-                                                       const Transceiver_t ** ppTransceivers,
+                                                       const Transceiver_t * pTransceivers[],
                                                        size_t * pTransceiversCount )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    int i;
 
     if( ( pCtx == NULL ) ||
-        ( ppTransceivers == NULL ) ||
-        ( pTransceiversCount == NULL ) )
+        ( pTransceivers == NULL ) ||
+        ( pTransceiversCount == NULL ) ||
+        ( *pTransceiversCount > PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ) )
     {
-        LogError( ( "Invalid input." ) );
+        LogError( ( "Invalid input, pCtx: %p, pTransceivers: %p, pTransceiversCount: %p",
+                    pCtx, pTransceivers, pTransceiversCount ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        *ppTransceivers = pCtx->transceivers;
+        for( i = 0; i < pCtx->transceiverCount; i++ )
+        {
+            pTransceivers[i] = pCtx->pTransceivers[i];
+        }
         *pTransceiversCount = pCtx->transceiverCount;
     }
 

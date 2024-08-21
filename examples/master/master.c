@@ -247,7 +247,7 @@ static int32_t InitializeAppMediaSource( DemoContext_t * pDemoContext )
 {
     int32_t ret = 0;
     PeerConnectionResult_t peerConnectionResult;
-    Transceiver_t transceiver;
+    Transceiver_t * pTransceiver;
 
     if( pDemoContext == NULL )
     {
@@ -263,14 +263,14 @@ static int32_t InitializeAppMediaSource( DemoContext_t * pDemoContext )
     /* Add video transceiver */
     if( ret == 0 )
     {
-        ret = AppMediaSource_ConstructVideoTransceiver( &pDemoContext->appMediaSourcesContext, &transceiver );
+        ret = AppMediaSource_GetVideoTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
         if( ret != 0 )
         {
             LogError( ( "Fail to contruct video transceiver." ) );
         }
         else
         {
-            peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
+            peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, pTransceiver );
             if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
             {
                 LogError( ( "Fail to add video transceiver, result = %d.", peerConnectionResult ) );
@@ -282,14 +282,14 @@ static int32_t InitializeAppMediaSource( DemoContext_t * pDemoContext )
     /* Add audio transceiver */
     if( ret == 0 )
     {
-        ret = AppMediaSource_ConstructAudioTransceiver( &pDemoContext->appMediaSourcesContext, &transceiver );
+        ret = AppMediaSource_GetAudioTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
         if( ret != 0 )
         {
             LogError( ( "Fail to contruct audio transceiver." ) );
         }
         else
         {
-            peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
+            peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, pTransceiver );
             if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
             {
                 LogError( ( "Fail to add audio transceiver, result = %d.", peerConnectionResult ) );

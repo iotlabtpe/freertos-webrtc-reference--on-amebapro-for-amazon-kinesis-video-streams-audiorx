@@ -137,7 +137,7 @@ typedef struct PeerConnectionContext
     char localPassword[ PEER_CONNECTION_PASSWORD_LENGTH + 1 ];
     char localCname[ PEER_CONNECTION_CNAME_LENGTH + 1 ];
 
-    Transceiver_t transceivers[ PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ];
+    const Transceiver_t * pTransceivers[ PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ];
     uint32_t transceiverCount;
 
     /* DTLS cert/key/fingerprint. */

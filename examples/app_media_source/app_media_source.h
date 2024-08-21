@@ -10,40 +10,31 @@ extern "C" {
 #include <stdio.h>
 #include "message_queue.h"
 #include "peer_connection.h"
+#include "app_media_source_port.h"
 
-typedef enum AppMediaSourceRequestType
-{
-    APP_MEDIA_SOURCE_REQUEST_TYPE_NONE = 0,
-    APP_MEDIA_SOURCE_REQUEST_TYPE_REMOTE_PEER_READY,
-} AppMediaSourceRequestType_t;
-
-typedef struct AppMediaSourceRequestMessage
-{
-    AppMediaSourceRequestType_t requestType;
-
-    /* Decode the request message based on request type. */
-    union
-    {
-        void * pContext; /* APP_MEDIA_SOURCE_REQUEST_TYPE_REMOTE_PEER_READY */
-    } appMediaSourceRequestContent;
-} AppMediaSourceRequestMessage_t;
+typedef struct AppMediaSourcesContext AppMediaSourcesContext_t;
 
 typedef struct AppMediaSourceContext
 {
-    MessageQueueHandler_t requestQueue;
+    MessageQueueHandler_t dataQueue;
+    Transceiver_t transceiver;
+
+    AppMediaSourcesContext_t * pSourcesContext;
 } AppMediaSourceContext_t;
 
 typedef struct AppMediaSourcesContext
 {
     AppMediaSourceContext_t videoContext;
     AppMediaSourceContext_t audioContext;
+
+    uint8_t isPortStarted;
 } AppMediaSourcesContext_t;
 
 int32_t AppMediaSource_Init( AppMediaSourcesContext_t * pCtx );
-int32_t AppMediaSource_ConstructVideoTransceiver( AppMediaSourcesContext_t * pCtx,
-                                                  Transceiver_t * pVideoTranceiver );
-int32_t AppMediaSource_ConstructAudioTransceiver( AppMediaSourcesContext_t * pCtx,
-                                                  Transceiver_t * pAudioTranceiver );
+int32_t AppMediaSource_GetVideoTransceiver( AppMediaSourcesContext_t * pCtx,
+                                            Transceiver_t ** ppVideoTranceiver );
+int32_t AppMediaSource_GetAudioTransceiver( AppMediaSourcesContext_t * pCtx,
+                                            Transceiver_t ** ppAudioTranceiver );
 
 #ifdef __cplusplus
 }

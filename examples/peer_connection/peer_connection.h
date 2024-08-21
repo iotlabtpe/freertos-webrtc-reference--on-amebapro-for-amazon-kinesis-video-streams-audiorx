@@ -17,7 +17,7 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t * pCtx,
                                             SignalingControllerContext_t * pSignalingControllerContext );
 PeerConnectionResult_t PeerConnection_Destroy( PeerConnectionContext_t * pCtx );
 PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t * pCtx,
-                                                      const Transceiver_t transceiver );
+                                                      Transceiver_t * pTransceiver );
 PeerConnectionResult_t PeerConnection_SetLocalDescription( PeerConnectionContext_t * pCtx );
 PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContext_t * pCtx,
                                                             const PeerConnectionRemoteInfo_t * pRemoteInfo );
@@ -27,7 +27,7 @@ PeerConnectionResult_t PeerConnection_AddRemoteCandidate( PeerConnectionContext_
                                                           const char * pDecodeMessage,
                                                           size_t decodeMessageLength );
 PeerConnectionResult_t PeerConnection_GetTransceivers( PeerConnectionContext_t * pCtx,
-                                                       const Transceiver_t ** ppTransceivers,
+                                                       const Transceiver_t * ppTransceivers[],
                                                        size_t * pTransceiversCount );
 PeerConnectionResult_t PeerConnection_GetLocalUserInfo( PeerConnectionContext_t * pCtx,
                                                         PeerConnectionUserInfo_t * pLocalUserInfo );

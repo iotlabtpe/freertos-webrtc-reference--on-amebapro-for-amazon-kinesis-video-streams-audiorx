@@ -233,7 +233,7 @@ static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t * pAttri
                                               uint32_t * pCodecPayloads,
                                               size_t codecPayloadsSize );
 static const Transceiver_t * OccupyProperTransceiver( SdpControllerMediaDescription_t * pRemoteMediaDescription,
-                                                      const Transceiver_t * pTransceivers,
+                                                      const Transceiver_t * pTransceivers[],
                                                       size_t transceiversCount,
                                                       uint8_t * pIsTransceiverPopulated,
                                                       uint32_t * pChosenCodec );
@@ -2244,7 +2244,7 @@ static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t * pAttri
 }
 
 static const Transceiver_t * OccupyProperTransceiver( SdpControllerMediaDescription_t * pRemoteMediaDescription,
-                                                      const Transceiver_t * pTransceivers,
+                                                      const Transceiver_t * pTransceivers[],
                                                       size_t transceiversCount,
                                                       uint8_t * pIsTransceiverPopulated,
                                                       uint32_t * pChosenCodec )
@@ -2348,54 +2348,54 @@ static const Transceiver_t * OccupyProperTransceiver( SdpControllerMediaDescript
     {
         for( currentTransceiverIdx = 0; currentTransceiverIdx < transceiversCount; currentTransceiverIdx++ )
         {
-            if( ( pIsTransceiverPopulated[currentTransceiverIdx] != 0 ) || ( pTransceivers[currentTransceiverIdx].trackKind != trackKind ) ||
-                ( ( mediaCodecBitMap & pTransceivers[currentTransceiverIdx].codecBitMap ) == 0 ) )
+            if( ( pIsTransceiverPopulated[currentTransceiverIdx] != 0 ) || ( pTransceivers[currentTransceiverIdx]->trackKind != trackKind ) ||
+                ( ( mediaCodecBitMap & pTransceivers[currentTransceiverIdx]->codecBitMap ) == 0 ) )
             {
                 LogDebug( ( "Skip transceiver index: %d, pIsTransceiverPopulated[%d]: %d, pTransceivers[%d].trackKind: %d, pTransceivers[%d].codecBitMap: %lx",
-                            currentTransceiverIdx, currentTransceiverIdx, pIsTransceiverPopulated[currentTransceiverIdx], currentTransceiverIdx, pTransceivers[currentTransceiverIdx].trackKind, currentTransceiverIdx, pTransceivers[currentTransceiverIdx].codecBitMap ) );
+                            currentTransceiverIdx, currentTransceiverIdx, pIsTransceiverPopulated[currentTransceiverIdx], currentTransceiverIdx, pTransceivers[currentTransceiverIdx]->trackKind, currentTransceiverIdx, pTransceivers[currentTransceiverIdx]->codecBitMap ) );
                 continue;
             }
 
-            if( TRANSCEIVER_IS_CODEC_ENABLED( mediaCodecBitMap & pTransceivers[currentTransceiverIdx].codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) )
+            if( TRANSCEIVER_IS_CODEC_ENABLED( mediaCodecBitMap & pTransceivers[currentTransceiverIdx]->codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) )
             {
                 *pChosenCodec = codecPayloads[ TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ];
                 pIsTransceiverPopulated[currentTransceiverIdx] = 1;
-                pTransceiver = &pTransceivers[currentTransceiverIdx];
+                pTransceiver = pTransceivers[currentTransceiverIdx];
                 break;
             }
-            else if( TRANSCEIVER_IS_CODEC_ENABLED( mediaCodecBitMap & pTransceivers[currentTransceiverIdx].codecBitMap, TRANSCEIVER_RTC_CODEC_VP8_BIT ) )
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( mediaCodecBitMap & pTransceivers[currentTransceiverIdx]->codecBitMap, TRANSCEIVER_RTC_CODEC_VP8_BIT ) )
             {
                 *pChosenCodec = codecPayloads[ TRANSCEIVER_RTC_CODEC_VP8_BIT ];
                 pIsTransceiverPopulated[currentTransceiverIdx] = 1;
-                pTransceiver = &pTransceivers[currentTransceiverIdx];
+                pTransceiver = pTransceivers[currentTransceiverIdx];
                 break;
             }
-            else if( TRANSCEIVER_IS_CODEC_ENABLED( mediaCodecBitMap & pTransceivers[currentTransceiverIdx].codecBitMap, TRANSCEIVER_RTC_CODEC_H265_BIT ) )
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( mediaCodecBitMap & pTransceivers[currentTransceiverIdx]->codecBitMap, TRANSCEIVER_RTC_CODEC_H265_BIT ) )
             {
                 *pChosenCodec = codecPayloads[ TRANSCEIVER_RTC_CODEC_H265_BIT ];
                 pIsTransceiverPopulated[currentTransceiverIdx] = 1;
-                pTransceiver = &pTransceivers[currentTransceiverIdx];
+                pTransceiver = pTransceivers[currentTransceiverIdx];
                 break;
             }
-            else if( TRANSCEIVER_IS_CODEC_ENABLED( mediaCodecBitMap & pTransceivers[currentTransceiverIdx].codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT ) )
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( mediaCodecBitMap & pTransceivers[currentTransceiverIdx]->codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT ) )
             {
                 *pChosenCodec = codecPayloads[ TRANSCEIVER_RTC_CODEC_OPUS_BIT ];
                 pIsTransceiverPopulated[currentTransceiverIdx] = 1;
-                pTransceiver = &pTransceivers[currentTransceiverIdx];
+                pTransceiver = pTransceivers[currentTransceiverIdx];
                 break;
             }
-            else if( TRANSCEIVER_IS_CODEC_ENABLED( mediaCodecBitMap & pTransceivers[currentTransceiverIdx].codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT ) )
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( mediaCodecBitMap & pTransceivers[currentTransceiverIdx]->codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT ) )
             {
                 *pChosenCodec = codecPayloads[ TRANSCEIVER_RTC_CODEC_MULAW_BIT ];
                 pIsTransceiverPopulated[currentTransceiverIdx] = 1;
-                pTransceiver = &pTransceivers[currentTransceiverIdx];
+                pTransceiver = pTransceivers[currentTransceiverIdx];
                 break;
             }
-            else if( TRANSCEIVER_IS_CODEC_ENABLED( mediaCodecBitMap & pTransceivers[currentTransceiverIdx].codecBitMap, TRANSCEIVER_RTC_CODEC_ALAW_BIT ) )
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( mediaCodecBitMap & pTransceivers[currentTransceiverIdx]->codecBitMap, TRANSCEIVER_RTC_CODEC_ALAW_BIT ) )
             {
                 *pChosenCodec = codecPayloads[ TRANSCEIVER_RTC_CODEC_ALAW_BIT ];
                 pIsTransceiverPopulated[currentTransceiverIdx] = 1;
-                pTransceiver = &pTransceivers[currentTransceiverIdx];
+                pTransceiver = pTransceivers[currentTransceiverIdx];
                 break;
             }
             else
@@ -2914,12 +2914,12 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
     SdpControllerResult_t ret = SDP_CONTROLLER_RESULT_OK;
     PeerConnectionResult_t peerConnectionResult;
     int i;
-    const Transceiver_t * pTransceivers = NULL, * pTransceiver = NULL;
-    size_t transceiversCount = 0;
+    const Transceiver_t * pTransceivers[PEER_CONNECTION_TRANSCEIVER_MAX_COUNT] = {NULL}, * pTransceiver = NULL;
+    size_t transceiversCount = PEER_CONNECTION_TRANSCEIVER_MAX_COUNT;
     uint8_t isTransceiverPopulated[ PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ] = {0};
     uint32_t chosenCodec = 0;
 
-    peerConnectionResult = PeerConnection_GetTransceivers( pPeerConnectionContext, &pTransceivers, &transceiversCount );
+    peerConnectionResult = PeerConnection_GetTransceivers( pPeerConnectionContext, pTransceivers, &transceiversCount );
     if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
     {
         LogError( ( "Fail to get transceivers, return: %d", peerConnectionResult ) );
@@ -2951,8 +2951,8 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
             for( i = 0; i < transceiversCount; i++ )
             {
                 isTransceiverPopulated[ i ] = 1;
-                chosenCodec = GetDefaultCodec( pTransceivers[i].codecBitMap );
-                ret = PopulateSingleMedia( ppBuffer, pBufferLength, pSdpLocalDescription, NULL, &pTransceivers[i], pPeerConnectionContext, chosenCodec, pLocalFingerprint, localFingerprintLength );
+                chosenCodec = GetDefaultCodec( pTransceivers[i]->codecBitMap );
+                ret = PopulateSingleMedia( ppBuffer, pBufferLength, pSdpLocalDescription, NULL, pTransceivers[i], pPeerConnectionContext, chosenCodec, pLocalFingerprint, localFingerprintLength );
             }
         }
     }
