@@ -17,6 +17,30 @@ extern "C" {
 #define TRANSCEIVER_IS_CODEC_ENABLED( bitmap, bit ) ( bitmap & ( 1 << bit ) )
 #define TRANSCEIVER_ENABLE_CODEC( bitmap, bit ) ( bitmap |= ( 1 << bit ) )
 
+typedef enum TransceiverCallbackEvent
+{
+    TRANSCEIVER_CB_EVENT_NONE = 0,
+    TRANSCEIVER_CB_EVENT_REMOTE_PEER_READY,
+    TRANSCEIVER_CB_EVENT_MAX,
+} TransceiverCallbackEvent_t;
+
+typedef struct TransceiverRemotePeerReadyMsg
+{
+    void * pContext;
+} TransceiverRemotePeerReadyMsg_t;
+
+typedef struct TransceiverCallbackContent
+{
+    union
+    {
+        void * pContext; /* TRANSCEIVER_CB_EVENT_REMOTE_PEER_READY */
+    };
+} TransceiverCallbackContent_t;
+
+typedef int32_t (* OnPcEventCallback_t)( void * pCustomContext,
+                                         TransceiverCallbackEvent_t event,
+                                         TransceiverCallbackContent_t * pEventMsg );
+
 typedef enum TransceiverDefaultRtcCodec
 {
     TRANSCEIVER_RTC_CODEC_DEFAULT_PAYLOAD_MULAW = 0,
@@ -69,6 +93,9 @@ typedef struct Transceiver
     char trackId[ TRANSCEIVER_TRACK_ID_MAX_LENGTH ];
     size_t trackIdLength;
     uint32_t ssrc;
+
+    OnPcEventCallback_t onPcEventCallbackFunc;
+    void * pOnPcEventCustomContext;
 } Transceiver_t;
 
 #ifdef __cplusplus

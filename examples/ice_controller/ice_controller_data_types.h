@@ -77,12 +77,12 @@ typedef struct IceControllerPeerToPeerConnectionFoundMsg
 
 typedef struct IceControllerCallbackContent
 {
-    union MessageContent_t
+    union
     {
         IceControllerLocalCandidateReadyMsg_t localCandidateReadyMsg; /* ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY */
         /* NULL for ICE_CONTROLLER_CB_EVENT_CONNECTIVITY_CHECK_TIMEOUT */
         IceControllerPeerToPeerConnectionFoundMsg_t peerTopeerConnectionFoundMsg; /* ICE_CONTROLLER_CB_EVENT_PEER_TO_PEER_CONNECTION_FOUND */
-    } requestContent;
+    } iceControllerCallbackContent;
 } IceControllerCallbackContent_t;
 
 typedef int32_t (* OnIceEventCallback_t)( void * pCustomContext,

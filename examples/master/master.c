@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #include "sys_api.h" // sys_backtrace_enable()
 #include "sntp/sntp.h" // SNTP series APIs
 #include "wifi_conf.h" // WiFi series APIs
@@ -12,18 +15,12 @@
 #include "demo_config.h"
 #include "demo_data_types.h"
 
-#define DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND ( 3 )
-
-// Considering 4 Mbps for 720p (which is what our samples use). This is for H.264.
-// The value could be different for other codecs.
-#define DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE ( 4 * 1024 * 1024 )
-
-#define DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID "myKvsVideoStream"
-#define DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID "myVideoTrack"
-#define DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID "myAudioTrack"
 #define DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH ( 8 ) // the length of "sha-256 "
-
 #define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect
+
+DemoContext_t demoContext;
+
+static void Master_Task( void * pParameter );
 
 static void platform_init( void );
 static void wifi_common_init( void );
@@ -41,8 +38,6 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEven
                                        void * pUserContext );
 static int initializeApplication( DemoContext_t * pDemoContext );
 static int initializePeerConnection( DemoContext_t * pDemoContext );
-static int addTransceivers( DemoContext_t * pDemoContext );
-static void Master_Task( void * pParameter );
 
 extern uint8_t populateSdpContent( DemoSessionInformation_t * pRemoteSessionDescription,
                                    DemoSessionInformation_t * pLocalSessionDescription,
@@ -54,8 +49,6 @@ extern uint8_t serializeSdpMessage( DemoSessionInformation_t * pSessionInDescrip
 extern uint8_t addressSdpOffer( const char * pEventSdpOffer,
                                 size_t eventSdpOfferlength,
                                 DemoContext_t * pDemoContext );
-
-DemoContext_t demoContext;
 
 extern int crypto_init( void );
 extern int platform_set_malloc_free( void * ( *malloc_func )( size_t ),
@@ -250,6 +243,64 @@ static int initializeApplication( DemoContext_t * pDemoContext )
     return ret;
 }
 
+static int32_t InitializeAppMediaSource( DemoContext_t * pDemoContext )
+{
+    int32_t ret = 0;
+    PeerConnectionResult_t peerConnectionResult;
+    Transceiver_t transceiver;
+
+    if( pDemoContext == NULL )
+    {
+        LogError( ( "Invalid input, pDemoContext: %p", pDemoContext ) );
+        ret = -1;
+    }
+
+    if( ret == 0 )
+    {
+        ret = AppMediaSource_Init( &pDemoContext->appMediaSourcesContext );
+    }
+
+    /* Add video transceiver */
+    if( ret == 0 )
+    {
+        ret = AppMediaSource_ConstructVideoTransceiver( &pDemoContext->appMediaSourcesContext, &transceiver );
+        if( ret != 0 )
+        {
+            LogError( ( "Fail to contruct video transceiver." ) );
+        }
+        else
+        {
+            peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
+            if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+            {
+                LogError( ( "Fail to add video transceiver, result = %d.", peerConnectionResult ) );
+                ret = -1;
+            }
+        }
+    }
+
+    /* Add audio transceiver */
+    if( ret == 0 )
+    {
+        ret = AppMediaSource_ConstructAudioTransceiver( &pDemoContext->appMediaSourcesContext, &transceiver );
+        if( ret != 0 )
+        {
+            LogError( ( "Fail to contruct audio transceiver." ) );
+        }
+        else
+        {
+            peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
+            if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+            {
+                LogError( ( "Fail to add audio transceiver, result = %d.", peerConnectionResult ) );
+                ret = -1;
+            }
+        }
+    }
+
+    return ret;
+}
+
 static int initializePeerConnection( DemoContext_t * pDemoContext )
 {
     int ret = 0;
@@ -260,54 +311,6 @@ static int initializePeerConnection( DemoContext_t * pDemoContext )
     {
         LogError( ( "Fail to initialize Peer Connection." ) );
         ret = -1;
-    }
-
-    return ret;
-}
-
-static int addTransceivers( DemoContext_t * pDemoContext )
-{
-    int ret = 0;
-    PeerConnectionResult_t peerConnectionResult;
-    Transceiver_t transceiver;
-
-    /* Add video transceiver. */
-    memset( &transceiver, 0, sizeof( Transceiver_t ) );
-    transceiver.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
-    transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
-    TRANSCEIVER_ENABLE_CODEC( transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT );
-    transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
-    transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE;
-    strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID, sizeof( transceiver.streamId ) );
-    transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
-    strncpy( transceiver.trackId, DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID, sizeof( transceiver.trackId ) );
-    transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID );
-    peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
-    if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
-    {
-        LogError( ( "Fail to add video transceiver, result = %d.", peerConnectionResult ) );
-        ret = -1;
-    }
-
-    if( ret == 0 )
-    {
-        /* Add audio transceiver. */
-        memset( &transceiver, 0, sizeof( Transceiver_t ) );
-        transceiver.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
-        transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
-        TRANSCEIVER_ENABLE_CODEC( transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT );
-        transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
-        transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE;
-        strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID, sizeof( transceiver.streamId ) );
-        transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
-        strncpy( transceiver.trackId, DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID, sizeof( transceiver.trackId ) );
-        transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID );
-        peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
-        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
-        {
-            LogError( ( "Fail to add audio transceiver, result = %d.", peerConnectionResult ) );
-            ret = -1;
-        }
     }
 
     return ret;
@@ -404,7 +407,7 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEven
 
 static void Master_Task( void * pParameter )
 {
-    int ret = 0;
+    int32_t ret = 0;
     SignalingControllerResult_t signalingControllerReturn;
 
     ( void ) pParameter;
@@ -417,7 +420,7 @@ static void Master_Task( void * pParameter )
 
     if( ret == 0 )
     {
-        ret = addTransceivers( &demoContext );
+        ret = InitializeAppMediaSource( &demoContext );
     }
 
     if( ret == 0 )

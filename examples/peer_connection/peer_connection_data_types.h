@@ -82,10 +82,10 @@ typedef struct PeerConnectionSessionRequestMessage
     PeerConnectionSessionRequestType_t requestType;
 
     /* Decode the request message based on request type. */
-    union RequestContent_t
+    union
     {
         IceControllerCandidate_t remoteCandidate; /* PEER_CONNECTION_SESSION_REQUEST_TYPE_ADD_REMOTE_CANDIDATE */
-    } requestContent;
+    } peerConnectionSessionRequestContent;
 } PeerConnectionSessionRequestMessage_t;
 
 typedef struct PeerConnectionContext PeerConnectionContext_t;

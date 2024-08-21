@@ -108,7 +108,7 @@ static PeerConnectionResult_t HandleAddRemoteCandidateRequest( PeerConnectionSes
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     IceControllerResult_t iceControllerResult;
-    IceControllerCandidate_t * pRemoteCandidate = ( IceControllerCandidate_t * )&pRequestMessage->requestContent;
+    IceControllerCandidate_t * pRemoteCandidate = ( IceControllerCandidate_t * )&pRequestMessage->peerConnectionSessionRequestContent;
     IceRemoteCandidateInfo_t remoteCandidateInfo;
 
     if( ret == PEER_CONNECTION_RESULT_OK )
@@ -168,7 +168,7 @@ static PeerConnectionResult_t SendRemoteCandidateRequest( PeerConnectionSession_
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        pMessageContent = &requestMessage.requestContent.remoteCandidate;
+        pMessageContent = &requestMessage.peerConnectionSessionRequestContent.remoteCandidate;
         memcpy( pMessageContent,
                 pRemoteCandidate,
                 sizeof( IceControllerCandidate_t ) );
@@ -357,6 +357,7 @@ static int32_t OnIceEventPeerToPeerConnectionFound( PeerConnectionSession_t * pS
                                                     IceCandidate_t * pRemoteCandidate )
 {
     int32_t ret = 0;
+    int i;
 
     if( ( pSession == NULL ) ||
         ( pRemoteCandidate == NULL ) ||
@@ -370,6 +371,21 @@ static int32_t OnIceEventPeerToPeerConnectionFound( PeerConnectionSession_t * pS
     {
         /* Execute DTLS handshaking. */
         ret = ExecuteDtlsHandshake( pSession, socketFd, pRemoteCandidate );
+    }
+
+    if( ret == 0 )
+    {
+        for( i = 0; i < pSession->pCtx->transceiverCount; i++ )
+        {
+            if( pSession->pCtx->transceivers[i].onPcEventCallbackFunc )
+            {
+                pSession->pCtx->transceivers[i].onPcEventCallbackFunc( pSession->pCtx->transceivers[i].pOnPcEventCustomContext,
+                                                                       TRANSCEIVER_CB_EVENT_REMOTE_PEER_READY,
+                                                                       NULL );
+            }
+        }
+
+
     }
 
     return ret;
@@ -403,7 +419,7 @@ static int32_t HandleIceEventCallback( void * pCustomContext,
             case ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY:
                 if( pEventMsg != NULL )
                 {
-                    pLocalCandidateReadyMsg = &pEventMsg->requestContent.localCandidateReadyMsg;
+                    pLocalCandidateReadyMsg = &pEventMsg->iceControllerCallbackContent.localCandidateReadyMsg;
                     ret = OnIceEventLocalCandidateReady( pSession, pLocalCandidateReadyMsg->pLocalCandidate, pLocalCandidateReadyMsg->localCandidateIndex );
                 }
                 else
@@ -415,7 +431,7 @@ static int32_t HandleIceEventCallback( void * pCustomContext,
                 ret = OnIceEventConnectivityCheck( pSession );
                 break;
             case ICE_CONTROLLER_CB_EVENT_PEER_TO_PEER_CONNECTION_FOUND:
-                pPeerToPeerConnectionFoundMsg = &pEventMsg->requestContent.peerTopeerConnectionFoundMsg;
+                pPeerToPeerConnectionFoundMsg = &pEventMsg->iceControllerCallbackContent.peerTopeerConnectionFoundMsg;
                 ret = OnIceEventPeerToPeerConnectionFound( pSession, pPeerToPeerConnectionFoundMsg->socketFd, pPeerToPeerConnectionFoundMsg->pRemoteCandidate );
                 break;
             default:
@@ -834,7 +850,7 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t * pCtx,
 
             if( xTaskCreate( PeerConnection_SessionTask,
                              tempName,
-                             10240,
+                             4096,
                              &pCtx->peerConnectionSessions[i],
                              tskIDLE_PRIORITY + 2,
                              pCtx->peerConnectionSessions[i].pTaskHandler ) != pdPASS )
@@ -854,7 +870,7 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t * pCtx,
             ( void ) snprintf( tempName, sizeof( tempName ), "%s%02d", PEER_CONNECTION_SESSION_RX_TASK_NAME, i );
             if( xTaskCreate( IceControllerSocketListener_Task,
                              tempName,
-                             10240,
+                             4096,
                              &pCtx->peerConnectionSessions[i].iceControllerContext,
                              tskIDLE_PRIORITY + 1,
                              NULL ) != pdPASS )
@@ -1222,6 +1238,49 @@ PeerConnectionResult_t PeerConnection_CloseSession( PeerConnectionContext_t * pC
     }
 
     /* TODO: close corresponding resources. */
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+
+    }
+
+    return ret;
+}
+
+PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionContext_t * pCtx,
+                                                  Transceiver_t * pTransceiver,
+                                                  const char * pFrame,
+                                                  size_t frameLength )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+
+    if( ( pCtx == NULL ) ||
+        ( pTransceiver == NULL ) ||
+        ( pFrame == NULL ) )
+    {
+        LogError( ( "Invalid input, pCtx: %p, pTransceiver: %p, pFrame: %p",
+                    pCtx, pTransceiver, pFrame ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    /* Encode the frame into multiple payload buffers (>=1). */
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+
+    }
+
+    /* Contruct RTP packet for each payload buffer. */
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+
+    }
+
+    /* Write the constructed RTP packets through network. */
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+
+    }
+
+    /* Store the frame into rolling buffer. */
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
 

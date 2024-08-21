@@ -39,6 +39,10 @@ PeerConnectionResult_t PeerConnection_CreateSession( PeerConnectionContext_t * p
 PeerConnectionResult_t PeerConnection_CloseSession( PeerConnectionContext_t * pCtx,
                                                     const char * pRemoteClientId,
                                                     size_t remoteClientIdLength );
+PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionContext_t * pCtx,
+                                                  Transceiver_t * pTransceiver,
+                                                  const char * pFrame,
+                                                  size_t frameLength );
 
 #ifdef __cplusplus
 }

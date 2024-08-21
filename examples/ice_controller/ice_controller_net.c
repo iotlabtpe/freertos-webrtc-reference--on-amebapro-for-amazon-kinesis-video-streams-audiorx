@@ -407,8 +407,8 @@ IceControllerResult_t IceControllerNet_AddLocalCandidates( IceControllerContext_
                     pCandidate = &( pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ] );
                     if( pCtx->onIceEventCallbackFunc )
                     {
-                        localCandidateReadyContent.requestContent.localCandidateReadyMsg.pLocalCandidate = pCandidate;
-                        localCandidateReadyContent.requestContent.localCandidateReadyMsg.localCandidateIndex = pCtx->candidateFoundationCounter;
+                        localCandidateReadyContent.iceControllerCallbackContent.localCandidateReadyMsg.pLocalCandidate = pCandidate;
+                        localCandidateReadyContent.iceControllerCallbackContent.localCandidateReadyMsg.localCandidateIndex = pCtx->candidateFoundationCounter;
                         retLocalCandidateReady = pCtx->onIceEventCallbackFunc( pCtx->pOnIceEventCustomContext, ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY, &localCandidateReadyContent );
                         if( retLocalCandidateReady == 0 )
                         {
@@ -509,8 +509,8 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
                         xSemaphoreGive( pCtx->socketMutex );
                     }
 
-                    localCandidateReadyContent.requestContent.localCandidateReadyMsg.pLocalCandidate = pSocketContext->pLocalCandidate;
-                    localCandidateReadyContent.requestContent.localCandidateReadyMsg.localCandidateIndex = pCtx->candidateFoundationCounter;
+                    localCandidateReadyContent.iceControllerCallbackContent.localCandidateReadyMsg.pLocalCandidate = pSocketContext->pLocalCandidate;
+                    localCandidateReadyContent.iceControllerCallbackContent.localCandidateReadyMsg.localCandidateIndex = pCtx->candidateFoundationCounter;
                     retLocalCandidateReady = pCtx->onIceEventCallbackFunc( pCtx->pOnIceEventCustomContext, ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY, &localCandidateReadyContent );
                     if( retLocalCandidateReady == 0 )
                     {
