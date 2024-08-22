@@ -8,12 +8,13 @@ extern "C" {
 #endif
 
 #include <stdio.h>
+#include "transceiver_data_types.h"
 
 typedef struct {
     uint8_t * pData;
     uint32_t size;
-    uint32_t timestamp;
-    uint32_t type;
+    uint64_t timestampUs;
+    TransceiverTrackKind_t trackKind;
     uint8_t freeData;  /* indicate user need to free pData after using it */
 } webrtc_frame_t;
 

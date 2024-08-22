@@ -14,6 +14,7 @@
 #include "logging.h"
 #include "demo_config.h"
 #include "demo_data_types.h"
+#include "networking_utils.h"
 
 #define DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH ( 8 ) // the length of "sha-256 "
 #define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect
@@ -24,7 +25,6 @@ static void Master_Task( void * pParameter );
 
 static void platform_init( void );
 static void wifi_common_init( void );
-static long long GetCurrentTimeSec( void );
 static uint8_t respondWithSdpAnswer( const char * pRemoteClientId,
                                      size_t remoteClientIdLength,
                                      DemoContext_t * pDemoContext,
@@ -69,7 +69,7 @@ static void platform_init( void )
 
     /* Block until get time via SNTP. */
     sntp_init();
-    while( ( sec = GetCurrentTimeSec() ) < 1000000000ULL )
+    while( ( sec = NetworkingUtils_GetCurrentTimeSec( NULL ) ) < 1000000000ULL )
     {
         vTaskDelay( pdMS_TO_TICKS( 200 ) );
         LogInfo( ( "waiting get epoch timer" ) );
@@ -94,30 +94,6 @@ static void wifi_common_init( void )
             wifi_wait_count = 0;
         }
     }
-}
-
-static long long GetCurrentTimeSec( void )
-{
-    long long sec;
-    long long usec;
-    unsigned int tick;
-    unsigned int tickDiff;
-
-    sntp_get_lasttime( &sec, &usec, &tick );
-    tickDiff = xTaskGetTickCount() - tick;
-
-    sec += tickDiff / configTICK_RATE_HZ;
-    usec += ( ( tickDiff % configTICK_RATE_HZ ) / portTICK_RATE_MS ) * 1000;
-
-    while( usec >= 1000000 )
-    {
-        usec -= 1000000;
-        sec++;
-    }
-
-    LogDebug( ( "sec: %lld, usec: %lld, tick: %u", sec, usec, tick ) );
-
-    return sec;
 }
 
 static uint8_t respondWithSdpAnswer( const char * pRemoteClientId,
@@ -243,6 +219,48 @@ static int initializeApplication( DemoContext_t * pDemoContext )
     return ret;
 }
 
+static int32_t OnMediaSinkHook( void * pCustom, webrtc_frame_t *pFrame )
+{
+    int32_t ret = 0;
+    DemoContext_t * pDemoContext = (DemoContext_t*) pCustom;
+    // PeerConnectionResult_t peerConnectionResult;
+    Transceiver_t * pTransceiver = NULL;
+
+    if( pDemoContext == NULL || pFrame == NULL )
+    {
+        LogError( ("Invalid input, pCustom: %p, pFrame: %p", pCustom, pFrame) );
+        ret = -1;
+    }
+
+    if( ret == 0 )
+    {
+        if( pFrame->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
+        {
+            ret = AppMediaSource_GetVideoTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
+        }
+        else if( pFrame->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO )
+        {
+            ret = AppMediaSource_GetAudioTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
+            (void) pTransceiver;
+        }
+        else
+        {
+            LogError( ("Unknown track kind: %d", pFrame->trackKind) );
+            ret = -2;
+        }
+    }
+
+    if( ret == 0 )
+    {
+        // peerConnectionResult = PeerConnection_WriteFrame( &pDemoContext->peerConnectionContext,
+        //                                                     pTransceiver,
+        //                                                     pFrame->pData,
+        //                                                     pFrame->size );
+    }
+
+    return ret;
+}
+
 static int32_t InitializeAppMediaSource( DemoContext_t * pDemoContext )
 {
     int32_t ret = 0;
@@ -257,7 +275,7 @@ static int32_t InitializeAppMediaSource( DemoContext_t * pDemoContext )
 
     if( ret == 0 )
     {
-        ret = AppMediaSource_Init( &pDemoContext->appMediaSourcesContext );
+        ret = AppMediaSource_Init( &pDemoContext->appMediaSourcesContext, OnMediaSinkHook, pDemoContext );
     }
 
     /* Add video transceiver */
@@ -266,7 +284,7 @@ static int32_t InitializeAppMediaSource( DemoContext_t * pDemoContext )
         ret = AppMediaSource_GetVideoTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
         if( ret != 0 )
         {
-            LogError( ( "Fail to contruct video transceiver." ) );
+            LogError( ( "Fail to get video transceiver." ) );
         }
         else
         {
@@ -285,7 +303,7 @@ static int32_t InitializeAppMediaSource( DemoContext_t * pDemoContext )
         ret = AppMediaSource_GetAudioTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
         if( ret != 0 )
         {
-            LogError( ( "Fail to contruct audio transceiver." ) );
+            LogError( ( "Fail to get audio transceiver." ) );
         }
         else
         {

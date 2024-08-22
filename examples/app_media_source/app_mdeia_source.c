@@ -52,7 +52,11 @@ static void VideoTx_Task( void * pParameter )
         if( retMessageQueue == MESSAGE_QUEUE_RESULT_OK )
         {
             /* Received a media frame. */
-            LogDebug( ( "Video Tx frame(%ld), type: %lu, timestamp: %lu", frame.size, frame.type, frame.timestamp ) );
+            LogDebug( ( "Video Tx frame(%ld), trackKind: %d, timestamp: %llu", frame.size, frame.trackKind, frame.timestampUs ) );
+            if( pVideoContext->pSourcesContext->onMediaSinkHookFunc )
+            {
+                (void) pVideoContext->pSourcesContext->onMediaSinkHookFunc( pVideoContext->pSourcesContext->pOnMediaSinkHookCustom, &frame );
+            }
 
             if( frame.freeData )
             {
@@ -92,7 +96,7 @@ static void AudioTx_Task( void * pParameter )
         if( retMessageQueue == MESSAGE_QUEUE_RESULT_OK )
         {
             /* Received a media frame. */
-            LogDebug( ( "Audio Tx frame(%ld), type: %lu, timestamp: %lu", frame.size, frame.type, frame.timestamp ) );
+            LogDebug( ( "Audio Tx frame(%ld), track kind: %d, timestampUs: %llu", frame.size, frame.trackKind, frame.timestampUs ) );
 
             if( frame.freeData )
             {
@@ -304,7 +308,7 @@ static int32_t OnFrameReadyToSend( void * pCtx,
     return ret;
 }
 
-int32_t AppMediaSource_Init( AppMediaSourcesContext_t * pCtx )
+int32_t AppMediaSource_Init( AppMediaSourcesContext_t * pCtx, AppMediaSourceOnMediaSinkHook onMediaSinkHookFunc, void *pOnMediaSinkHookCustom )
 {
     int32_t ret = 0;
 
@@ -329,6 +333,8 @@ int32_t AppMediaSource_Init( AppMediaSourcesContext_t * pCtx )
     {
         pCtx->videoContext.pSourcesContext = pCtx;
         pCtx->audioContext.pSourcesContext = pCtx;
+        pCtx->onMediaSinkHookFunc = onMediaSinkHookFunc;
+        pCtx->pOnMediaSinkHookCustom = pOnMediaSinkHookCustom;
     }
 
     if( ret == 0 )

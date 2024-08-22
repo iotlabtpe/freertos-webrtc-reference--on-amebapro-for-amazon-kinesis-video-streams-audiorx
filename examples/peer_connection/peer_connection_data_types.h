@@ -48,6 +48,13 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_FAIL_MQ_SEND,
 } PeerConnectionResult_t;
 
+typedef struct PeerConnectionFrame
+{
+    uint8_t *pData;
+    size_t dataLength;
+    uint64_t timestamp;
+} PeerConnectionFrame_t;
+
 typedef struct PeerConnectionRemoteInfo
 {
     const char * pRemoteClientId; /* From SignalingControllerReceiveEvent_t */

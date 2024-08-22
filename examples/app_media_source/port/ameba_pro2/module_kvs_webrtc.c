@@ -17,6 +17,7 @@
 #include "avcodec.h"
 
 #include "FreeRTOS.h"
+#include "networking_utils.h"
 
 /*****************************************************************************
 * ISP channel : 0
@@ -91,13 +92,13 @@ int kvs_webrtc_handle( void * p,
         }
         memcpy( frame.pData, ( uint8_t * )input_item->data_addr, frame.size );
         frame.freeData = 1;
-        frame.timestamp = input_item->timestamp;
-        frame.type = input_item->type;
+        frame.timestampUs = NetworkingUtils_GetCurrentTimeUs( &input_item->timestamp );
 
-        if( frame.type == AV_CODEC_ID_H264 )
+        if( input_item->type == AV_CODEC_ID_H264 )
         {
             if( gOnVideoFrameReadyToSendFunc )
             {
+                frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
                 ( void ) gOnVideoFrameReadyToSendFunc( gpOnVideoFrameReadyToSendCustomContext, &frame );
             }
         }
@@ -127,7 +128,6 @@ int kvs_webrtc_control( void * p,
     }
     return 0;
 }
-
 
 void * kvs_webrtc_destroy( void * p )
 {
