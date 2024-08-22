@@ -2937,7 +2937,32 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
 
                 if( pTransceiver )
                 {
+                    if( pTransceiver->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
+                    {
+                        pSdpLocalDescription->isVideoCodecPayloadSet = 1;
+                        pSdpLocalDescription->videoCodecPayload = chosenCodec;
+                        pSdpRemoteDescription->isVideoCodecPayloadSet = 1;
+                        pSdpRemoteDescription->videoCodecPayload = chosenCodec;
+                    }
+                    else if( pTransceiver->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO )
+                    {
+                        pSdpLocalDescription->isAudioCodecPayloadSet = 1;
+                        pSdpLocalDescription->audioCodecPayload = chosenCodec;
+                        pSdpRemoteDescription->isAudioCodecPayloadSet = 1;
+                        pSdpRemoteDescription->audioCodecPayload = chosenCodec;
+                    }
+                    else
+                    {
+                        LogError( ("Unknown track kind, %d", pTransceiver->trackKind) );
+                        break;
+                    }
+
                     ret = PopulateSingleMedia( ppBuffer, pBufferLength, pSdpLocalDescription, pSdpRemoteDescription, pTransceiver, pPeerConnectionContext, chosenCodec, pLocalFingerprint, localFingerprintLength );
+                    if( ret != SDP_CONTROLLER_RESULT_OK )
+                    {
+                        LogWarn( ("Fail to pupolate media, ret: %d", ret) );
+                        break;
+                    }
                 }
                 else
                 {
@@ -2953,6 +2978,31 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
                 isTransceiverPopulated[ i ] = 1;
                 chosenCodec = GetDefaultCodec( pTransceivers[i]->codecBitMap );
                 ret = PopulateSingleMedia( ppBuffer, pBufferLength, pSdpLocalDescription, NULL, pTransceivers[i], pPeerConnectionContext, chosenCodec, pLocalFingerprint, localFingerprintLength );
+                if( ret != SDP_CONTROLLER_RESULT_OK )
+                {
+                    LogWarn( ("Fail to pupolate media, ret: %d", ret) );
+                    break;
+                }
+
+                if( pTransceivers[i]->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
+                {
+                    pSdpLocalDescription->isVideoCodecPayloadSet = 1;
+                    pSdpLocalDescription->videoCodecPayload = chosenCodec;
+                    pSdpRemoteDescription->isVideoCodecPayloadSet = 1;
+                    pSdpRemoteDescription->videoCodecPayload = chosenCodec;
+                }
+                else if( pTransceivers[i]->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO )
+                {
+                    pSdpLocalDescription->isAudioCodecPayloadSet = 1;
+                    pSdpLocalDescription->audioCodecPayload = chosenCodec;
+                    pSdpRemoteDescription->isAudioCodecPayloadSet = 1;
+                    pSdpRemoteDescription->audioCodecPayload = chosenCodec;
+                }
+                else
+                {
+                    LogError( ("Unknown track kind, %d", pTransceivers[i]->trackKind) );
+                    break;
+                }
             }
         }
     }

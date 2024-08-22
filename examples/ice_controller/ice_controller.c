@@ -1110,3 +1110,46 @@ IceControllerResult_t IceController_Start( IceControllerContext_t * pCtx,
 
     return ret;
 }
+
+IceControllerResult_t IceController_SendToRemotePeer( IceControllerContext_t * pCtx,
+                                                   const uint8_t * pBuffer,
+                                                   size_t bufferLength )
+{
+    IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
+
+    if( pCtx == NULL ||
+    pBuffer == NULL)
+    {
+        LogError( ("Invalid input, pCtx: %p, pBuffer: %p", pCtx, pBuffer) );
+        ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        if( pCtx->pNominatedSocketContext == NULL ||
+            pCtx->pNominatedSocketContext->state < ICE_CONTROLLER_SOCKET_CONTEXT_STATE_PASS_HANDSHAKE )
+        {
+            LogWarn( ("The connection of this session is not ready.") );
+            ret = ICE_CONTROLLER_RESULT_FAIL_CONNECTION_NOT_READY;
+        }
+        else if( pCtx->pNominatedSocketContext->pRemoteCandidate == NULL )
+        {
+            LogWarn( ("The connection of this session is not ready.") );
+            ret = ICE_CONTROLLER_RESULT_FAIL_CONNECTION_NOT_READY;
+        }
+        else
+        {
+            /* Do nothing. */
+        }
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        ret = IceControllerNet_SendPacket( pCtx->pNominatedSocketContext,
+        &pCtx->pNominatedSocketContext->pRemoteCandidate->endpoint,
+                                                   pBuffer,
+                                                   bufferLength );
+    }
+
+    return ret;
+}

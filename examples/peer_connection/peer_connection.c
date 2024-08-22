@@ -3,7 +3,9 @@
 #include "task.h"
 #include "logging.h"
 #include "peer_connection.h"
+#include "peer_connection_srtp.h"
 #include "signaling_controller.h"
+#include "rtp_api.h"
 
 #include "lwip/sockets.h"
 
@@ -357,6 +359,7 @@ static int32_t OnIceEventPeerToPeerConnectionFound( PeerConnectionSession_t * pS
                                                     IceCandidate_t * pRemoteCandidate )
 {
     int32_t ret = 0;
+    PeerConnectionResult_t retPeerConnection;
     int i;
 
     if( ( pSession == NULL ) ||
@@ -369,12 +372,26 @@ static int32_t OnIceEventPeerToPeerConnectionFound( PeerConnectionSession_t * pS
 
     if( ret == 0 )
     {
+        pSession->state = PEER_CONNECTION_SESSION_STATE_P2P_CONNECTION_FOUND;
+
         /* Execute DTLS handshaking. */
         ret = ExecuteDtlsHandshake( pSession, socketFd, pRemoteCandidate );
     }
 
     if( ret == 0 )
     {
+        /* Initialize SRTP sessions. */
+        retPeerConnection = PeerConnectionSrtp_Init( pSession );
+        if( retPeerConnection != PEER_CONNECTION_RESULT_OK )
+        {
+            LogError( ("Fail to create SRTP sessions, ret: %d", retPeerConnection) );
+            ret = -12;
+        }
+    }
+
+    if( ret == 0 )
+    {
+        pSession->state = PEER_CONNECTION_SESSION_STATE_CONNECTION_READY;
         for( i = 0; i < pSession->pCtx->transceiverCount; i++ )
         {
             if( pSession->pCtx->pTransceivers[i]->onPcEventCallbackFunc )
@@ -384,8 +401,6 @@ static int32_t OnIceEventPeerToPeerConnectionFound( PeerConnectionSession_t * pS
                                                                          NULL );
             }
         }
-
-
     }
 
     return ret;
@@ -944,6 +959,7 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     PeerConnectionSession_t * pSession = NULL;
     IceControllerResult_t iceControllerResult;
+    RtpResult_t resultRtp;
 
     if( ( pCtx == NULL ) || ( pRemoteInfo == NULL ) ||
         ( pRemoteInfo->pRemoteClientId == NULL ) ||
@@ -1033,6 +1049,35 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
             LogWarn( ( "IceController_Start fail, result: %d.", iceControllerResult ) );
             ret = PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_START;
         }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        resultRtp = Rtp_Init( &pCtx->rtpContext );
+        if( resultRtp != RTP_RESULT_OK )
+        {
+            LogError( ("Fail to initialize RTP context, result: %d", resultRtp) );
+            ret = PEER_CONNECTION_RESULT_FAIL_RTP_INIT;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        if( pRemoteInfo->isVideoCodecPayloadSet )
+        {
+            pSession->rtpConfig.isVideoCodecPayloadSet = 1;
+            pSession->rtpConfig.videoCodecPayload = pRemoteInfo->videoCodecPayload;
+            pSession->rtpConfig.videoSequenceNumber = 0U;
+        }
+
+        if( pRemoteInfo->isAudioCodecPayloadSet )
+        {
+            pSession->rtpConfig.isAudioCodecPayloadSet = 1;
+            pSession->rtpConfig.audioCodecPayload = pRemoteInfo->audioCodecPayload;
+            pSession->rtpConfig.audioSequenceNumber = 0U;
+        }
+
+        pSession->state = PEER_CONNECTION_SESSION_STATE_START;
     }
 
     return ret;
@@ -1189,6 +1234,7 @@ PeerConnectionResult_t PeerConnection_CreateSession( PeerConnectionContext_t * p
     /* Generate answer cert in DER format */
     if( ( ret == PEER_CONNECTION_RESULT_OK ) && ( pCtx->dtlsContext.isInitialized == 0 ) )
     {
+        /* pCtx->dtlsContext.isInitialized would be set to 1 in InitializeDtlsContext(). */
         ret = InitializeDtlsContext( &pCtx->dtlsContext );
     }
 
@@ -1258,8 +1304,7 @@ PeerConnectionResult_t PeerConnection_CloseSession( PeerConnectionContext_t * pC
 
 PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionContext_t * pCtx,
                                                   Transceiver_t * pTransceiver,
-                                                  const char * pFrame,
-                                                  size_t frameLength )
+                                                  const PeerConnectionFrame_t * pFrame )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
 
@@ -1275,25 +1320,36 @@ PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionContext_t * pCtx
     /* Encode the frame into multiple payload buffers (>=1). */
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-
-    }
-
-    /* Contruct RTP packet for each payload buffer. */
-    if( ret == PEER_CONNECTION_RESULT_OK )
-    {
-
-    }
-
-    /* Write the constructed RTP packets through network. */
-    if( ret == PEER_CONNECTION_RESULT_OK )
-    {
-
-    }
-
-    /* Store the frame into rolling buffer. */
-    if( ret == PEER_CONNECTION_RESULT_OK )
-    {
-
+        if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) )
+        {
+            ret = PeerConnectionSrtp_WriteH264Frame( pCtx, pTransceiver, pFrame );
+        }
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT ) )
+        {
+            
+        }
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_VP8_BIT ) )
+        {
+            
+        }
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT ) )
+        {
+            
+        }
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_ALAW_BIT ) )
+        {
+            
+        }
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H265_BIT ) )
+        {
+            
+        }
+        else
+        {
+            /* TODO: Unknown, no matching codec. */
+            LogError( ( "Codec is not supported, codec bit map: 0x%x", ( int ) pTransceiver->codecBitMap ) );
+            ret = PEER_CONNECTION_RESULT_UNKNOWN_TX_CODEC;
+        }
     }
 
     return ret;

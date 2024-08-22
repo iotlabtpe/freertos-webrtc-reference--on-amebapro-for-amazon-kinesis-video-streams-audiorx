@@ -10,6 +10,7 @@
 #include "sntp/sntp.h" // SNTP series APIs
 #include "wifi_conf.h" // WiFi series APIs
 #include "lwip_netconf.h" // LwIP_GetIP()
+#include "srtp.h"
 
 #include "logging.h"
 #include "demo_config.h"
@@ -78,6 +79,9 @@ static void platform_init( void )
     /* Seed random. */
     LogInfo( ( "srand seed: %lld", sec ) );
     srand( sec );
+
+    /* init srtp library. */
+    srtp_init();
 }
 
 static void wifi_common_init( void )
@@ -159,6 +163,26 @@ static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCt
         remoteInfo.pRemoteCertFingerprint = demoContext.sessionInformationSdpOffer.sdpDescription.pFingerprint + DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
         remoteInfo.remoteCertFingerprintLength = demoContext.sessionInformationSdpOffer.sdpDescription.fingerprintLength - DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
 
+        if( pSessionInformation->sdpDescription.isVideoCodecPayloadSet )
+        {
+            remoteInfo.isVideoCodecPayloadSet = 1;
+            remoteInfo.videoCodecPayload = pSessionInformation->sdpDescription.videoCodecPayload;
+        }
+        else
+        {
+            remoteInfo.isVideoCodecPayloadSet = 0;
+        }
+
+        if( pSessionInformation->sdpDescription.isAudioCodecPayloadSet )
+        {
+            remoteInfo.isAudioCodecPayloadSet = 1;
+            remoteInfo.audioCodecPayload = pSessionInformation->sdpDescription.audioCodecPayload;
+        }
+        else
+        {
+            remoteInfo.isAudioCodecPayloadSet = 0;
+        }
+
         peerConnectionResult = PeerConnection_SetRemoteDescription( pPeerConnectionCtx, &remoteInfo );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
@@ -223,8 +247,9 @@ static int32_t OnMediaSinkHook( void * pCustom, webrtc_frame_t *pFrame )
 {
     int32_t ret = 0;
     DemoContext_t * pDemoContext = (DemoContext_t*) pCustom;
-    // PeerConnectionResult_t peerConnectionResult;
+    PeerConnectionResult_t peerConnectionResult;
     Transceiver_t * pTransceiver = NULL;
+    PeerConnectionFrame_t peerConnectionFrame;
 
     if( pDemoContext == NULL || pFrame == NULL )
     {
@@ -252,10 +277,18 @@ static int32_t OnMediaSinkHook( void * pCustom, webrtc_frame_t *pFrame )
 
     if( ret == 0 )
     {
-        // peerConnectionResult = PeerConnection_WriteFrame( &pDemoContext->peerConnectionContext,
-        //                                                     pTransceiver,
-        //                                                     pFrame->pData,
-        //                                                     pFrame->size );
+        peerConnectionFrame.version = PEER_CONNECTION_FRAME_CURRENT_VERSION;
+        peerConnectionFrame.presentationUs = pFrame->timestampUs;
+        peerConnectionFrame.pData = pFrame->pData;
+        peerConnectionFrame.dataLength = pFrame->size;
+        peerConnectionResult = PeerConnection_WriteFrame( &pDemoContext->peerConnectionContext,
+                                                            pTransceiver,
+                                                            &peerConnectionFrame );
+        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+        {
+            LogError( ("Fail to write frame, result: %d", peerConnectionResult) );
+            ret = -3;
+        }
     }
 
     return ret;

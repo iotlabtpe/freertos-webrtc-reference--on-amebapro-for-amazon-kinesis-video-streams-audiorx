@@ -15,7 +15,9 @@ set(LIBSRTP_SOURCES
           "${CMAKE_CURRENT_LIST_DIR}/../libraries/libsrtp/crypto/cipher/aes_gcm_mbedtls.c"
           "${CMAKE_CURRENT_LIST_DIR}/../libraries/libsrtp/crypto/cipher/aes_icm_mbedtls.c"
           "${CMAKE_CURRENT_LIST_DIR}/../libraries/libsrtp/crypto/cipher/cipher.c"
+          "${CMAKE_CURRENT_LIST_DIR}/../libraries/libsrtp/crypto/cipher/cipher_test_cases.c"
           "${CMAKE_CURRENT_LIST_DIR}/../libraries/libsrtp/crypto/cipher/null_cipher.c"
+          "${CMAKE_CURRENT_LIST_DIR}/../libraries/libsrtp/crypto/hash/auth_test_cases.c"
           "${CMAKE_CURRENT_LIST_DIR}/../libraries/libsrtp/crypto/hash/auth.c"
           "${CMAKE_CURRENT_LIST_DIR}/../libraries/libsrtp/crypto/hash/hmac.c"
           "${CMAKE_CURRENT_LIST_DIR}/../libraries/libsrtp/crypto/hash/hmac_mbedtls.c"
@@ -25,6 +27,7 @@ set(LIBSRTP_SOURCES
 
 # libsrtp library Public Include directories.
 set( LIBSRTP_INCLUDE_PUBLIC_DIRS
+     "${CMAKE_CURRENT_LIST_DIR}/../examples/libsrtp"
      "${CMAKE_CURRENT_LIST_DIR}/../libraries/libsrtp/include"
      "${CMAKE_CURRENT_LIST_DIR}/../libraries/libsrtp/crypto/include" )
 
@@ -39,13 +42,14 @@ list(
 )
 
 target_compile_definitions(${libsrtp} PRIVATE ${libsrtp_flags})
+
+include( ${CMAKE_CURRENT_LIST_DIR}/../project/realtek_amebapro2_webrtc_application/GCC-RELEASE/includepath.cmake )
 target_include_directories(
 	${libsrtp}
 	PUBLIC
      ${LIBSRTP_INCLUDE_PUBLIC_DIRS}
-     ${CMAKE_CURRENT_LIST_DIR}/../examples/libsrtp
-	${CMAKE_CURRENT_LIST_DIR}/../libraries/ambpro2_sdk/component/ssl/mbedtls-2.16.6/include
-	${CMAKE_CURRENT_LIST_DIR}/../libraries/ambpro2_sdk/component/ssl/ssl_ram_map/rom
+	${inc_path}
+	${sdk_root}/component/os/freertos/${freertos}/Source/portable/GCC/ARM_CM33_NTZ/non_secure
 )
 
 ### add linked library ###

@@ -295,7 +295,7 @@ IceControllerResult_t IceControllerNet_Htons( uint16_t port,
 
 IceControllerResult_t IceControllerNet_SendPacket( IceControllerSocketContext_t * pSocketContext,
                                                    IceEndpoint_t * pDestinationIceEndpoint,
-                                                   uint8_t * pBuffer,
+                                                   const uint8_t * pBuffer,
                                                    size_t length )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;

@@ -119,4 +119,21 @@
   #endif
 #endif
 
+/* Remove debugging. */
+#define debug_print0(mod, format)
+#define debug_print(mod, format, arg)
+#define debug_print2(mod, format, arg1, arg2)
+
+/* Provide htons, htonl, ntohs and ntohl - these are needed by libsrtp. */
+#include <lwip/def.h>
+#define htons(x) lwip_htons(x)
+#define ntohs(x) lwip_ntohs(x)
+#define htonl(x) lwip_htonl(x)
+#define ntohl(x) lwip_ntohl(x)
+
+/* Map malloc and free to FreeRTOS versions. */
+#include "FreeRTOS.h"
+#define malloc  pvPortMalloc
+#define free    vPortFree
+
 #endif /* #ifndef LIBSRTP_CONFIG_H */
