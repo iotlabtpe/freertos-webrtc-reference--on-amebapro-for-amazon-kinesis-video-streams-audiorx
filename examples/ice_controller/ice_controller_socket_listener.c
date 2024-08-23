@@ -199,7 +199,7 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
             }
             else if( ret != ICE_CONTROLLER_RESULT_OK )
             {
-                LogError( ( "Fail to handle this RX packet, readBytes: %d", readBytes ) );
+                LogError( ( "Fail to handle this RX packet, ret: %d, readBytes: %d", ret, readBytes ) );
             }
             else
             {

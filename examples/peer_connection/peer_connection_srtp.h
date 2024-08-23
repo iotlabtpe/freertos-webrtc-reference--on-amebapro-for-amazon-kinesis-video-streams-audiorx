@@ -14,8 +14,8 @@ extern "C" {
 
 PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSession );
 PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionContext_t * pCtx,
-                                                  Transceiver_t * pTransceiver,
-                                                  const PeerConnectionFrame_t * pFrame );
+                                                          Transceiver_t * pTransceiver,
+                                                          const PeerConnectionFrame_t * pFrame );
 // PeerConnectionResult_t PeerConnectionSrtp_EncryptRtpPacket( PeerConnectionSession_t * pSession );
 // PeerConnectionResult_t PeerConnectionSrtp_EncryptRtcpPacket( PeerConnectionSession_t * pSession );
 // PeerConnectionResult_t PeerConnectionSrtp_DecryptRtpPacket( PeerConnectionSession_t * pSession );

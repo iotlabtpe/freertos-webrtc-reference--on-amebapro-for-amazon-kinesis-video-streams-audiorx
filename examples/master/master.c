@@ -243,17 +243,18 @@ static int initializeApplication( DemoContext_t * pDemoContext )
     return ret;
 }
 
-static int32_t OnMediaSinkHook( void * pCustom, webrtc_frame_t *pFrame )
+static int32_t OnMediaSinkHook( void * pCustom,
+                                webrtc_frame_t * pFrame )
 {
     int32_t ret = 0;
-    DemoContext_t * pDemoContext = (DemoContext_t*) pCustom;
+    DemoContext_t * pDemoContext = ( DemoContext_t * ) pCustom;
     PeerConnectionResult_t peerConnectionResult;
     Transceiver_t * pTransceiver = NULL;
     PeerConnectionFrame_t peerConnectionFrame;
 
-    if( pDemoContext == NULL || pFrame == NULL )
+    if( ( pDemoContext == NULL ) || ( pFrame == NULL ) )
     {
-        LogError( ("Invalid input, pCustom: %p, pFrame: %p", pCustom, pFrame) );
+        LogError( ( "Invalid input, pCustom: %p, pFrame: %p", pCustom, pFrame ) );
         ret = -1;
     }
 
@@ -266,11 +267,11 @@ static int32_t OnMediaSinkHook( void * pCustom, webrtc_frame_t *pFrame )
         else if( pFrame->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO )
         {
             ret = AppMediaSource_GetAudioTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
-            (void) pTransceiver;
+            ( void ) pTransceiver;
         }
         else
         {
-            LogError( ("Unknown track kind: %d", pFrame->trackKind) );
+            LogError( ( "Unknown track kind: %d", pFrame->trackKind ) );
             ret = -2;
         }
     }
@@ -282,11 +283,11 @@ static int32_t OnMediaSinkHook( void * pCustom, webrtc_frame_t *pFrame )
         peerConnectionFrame.pData = pFrame->pData;
         peerConnectionFrame.dataLength = pFrame->size;
         peerConnectionResult = PeerConnection_WriteFrame( &pDemoContext->peerConnectionContext,
-                                                            pTransceiver,
-                                                            &peerConnectionFrame );
+                                                          pTransceiver,
+                                                          &peerConnectionFrame );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
-            LogError( ("Fail to write frame, result: %d", peerConnectionResult) );
+            LogError( ( "Fail to write frame, result: %d", peerConnectionResult ) );
             ret = -3;
         }
     }

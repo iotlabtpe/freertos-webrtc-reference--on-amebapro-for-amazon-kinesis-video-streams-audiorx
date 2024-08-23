@@ -184,7 +184,9 @@ static void IceControllerNet_AddSrflxCandidate( IceControllerContext_t * pCtx,
     IceControllerSocketContext_t * pSocketContext;
     uint8_t stunBuffer[ ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE ];
     size_t stunBufferLength = ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE;
+    #if LIBRARY_LOG_LEVEL >= LOG_DEBUG
     char ipBuffer[ INET_ADDRSTRLEN ];
+    #endif /* #if LIBRARY_LOG_LEVEL >= LOG_DEBUG  */
 
     for( i = 0; i < pCtx->iceServersCount; i++ )
     {
@@ -365,9 +367,11 @@ IceControllerResult_t IceControllerNet_AddLocalCandidates( IceControllerContext_
     uint32_t i;
     IceCandidate_t * pCandidate;
     IceControllerSocketContext_t * pSocketContext;
-    char ipBuffer[ INET_ADDRSTRLEN ];
     int32_t retLocalCandidateReady;
     IceControllerCallbackContent_t localCandidateReadyContent;
+    #if LIBRARY_LOG_LEVEL >= LOG_DEBUG
+    char ipBuffer[ INET_ADDRSTRLEN ];
+    #endif /* #if LIBRARY_LOG_LEVEL >= LOG_DEBUG  */
 
     if( pCtx == NULL )
     {
@@ -466,12 +470,12 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
     IceHandleStunPacketResult_t iceHandleStunResult;
     uint8_t * pTransactionIdBuffer;
     IceCandidatePair_t * pCandidatePair = NULL;
-    uint8_t sentStunBuffer[ ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE ];
-    size_t sentStunBufferLength = ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE;
     char ipBuffer[ INET_ADDRSTRLEN ];
     char ipBuffer2[ INET_ADDRSTRLEN ];
     int32_t retLocalCandidateReady;
     IceControllerCallbackContent_t localCandidateReadyContent;
+    uint8_t sentStunBuffer[ ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE ];
+    size_t sentStunBufferLength = ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE;
 
     if( ( pCtx == NULL ) || ( pReceiveBuffer == NULL ) || ( pRemoteIceEndpoint == NULL ) )
     {
@@ -684,7 +688,9 @@ const char * IceControllerNet_LogIpAddressInfo( const IceEndpoint_t * pIceEndpoi
 void IceControllerNet_LogStunPacket( uint8_t * pStunPacket,
                                      size_t stunPacketSize )
 {
+    #if LIBRARY_LOG_LEVEL >= LOG_DEBUG
     IceControllerStunMsgHeader_t * pStunMsgHeader = ( IceControllerStunMsgHeader_t * ) pStunPacket;
+    #endif /* #if LIBRARY_LOG_LEVEL >= LOG_DEBUG  */
 
     if( ( pStunPacket == NULL ) || ( stunPacketSize < sizeof( IceControllerStunMsgHeader_t ) ) )
     {

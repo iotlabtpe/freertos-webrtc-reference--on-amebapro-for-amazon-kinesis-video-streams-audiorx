@@ -67,7 +67,7 @@ typedef enum PeerConnectionResult
 typedef struct PeerConnectionFrame
 {
     uint32_t version;
-    uint8_t *pData;
+    uint8_t * pData;
     size_t dataLength;
     uint64_t presentationUs;
 } PeerConnectionFrame_t;

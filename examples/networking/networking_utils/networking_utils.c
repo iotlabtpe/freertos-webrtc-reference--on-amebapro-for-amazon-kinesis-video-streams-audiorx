@@ -370,7 +370,7 @@ NetworkingUtilsResult_t NetworkingUtils_GetIso8601CurrentTime( char * pDate,
     return ret;
 }
 
-uint64_t NetworkingUtils_GetCurrentTimeSec( void *pTick )
+uint64_t NetworkingUtils_GetCurrentTimeSec( void * pTick )
 {
     long long sec;
     long long usec;
@@ -385,7 +385,7 @@ uint64_t NetworkingUtils_GetCurrentTimeSec( void *pTick )
     }
     else
     {
-        tickDiff = (*(uint32_t*)pTick) - tick;
+        tickDiff = ( *( uint32_t * )pTick ) - tick;
     }
 
     sec += tickDiff / configTICK_RATE_HZ;
@@ -397,12 +397,12 @@ uint64_t NetworkingUtils_GetCurrentTimeSec( void *pTick )
         sec++;
     }
 
-    // LogDebug( ( "sec: %lld, usec: %lld, tick: %u", sec, usec, tick ) );
+    LogDebug( ( "sec: %lld, usec: %lld, tick: %u", sec, usec, tick ) );
 
-    return (uint64_t) sec;
+    return ( uint64_t ) sec;
 }
 
-uint64_t NetworkingUtils_GetCurrentTimeUs( void *pTick )
+uint64_t NetworkingUtils_GetCurrentTimeUs( void * pTick )
 {
     long long sec;
     long long usec;
@@ -417,7 +417,7 @@ uint64_t NetworkingUtils_GetCurrentTimeUs( void *pTick )
     }
     else
     {
-        tickDiff = (*(uint32_t*)pTick) - tick;
+        tickDiff = ( *( uint32_t * )pTick ) - tick;
     }
 
     sec += tickDiff / configTICK_RATE_HZ;
@@ -429,7 +429,7 @@ uint64_t NetworkingUtils_GetCurrentTimeUs( void *pTick )
         sec++;
     }
 
-    // LogDebug( ( "sec: %lld, usec: %lld, tick: %u", sec, usec, tick ) );
+    LogDebug( ( "*pTick: %lu, tickDiff: %u, sec: %lld, usec: %lld, tick: %u", ( *( uint32_t * )pTick ), tickDiff, sec, usec, tick ) );
 
-    return (uint64_t) ( sec * 1000000 ) + usec;
+    return ( ( uint64_t )sec * 1000000 ) + usec;
 }

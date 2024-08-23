@@ -2953,14 +2953,14 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
                     }
                     else
                     {
-                        LogError( ("Unknown track kind, %d", pTransceiver->trackKind) );
+                        LogError( ( "Unknown track kind, %d", pTransceiver->trackKind ) );
                         break;
                     }
 
                     ret = PopulateSingleMedia( ppBuffer, pBufferLength, pSdpLocalDescription, pSdpRemoteDescription, pTransceiver, pPeerConnectionContext, chosenCodec, pLocalFingerprint, localFingerprintLength );
                     if( ret != SDP_CONTROLLER_RESULT_OK )
                     {
-                        LogWarn( ("Fail to pupolate media, ret: %d", ret) );
+                        LogWarn( ( "Fail to pupolate media, ret: %d", ret ) );
                         break;
                     }
                 }
@@ -2980,7 +2980,7 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
                 ret = PopulateSingleMedia( ppBuffer, pBufferLength, pSdpLocalDescription, NULL, pTransceivers[i], pPeerConnectionContext, chosenCodec, pLocalFingerprint, localFingerprintLength );
                 if( ret != SDP_CONTROLLER_RESULT_OK )
                 {
-                    LogWarn( ("Fail to pupolate media, ret: %d", ret) );
+                    LogWarn( ( "Fail to pupolate media, ret: %d", ret ) );
                     break;
                 }
 
@@ -3000,7 +3000,7 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
                 }
                 else
                 {
-                    LogError( ("Unknown track kind, %d", pTransceivers[i]->trackKind) );
+                    LogError( ( "Unknown track kind, %d", pTransceivers[i]->trackKind ) );
                     break;
                 }
             }

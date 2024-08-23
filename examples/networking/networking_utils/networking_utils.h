@@ -84,8 +84,8 @@ void NetworkingUtils_CloseConnection( NetworkContext_t * pxNetworkContext );
 NetworkingUtilsResult_t NetworkingUtils_GetIso8601CurrentTime( char * pDate,
                                                                size_t dateBufferLength );
 
-uint64_t NetworkingUtils_GetCurrentTimeSec( void *pTick );
-uint64_t NetworkingUtils_GetCurrentTimeUs( void *pTick );
+uint64_t NetworkingUtils_GetCurrentTimeSec( void * pTick );
+uint64_t NetworkingUtils_GetCurrentTimeUs( void * pTick );
 
 #ifdef __cplusplus
 }

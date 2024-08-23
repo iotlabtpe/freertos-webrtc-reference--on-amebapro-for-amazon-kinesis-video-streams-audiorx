@@ -13,7 +13,8 @@ extern "C" {
 #include "app_media_source_port.h"
 
 typedef struct AppMediaSourcesContext AppMediaSourcesContext_t;
-typedef int32_t (*AppMediaSourceOnMediaSinkHook)( void * pCustom, webrtc_frame_t *pFrame );
+typedef int32_t (* AppMediaSourceOnMediaSinkHook)( void * pCustom,
+                                                   webrtc_frame_t * pFrame );
 
 typedef struct AppMediaSourceContext
 {
@@ -30,10 +31,12 @@ typedef struct AppMediaSourcesContext
 
     uint8_t isPortStarted;
     AppMediaSourceOnMediaSinkHook onMediaSinkHookFunc;
-    void *pOnMediaSinkHookCustom;
+    void * pOnMediaSinkHookCustom;
 } AppMediaSourcesContext_t;
 
-int32_t AppMediaSource_Init( AppMediaSourcesContext_t * pCtx, AppMediaSourceOnMediaSinkHook onMediaSinkHookFunc, void *pOnMediaSinkHookCustom );
+int32_t AppMediaSource_Init( AppMediaSourcesContext_t * pCtx,
+                             AppMediaSourceOnMediaSinkHook onMediaSinkHookFunc,
+                             void * pOnMediaSinkHookCustom );
 int32_t AppMediaSource_GetVideoTransceiver( AppMediaSourcesContext_t * pCtx,
                                             Transceiver_t ** ppVideoTranceiver );
 int32_t AppMediaSource_GetAudioTransceiver( AppMediaSourcesContext_t * pCtx,

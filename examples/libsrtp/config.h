@@ -36,7 +36,7 @@
 /* #undef HAVE_X86 */
 
 /* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
- significant byte first (like Motorola and SPARC, unlike Intel). */
+   significant byte first (like Motorola and SPARC, unlike Intel). */
 /* #undef WORDS_BIGENDIAN */
 
 /* Define to 1 if you have the <arpa/inet.h> header file. */
@@ -120,16 +120,16 @@
 #endif
 
 /* Remove debugging. */
-#define debug_print0(mod, format)
-#define debug_print(mod, format, arg)
-#define debug_print2(mod, format, arg1, arg2)
+#define debug_print0( mod, format )
+#define debug_print( mod, format, arg )
+#define debug_print2( mod, format, arg1, arg2 )
 
 /* Provide htons, htonl, ntohs and ntohl - these are needed by libsrtp. */
 #include <lwip/def.h>
-#define htons(x) lwip_htons(x)
-#define ntohs(x) lwip_ntohs(x)
-#define htonl(x) lwip_htonl(x)
-#define ntohl(x) lwip_ntohl(x)
+#define htons( x ) lwip_htons( x )
+#define ntohs( x ) lwip_ntohs( x )
+#define htonl( x ) lwip_htonl( x )
+#define ntohl( x ) lwip_ntohl( x )
 
 /* Map malloc and free to FreeRTOS versions. */
 #include "FreeRTOS.h"

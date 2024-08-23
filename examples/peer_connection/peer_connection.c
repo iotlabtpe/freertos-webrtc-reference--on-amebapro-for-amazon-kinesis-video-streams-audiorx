@@ -384,7 +384,7 @@ static int32_t OnIceEventPeerToPeerConnectionFound( PeerConnectionSession_t * pS
         retPeerConnection = PeerConnectionSrtp_Init( pSession );
         if( retPeerConnection != PEER_CONNECTION_RESULT_OK )
         {
-            LogError( ("Fail to create SRTP sessions, ret: %d", retPeerConnection) );
+            LogError( ( "Fail to create SRTP sessions, ret: %d", retPeerConnection ) );
             ret = -12;
         }
     }
@@ -1056,7 +1056,7 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
         resultRtp = Rtp_Init( &pCtx->rtpContext );
         if( resultRtp != RTP_RESULT_OK )
         {
-            LogError( ("Fail to initialize RTP context, result: %d", resultRtp) );
+            LogError( ( "Fail to initialize RTP context, result: %d", resultRtp ) );
             ret = PEER_CONNECTION_RESULT_FAIL_RTP_INIT;
         }
     }
@@ -1326,23 +1326,23 @@ PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionContext_t * pCtx
         }
         else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT ) )
         {
-            
+
         }
         else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_VP8_BIT ) )
         {
-            
+
         }
         else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT ) )
         {
-            
+
         }
         else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_ALAW_BIT ) )
         {
-            
+
         }
         else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H265_BIT ) )
         {
-            
+
         }
         else
         {
