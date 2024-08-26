@@ -167,11 +167,11 @@ PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSessi
         switch( pSession->dtlsSession.xNetworkCredentials.dtlsKeyingMaterial.srtpProfile )
         {
             case KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_80:
-                srtp_policy_setter = srtp_crypto_policy_set_aes_cm_128_hmac_sha1_32;
+                srtp_policy_setter = srtp_crypto_policy_set_rtp_default;
                 srtcp_policy_setter = srtp_crypto_policy_set_rtp_default;
                 break;
             case KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_32:
-                srtp_policy_setter = srtp_crypto_policy_set_rtp_default;
+                srtp_policy_setter = srtp_crypto_policy_set_aes_cm_128_hmac_sha1_32;
                 srtcp_policy_setter = srtp_crypto_policy_set_rtp_default;
                 break;
             default:
@@ -289,6 +289,43 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionContext_
         {
             LogError( ( "Fail to get H264 packet, result: %d", resultH264 ) );
             ret = PEER_CONNECTION_RESULT_FAIL_PACKETIZER_GET_PACKET;
+        }
+    }
+
+    return ret;
+}
+
+PeerConnectionResult_t PeerConnectionSrtp_HandleSrtpPacket( PeerConnectionSession_t * pSession,
+                                                            uint8_t * pBuffer,
+                                                            size_t bufferLength )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    srtp_err_status_t errorStatus;
+    static uint8_t rtpBuffer[ PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH ];
+    size_t rtpBufferLength = PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH;
+    int32_t retDtls;
+
+    if( ( pSession == NULL ) || ( pBuffer == NULL ) )
+    {
+        LogError( ( "Invalid input, pSession: %p, pBuffer: %p", pSession, pBuffer ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        errorStatus = srtp_unprotect( pSession->srtpReceiveSession,
+                                      pBuffer,
+                                      bufferLength,
+                                      rtpBuffer,
+                                      &rtpBufferLength );
+        if( errorStatus != srtp_err_status_ok )
+        {
+            LogError( ( "Fail to decrypt Rx SRTP packet, errorStatus: %d", errorStatus ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_DECRYPT_SRTP_RTP_PACKET;
+        }
+        else
+        {
+            LogInfo( ( "Decrypt SRTP packet successfully, decrypted length: %u", rtpBufferLength ) );
         }
     }
 

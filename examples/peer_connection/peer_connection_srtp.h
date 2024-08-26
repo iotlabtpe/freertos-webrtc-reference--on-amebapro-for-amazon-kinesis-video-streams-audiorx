@@ -18,7 +18,9 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionContext_
                                                           const PeerConnectionFrame_t * pFrame );
 // PeerConnectionResult_t PeerConnectionSrtp_EncryptRtpPacket( PeerConnectionSession_t * pSession );
 // PeerConnectionResult_t PeerConnectionSrtp_EncryptRtcpPacket( PeerConnectionSession_t * pSession );
-// PeerConnectionResult_t PeerConnectionSrtp_DecryptRtpPacket( PeerConnectionSession_t * pSession );
+PeerConnectionResult_t PeerConnectionSrtp_HandleSrtpPacket( PeerConnectionSession_t * pSession,
+                                                            uint8_t * pBuffer,
+                                                            size_t bufferLength );
 // PeerConnectionResult_t PeerConnectionSrtp_DecryptRtcpPacket( PeerConnectionSession_t * pSession );
 
 #ifdef __cplusplus

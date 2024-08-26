@@ -523,13 +523,11 @@ static int32_t ExecuteDtlsHandshake( PeerConnectionSession_t * pSession,
         {
             /* Assign local cert to the DTLS session. */
             LogDebug( ( "setting pDtlsSession->xNetworkCredentials.pClientCert" ) );
-            pDtlsSession->xNetworkCredentials.pClientCert = pSession->pCtx->dtlsContext.localCert.raw.p;
-            pDtlsSession->xNetworkCredentials.clientCertSize = pSession->pCtx->dtlsContext.localCert.raw.len;
+            pDtlsSession->xNetworkCredentials.pClientCert = &pSession->pCtx->dtlsContext.localCert;
 
-            /* Assign local key to the DTLS session. */
+            // /* Assign local key to the DTLS session. */
             LogDebug( ( "setting pDtlsSession->xNetworkCredentials.pPrivateKey" ) );
-            pDtlsSession->xNetworkCredentials.pPrivateKey = ( uint8_t * ) pSession->pCtx->dtlsContext.privateKeyPcsPem;
-            pDtlsSession->xNetworkCredentials.privateKeySize = PRIVATE_KEY_PCS_PEM_SIZE;
+            pDtlsSession->xNetworkCredentials.pPrivateKey = &pSession->pCtx->dtlsContext.localKey;
 
             /* Attempt to create a DTLS connection. */
             xNetworkStatus = DTLS_Connect( &pDtlsSession->xNetworkContext,
@@ -584,7 +582,8 @@ static int32_t HandleRtpRtcpPackets( void * pCustomContext,
                                      size_t bufferLength )
 {
     int32_t ret = 0;
-    // PeerConnectionSession_t * pSession = ( PeerConnectionSession_t * ) pCustomContext;
+    PeerConnectionSession_t * pSession = ( PeerConnectionSession_t * ) pCustomContext;
+    PeerConnectionResult_t resultPeerConnection;
 
     if( ( pCustomContext == NULL ) || ( pBuffer == NULL ) )
     {
@@ -604,6 +603,12 @@ static int32_t HandleRtpRtcpPackets( void * pCustomContext,
         {
             /* RTP packet */
             LogInfo( ( "Receiving RTP packets with length %u", bufferLength ) );
+            resultPeerConnection = PeerConnectionSrtp_HandleSrtpPacket( pSession, pBuffer, bufferLength );
+            if( resultPeerConnection != PEER_CONNECTION_RESULT_OK )
+            {
+                LogWarn( ( "Failed to handle SRTP packets, result: %d", resultPeerConnection ) );
+                ret = -2;
+            }
         }
     }
 
@@ -778,7 +783,6 @@ static PeerConnectionResult_t InitializeDtlsContext( PeerConnectionDtlsContext_t
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     DtlsTransportStatus_t xNetworkStatus = DTLS_TRANSPORT_SUCCESS;
-    int mbedtlsRet = 0;
 
     if( pDtlsContext == NULL )
     {
@@ -810,24 +814,6 @@ static PeerConnectionResult_t InitializeDtlsContext( PeerConnectionDtlsContext_t
         {
             LogError( ( "Fail to dtlsCertificateFingerprint answer cert, return %d", xNetworkStatus ) );
             ret = PEER_CONNECTION_RESULT_FAIL_CREATE_CERT_FINGERPRINT;
-        }
-    }
-
-    /* Parse key from DER to PEM format. */
-    if( ret == PEER_CONNECTION_RESULT_OK )
-    {
-        mbedtlsRet = mbedtls_pk_write_key_pem( &pDtlsContext->localKey,
-                                               pDtlsContext->privateKeyPcsPem,
-                                               PRIVATE_KEY_PCS_PEM_SIZE );
-        if( mbedtlsRet == 0 )
-        {
-            LogDebug( ( "Key:\n%s", ( char * ) pDtlsContext->privateKeyPcsPem ) );
-        }
-        else
-        {
-            LogError( ( "Fail to mbedtls_pk_write_key_pem, return %d", mbedtlsRet ) );
-            MBEDTLS_ERROR_DESCRIPTION( mbedtlsRet );
-            ret = PEER_CONNECTION_RESULT_FAIL_WRITE_KEY_PEM;
         }
     }
 
@@ -1245,17 +1231,6 @@ PeerConnectionResult_t PeerConnection_CreateSession( PeerConnectionContext_t * p
         memset( pDtlsSession,
                 0,
                 sizeof( DtlsSession_t ) );
-
-        if( pCtx->dtlsContext.localCert.raw.p != NULL )
-        {
-            pDtlsSession->xNetworkCredentials.pClientCert = pCtx->dtlsContext.localCert.raw.p;
-            pDtlsSession->xNetworkCredentials.clientCertSize = pCtx->dtlsContext.localCert.raw.len;
-        }
-        else
-        {
-            LogError( ( "pSession->answerCert.raw.p == NULL" ) );
-            ret = PEER_CONNECTION_RESULT_FAIL_CREATE_CERT;
-        }
     }
 
     if( ret == PEER_CONNECTION_RESULT_OK )
