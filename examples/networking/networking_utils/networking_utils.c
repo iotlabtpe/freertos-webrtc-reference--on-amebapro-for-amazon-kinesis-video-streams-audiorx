@@ -429,7 +429,7 @@ uint64_t NetworkingUtils_GetCurrentTimeUs( void * pTick )
         sec++;
     }
 
-    LogDebug( ( "*pTick: %lu, tickDiff: %u, sec: %lld, usec: %lld, tick: %u", ( *( uint32_t * )pTick ), tickDiff, sec, usec, tick ) );
+    // LogDebug( ( "pTick: %p, tickDiff: %u, sec: %lld, usec: %lld, tick: %u", pTick, tickDiff, sec, usec, tick ) );
 
     return ( ( uint64_t )sec * 1000000 ) + usec;
 }

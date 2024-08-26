@@ -105,6 +105,7 @@ int kvs_webrtc_handle( void * p,
         else
         {
             LogWarn( ( "[KVS WebRTC module]: input type cannot be handled:%ld", input_item->type ) );
+            vPortFree( frame.pData );
         }
     }
 

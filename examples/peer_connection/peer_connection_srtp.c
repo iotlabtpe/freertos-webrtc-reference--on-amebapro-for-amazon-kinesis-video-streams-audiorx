@@ -47,7 +47,7 @@ static PeerConnectionResult_t ConstructRtpAndSendSessions( PeerConnectionContext
     /* Contruct RTP packet for each payload buffer. */
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        LogDebug( ( "Serializing RTP packet with size: %u, rtpTimestamp: %lu", bufferLength, rtpTimestamp ) );
+        // LogDebug( ( "Serializing RTP packet with size: %u, rtpTimestamp: %lu", bufferLength, rtpTimestamp ) );
         for( i = 0; i < AWS_MAX_VIEWER_NUM; i++ )
         {
             if( pCtx->peerConnectionSessions[i].state < PEER_CONNECTION_SESSION_STATE_CONNECTION_READY )
@@ -91,18 +91,18 @@ static PeerConnectionResult_t ConstructRtpAndSendSessions( PeerConnectionContext
             packetRtp.payloadLength = bufferLength;
             packetRtp.pPayload = pBuffer;
             rtpBufferLength = PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH;
-            LogDebug( ( "Serializing RTP packet, packetRtp.header.flags: 0x%lx, packetRtp.header.csrcCount: %u, packetRtp.header.payloadType: %u, packetRtp.header.sequenceNumber: %u, packetRtp.header.timestamp: %lu, packetRtp.header.ssrc: %lu",
-                        packetRtp.header.flags,
-                        packetRtp.header.csrcCount,
-                        packetRtp.header.payloadType,
-                        packetRtp.header.sequenceNumber,
-                        packetRtp.header.timestamp,
-                        packetRtp.header.ssrc ) );
-            LogDebug( ( "Serializing RTP packet, packetRtp.header.extension.extensionProfile: %u, packetRtp.header.extension.extensionPayloadLength: %u, packetRtp.header.extension.pExtensionPayload: 0x%lx, packetRtp.payloadLength: %u",
-                        packetRtp.header.extension.extensionProfile,
-                        packetRtp.header.extension.extensionPayloadLength,
-                        *packetRtp.header.extension.pExtensionPayload,
-                        packetRtp.payloadLength ) );
+            // LogDebug( ( "Serializing RTP packet, packetRtp.header.flags: 0x%lx, packetRtp.header.csrcCount: %u, packetRtp.header.payloadType: %u, packetRtp.header.sequenceNumber: %u, packetRtp.header.timestamp: %lu, packetRtp.header.ssrc: %lu",
+            //             packetRtp.header.flags,
+            //             packetRtp.header.csrcCount,
+            //             packetRtp.header.payloadType,
+            //             packetRtp.header.sequenceNumber,
+            //             packetRtp.header.timestamp,
+            //             packetRtp.header.ssrc ) );
+            // LogDebug( ( "Serializing RTP packet, packetRtp.header.extension.extensionProfile: %u, packetRtp.header.extension.extensionPayloadLength: %u, packetRtp.header.extension.pExtensionPayload: 0x%lx, packetRtp.payloadLength: %u",
+            //             packetRtp.header.extension.extensionProfile,
+            //             packetRtp.header.extension.extensionPayloadLength,
+            //             *packetRtp.header.extension.pExtensionPayload,
+            //             packetRtp.payloadLength ) );
 
             resultRtp = Rtp_Serialize( &pCtx->rtpContext,
                                        &packetRtp,
@@ -125,7 +125,7 @@ static PeerConnectionResult_t ConstructRtpAndSendSessions( PeerConnectionContext
                 break;
             }
 
-            LogDebug( ( "After SRTP encryption, the packet size: %u, RTP seq: %u", srtpBufferLength, packetRtp.header.sequenceNumber ) );
+            // LogDebug( ( "After SRTP encryption, the packet size: %u, RTP seq: %u", srtpBufferLength, packetRtp.header.sequenceNumber ) );
             /* Write the constructed RTP packets through network. */
             resultIceController = IceController_SendToRemotePeer( &pSession->iceControllerContext,
                                                                   rtpBuffer,
@@ -303,7 +303,6 @@ PeerConnectionResult_t PeerConnectionSrtp_HandleSrtpPacket( PeerConnectionSessio
     srtp_err_status_t errorStatus;
     static uint8_t rtpBuffer[ PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH ];
     size_t rtpBufferLength = PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH;
-    int32_t retDtls;
 
     if( ( pSession == NULL ) || ( pBuffer == NULL ) )
     {
