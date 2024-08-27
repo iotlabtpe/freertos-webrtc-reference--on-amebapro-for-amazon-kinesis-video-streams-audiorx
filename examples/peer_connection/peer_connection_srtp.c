@@ -324,7 +324,7 @@ PeerConnectionResult_t PeerConnectionSrtp_HandleSrtpPacket( PeerConnectionSessio
         }
         else
         {
-            LogInfo( ( "Decrypt SRTP packet successfully, decrypted length: %u", rtpBufferLength ) );
+            LogVerbose( ( "Decrypt SRTP packet successfully, decrypted length: %u", rtpBufferLength ) );
         }
     }
 

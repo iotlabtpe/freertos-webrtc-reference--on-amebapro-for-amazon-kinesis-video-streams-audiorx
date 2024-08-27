@@ -290,7 +290,7 @@ static void pollingSockets( IceControllerContext_t * pCtx )
         {
             if( FD_ISSET( fds[i], &rfds ) )
             {
-                LogDebug( ( "Detect packets on fd %d, idx: %d", fds[i], i ) );
+                LogVerbose( ( "Detect packets on fd %d, idx: %d", fds[i], i ) );
 
                 HandleRxPacket( pCtx, &pCtx->socketsContexts[i],
                                 onRecvRtpRtcpPacketCallbackFunc, pOnRecvRtpRtcpPacketCallbackCustomContext,

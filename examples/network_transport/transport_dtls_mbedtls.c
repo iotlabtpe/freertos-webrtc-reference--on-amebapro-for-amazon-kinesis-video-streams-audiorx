@@ -567,17 +567,13 @@ DTLS_Connect( DtlsNetworkContext_t * pNetworkContext,
                                   pNetworkCredentials );
     }
 
-    static DtlsSessionTimer_t xTimerContext;
-    memset( &xTimerContext,
+    memset( &pNetworkContext->pParams->xSessionTimer,
             0,
             sizeof( DtlsSessionTimer_t ) );
 
-    /* Set the timer context in the DTLS transport parameters. */
-    pNetworkContext->pParams->xSessionTimer = &xTimerContext;
-
     /* Set the timer functions for mbed DTLS. */
     mbedtls_ssl_set_timer_cb( &pNetworkContext->pParams->dtlsSslContext.context,
-                              pNetworkContext->pParams->xSessionTimer,
+                              &pNetworkContext->pParams->xSessionTimer,
                               &mbedtls_timing_set_delay,
                               &mbedtls_timing_get_delay );
 
