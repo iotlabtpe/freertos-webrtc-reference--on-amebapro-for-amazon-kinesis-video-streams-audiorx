@@ -52,7 +52,7 @@ static void VideoTx_Task( void * pParameter )
         if( retMessageQueue == MESSAGE_QUEUE_RESULT_OK )
         {
             /* Received a media frame. */
-            LogInfo( ( "Video Tx frame(%ld), trackKind: %d, timestamp: %llu, payload: 0x%x 0x%x 0x%x 0x%x", frame.size, frame.trackKind, frame.timestampUs, frame.pData[0], frame.pData[1], frame.pData[2], frame.pData[3] ) );
+            LogVerbose( ( "Video Tx frame(%ld), trackKind: %d, timestamp: %llu, payload: 0x%x 0x%x 0x%x 0x%x", frame.size, frame.trackKind, frame.timestampUs, frame.pData[0], frame.pData[1], frame.pData[2], frame.pData[3] ) );
             if( pVideoContext->pSourcesContext->onMediaSinkHookFunc )
             {
                 ( void ) pVideoContext->pSourcesContext->onMediaSinkHookFunc( pVideoContext->pSourcesContext->pOnMediaSinkHookCustom, &frame );

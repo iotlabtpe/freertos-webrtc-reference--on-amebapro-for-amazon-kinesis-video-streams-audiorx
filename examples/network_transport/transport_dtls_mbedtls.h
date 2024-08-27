@@ -171,7 +171,7 @@ typedef struct DtlsTransportParams
 {
     Socket_t udpSocket;
     DtlsSSLContext_t dtlsSslContext;
-    DtlsSessionTimer_t * xSessionTimer;
+    DtlsSessionTimer_t xSessionTimer;
 } DtlsTransportParams_t;
 
 
