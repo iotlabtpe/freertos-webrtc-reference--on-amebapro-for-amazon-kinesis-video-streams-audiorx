@@ -144,6 +144,9 @@ include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-stream
 # Include RTP
 include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-rtp/rtpFilePaths.cmake )
 
+# Include RTP
+include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-rtcp/rtcpFilePaths.cmake )
+
 # Include ICE
 include( ${REPO_ROOT_DIRECTORY}/CMake/ice.cmake )
 
@@ -166,7 +169,8 @@ set( webrtc_master_demo_src
      ${SDP_SOURCES}
      ${STUN_SOURCES}
      ${ICE_SOURCES}
-     ${RTP_SOURCES} )
+     ${RTP_SOURCES}
+     ${RTCP_SOURCES} )
 
 set( webrtc_master_demo_include
      ${WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS}
@@ -178,7 +182,8 @@ set( webrtc_master_demo_include
      ${SDP_INCLUDE_PUBLIC_DIRS}
      ${STUN_INCLUDE_PUBLIC_DIRS}
      ${ICE_INCLUDE_PUBLIC_DIRS}
-     ${RTP_INCLUDE_PUBLIC_DIRS} )
+     ${RTP_INCLUDE_PUBLIC_DIRS}
+     ${RTCP_INCLUDE_PUBLIC_DIRS} )
 
 # Set more strict rules to application code only
 set_source_files_properties(
