@@ -18,6 +18,20 @@
 #define PEER_CONNECTION_SRTP_US_IN_A_SECOND ( 1000000 )
 #define PEER_CONNECTION_SRTP_CONVERT_TIME_US_TO_RTP_TIMESTAMP( clockRate, presentationUs ) ( uint32_t )( ( ( ( presentationUs ) * ( clockRate ) ) / PEER_CONNECTION_SRTP_US_IN_A_SECOND ) & 0xFFFFFFFF )
 
+/*
+ *
+     0                   1                   2                   3
+      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ |       0xBE    |    0xDE       |           length=1            |
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ |  ID   | L=1   |transport-wide sequence number | zero padding  |
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ */
+// https://tools.ietf.org/html/draft-holmer-rmcat-transport-wide-cc-extensions-01
+#define PEER_CONNECTION_SRTP_TWCC_EXT_PROFILE ( 0xBEDE )
+#define PEER_CONNECTION_SRTP_GET_TWCC_PAYLOAD( extId, sequenceNum ) ( ( ( ( extId ) & 0xfu ) << 28u ) | ( 1u << 24u ) | ( ( uint32_t ) ( sequenceNum ) << 8u ) )
+
 static PeerConnectionResult_t ConstructRtpAndSendSessions( PeerConnectionContext_t * pCtx,
                                                            Transceiver_t * pTransceiver,
                                                            uint8_t * pBuffer,
@@ -35,6 +49,8 @@ static PeerConnectionResult_t ConstructRtpAndSendSessions( PeerConnectionContext
     size_t srtpBufferLength;
     IceControllerResult_t resultIceController;
     srtp_err_status_t errorStatus;
+    /* For TWCC ID extension info. */
+    uint32_t extensionPayload;
 
     if( ( pCtx == NULL ) ||
         ( pBuffer == NULL ) ||
@@ -78,31 +94,20 @@ static PeerConnectionResult_t ConstructRtpAndSendSessions( PeerConnectionContext
             packetRtp.header.pCsrc = NULL;
             packetRtp.header.timestamp = rtpTimestamp;
 
-#define TWCC_PAYLOAD( extId, sequenceNum ) ( ( ( ( extId ) & 0xfu ) << 28u ) | ( 1u << 24u ) | ( ( uint32_t ) ( sequenceNum ) << 8u ) )
-            static uint16_t twsn = 0;
-            uint32_t extensionPayload;
-            packetRtp.header.flags |= RTP_HEADER_FLAG_EXTENSION;
-            packetRtp.header.extension.extensionProfile = 0xBEDE;
-            packetRtp.header.extension.extensionPayloadLength = 1;
-            extensionPayload = TWCC_PAYLOAD( 4, twsn );
-            packetRtp.header.extension.pExtensionPayload = &extensionPayload;
-            twsn++;
+            if( pSession->rtpConfig.twccId > 0 )
+            {
+                packetRtp.header.flags |= RTP_HEADER_FLAG_EXTENSION;
+                packetRtp.header.extension.extensionProfile = PEER_CONNECTION_SRTP_TWCC_EXT_PROFILE;
+                packetRtp.header.extension.extensionPayloadLength = 1;
+                extensionPayload = PEER_CONNECTION_SRTP_GET_TWCC_PAYLOAD( pSession->rtpConfig.twccId, pSession->rtpConfig.twccSequence );
+                packetRtp.header.extension.pExtensionPayload = &extensionPayload;
+                pSession->rtpConfig.twccSequence++;
+                LogDebug( ( "Adding RTP extension header with twccID: %u, twccSequence: %u", pSession->rtpConfig.twccId, pSession->rtpConfig.twccSequence ) );
+            }
 
             packetRtp.payloadLength = bufferLength;
             packetRtp.pPayload = pBuffer;
             rtpBufferLength = PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH;
-            // LogDebug( ( "Serializing RTP packet, packetRtp.header.flags: 0x%lx, packetRtp.header.csrcCount: %u, packetRtp.header.payloadType: %u, packetRtp.header.sequenceNumber: %u, packetRtp.header.timestamp: %lu, packetRtp.header.ssrc: %lu",
-            //             packetRtp.header.flags,
-            //             packetRtp.header.csrcCount,
-            //             packetRtp.header.payloadType,
-            //             packetRtp.header.sequenceNumber,
-            //             packetRtp.header.timestamp,
-            //             packetRtp.header.ssrc ) );
-            // LogDebug( ( "Serializing RTP packet, packetRtp.header.extension.extensionProfile: %u, packetRtp.header.extension.extensionPayloadLength: %u, packetRtp.header.extension.pExtensionPayload: 0x%lx, packetRtp.payloadLength: %u",
-            //             packetRtp.header.extension.extensionProfile,
-            //             packetRtp.header.extension.extensionPayloadLength,
-            //             *packetRtp.header.extension.pExtensionPayload,
-            //             packetRtp.payloadLength ) );
 
             resultRtp = Rtp_Serialize( &pCtx->rtpContext,
                                        &packetRtp,

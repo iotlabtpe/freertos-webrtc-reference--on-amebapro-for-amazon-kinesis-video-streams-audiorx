@@ -41,7 +41,7 @@ PeerConnectionResult_t PeerConnection_CloseSession( PeerConnectionContext_t * pC
                                                     size_t remoteClientIdLength );
 PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionContext_t * pCtx,
                                                   Transceiver_t * pTransceiver,
-                                                  const PeerConnectionFrame_t * pFrame );;
+                                                  const PeerConnectionFrame_t * pFrame );
 
 #ifdef __cplusplus
 }

@@ -156,27 +156,28 @@ static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCt
     {
         remoteInfo.pRemoteClientId = pRemoteClientId;
         remoteInfo.remoteClientIdLength = remoteClientIdLength;
-        remoteInfo.pRemoteUserName = demoContext.sessionInformationSdpOffer.sdpDescription.pIceUfrag;
-        remoteInfo.remoteUserNameLength = demoContext.sessionInformationSdpOffer.sdpDescription.iceUfragLength;
-        remoteInfo.pRemotePassword = demoContext.sessionInformationSdpOffer.sdpDescription.pIcePwd;
-        remoteInfo.remotePasswordLength = demoContext.sessionInformationSdpOffer.sdpDescription.icePwdLength;
-        remoteInfo.pRemoteCertFingerprint = demoContext.sessionInformationSdpOffer.sdpDescription.pFingerprint + DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
-        remoteInfo.remoteCertFingerprintLength = demoContext.sessionInformationSdpOffer.sdpDescription.fingerprintLength - DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
+        remoteInfo.pRemoteUserName = pSessionInformation->sdpDescription.quickAccess.pIceUfrag;
+        remoteInfo.remoteUserNameLength = pSessionInformation->sdpDescription.quickAccess.iceUfragLength;
+        remoteInfo.pRemotePassword = pSessionInformation->sdpDescription.quickAccess.pIcePwd;
+        remoteInfo.remotePasswordLength = pSessionInformation->sdpDescription.quickAccess.icePwdLength;
+        remoteInfo.pRemoteCertFingerprint = pSessionInformation->sdpDescription.quickAccess.pFingerprint + DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
+        remoteInfo.remoteCertFingerprintLength = pSessionInformation->sdpDescription.quickAccess.fingerprintLength - DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
+        remoteInfo.twccId = pSessionInformation->sdpDescription.quickAccess.twccExtId;
 
-        if( pSessionInformation->sdpDescription.isVideoCodecPayloadSet )
+        if( pSessionInformation->sdpDescription.quickAccess.isVideoCodecPayloadSet )
         {
             remoteInfo.isVideoCodecPayloadSet = 1;
-            remoteInfo.videoCodecPayload = pSessionInformation->sdpDescription.videoCodecPayload;
+            remoteInfo.videoCodecPayload = pSessionInformation->sdpDescription.quickAccess.videoCodecPayload;
         }
         else
         {
             remoteInfo.isVideoCodecPayloadSet = 0;
         }
 
-        if( pSessionInformation->sdpDescription.isAudioCodecPayloadSet )
+        if( pSessionInformation->sdpDescription.quickAccess.isAudioCodecPayloadSet )
         {
             remoteInfo.isAudioCodecPayloadSet = 1;
-            remoteInfo.audioCodecPayload = pSessionInformation->sdpDescription.audioCodecPayload;
+            remoteInfo.audioCodecPayload = pSessionInformation->sdpDescription.quickAccess.audioCodecPayload;
         }
         else
         {

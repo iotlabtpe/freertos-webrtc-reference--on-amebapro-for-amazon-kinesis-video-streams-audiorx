@@ -225,10 +225,10 @@ IceControllerResult_t IceController_AddRemoteCandidate( IceControllerContext_t *
         else
         {
             LogVerbose( ( "Received remote candidate with IP/port: %s/%d",
-                        IceControllerNet_LogIpAddressInfo( pRemoteCandidate->pEndpoint,
-                                                           ipBuffer,
-                                                           sizeof( ipBuffer ) ),
-                        pRemoteCandidate->pEndpoint->transportAddress.port ) );
+                          IceControllerNet_LogIpAddressInfo( pRemoteCandidate->pEndpoint,
+                                                             ipBuffer,
+                                                             sizeof( ipBuffer ) ),
+                          pRemoteCandidate->pEndpoint->transportAddress.port ) );
         }
     }
 
@@ -321,14 +321,14 @@ IceControllerResult_t IceController_SendConnectivityCheck( IceControllerContext_
             }
 
             LogVerbose( ( "Sending connecitivity check from IP/port: %s/%d to %s/%d",
-                        IceControllerNet_LogIpAddressInfo( &pCtx->iceContext.pCandidatePairs[i].pLocalCandidate->endpoint,
-                                                           ipFromBuffer,
-                                                           sizeof( ipFromBuffer ) ),
-                        pCtx->iceContext.pCandidatePairs[i].pLocalCandidate->endpoint.transportAddress.port,
-                        IceControllerNet_LogIpAddressInfo( &pCtx->iceContext.pCandidatePairs[i].pRemoteCandidate->endpoint,
-                                                           ipToBuffer,
-                                                           sizeof( ipToBuffer ) ),
-                        pCtx->iceContext.pCandidatePairs[i].pRemoteCandidate->endpoint.transportAddress.port ) );
+                          IceControllerNet_LogIpAddressInfo( &pCtx->iceContext.pCandidatePairs[i].pLocalCandidate->endpoint,
+                                                             ipFromBuffer,
+                                                             sizeof( ipFromBuffer ) ),
+                          pCtx->iceContext.pCandidatePairs[i].pLocalCandidate->endpoint.transportAddress.port,
+                          IceControllerNet_LogIpAddressInfo( &pCtx->iceContext.pCandidatePairs[i].pRemoteCandidate->endpoint,
+                                                             ipToBuffer,
+                                                             sizeof( ipToBuffer ) ),
+                          pCtx->iceContext.pCandidatePairs[i].pRemoteCandidate->endpoint.transportAddress.port ) );
             IceControllerNet_LogStunPacket( stunBuffer,
                                             stunBufferLength );
 

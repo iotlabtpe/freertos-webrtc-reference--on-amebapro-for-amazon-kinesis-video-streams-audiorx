@@ -1032,15 +1032,15 @@ static WebsocketResult_t SendWebsocketMessage( struct wslay_event_msg * pArg )
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     int retWslay;
     #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
-        size_t prev = 0, mid = 0, last = 0;
+    size_t prev = 0, mid = 0, last = 0;
     #endif /* if LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
 
     if( wslay_event_get_write_enabled( networkingWslayContext.wslayContext ) == 1 )
     {
         // send the message out immediately.
         #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
-            /* Get the queued message count before sending message */
-            prev = wslay_event_get_queued_msg_count( networkingWslayContext.wslayContext );
+        /* Get the queued message count before sending message */
+        prev = wslay_event_get_queued_msg_count( networkingWslayContext.wslayContext );
         #endif /* if LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
 
         retWslay = wslay_event_queue_msg( networkingWslayContext.wslayContext, pArg );
@@ -1053,15 +1053,15 @@ static WebsocketResult_t SendWebsocketMessage( struct wslay_event_msg * pArg )
         if( ret == NETWORKING_WSLAY_RESULT_OK )
         {
             #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
-                /* Get the queued message count between queue and send message. */
-                mid = wslay_event_get_queued_msg_count( networkingWslayContext.wslayContext );
+            /* Get the queued message count between queue and send message. */
+            mid = wslay_event_get_queued_msg_count( networkingWslayContext.wslayContext );
             #endif /* if LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
 
             retWslay = wslay_event_send( networkingWslayContext.wslayContext );
 
             #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
-                /* Get the queued message count after sending message. */
-                last = wslay_event_get_queued_msg_count( networkingWslayContext.wslayContext );
+            /* Get the queued message count after sending message. */
+            last = wslay_event_get_queued_msg_count( networkingWslayContext.wslayContext );
             #endif /* if LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
 
             if( retWslay != 0 )

@@ -259,8 +259,8 @@ static SdpControllerResult_t ParseExtraAttributes( SdpControllerSdpDescription_t
             ( strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_FINGERPRINT, pAttribute->pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_FINGERPRINT_LENGTH ) == 0 ) )
         {
             /* Found fingerprint, store it as extra info. */
-            pOffer->pFingerprint = pAttribute->pAttributeValue;
-            pOffer->fingerprintLength = pAttribute->attributeValueLength;
+            pOffer->quickAccess.pFingerprint = pAttribute->pAttributeValue;
+            pOffer->quickAccess.fingerprintLength = pAttribute->attributeValueLength;
         }
         else if( ( pAttribute->attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SETUP_LENGTH ) &&
                  ( strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SETUP, pAttribute->pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SETUP_LENGTH ) == 0 ) )
@@ -269,11 +269,11 @@ static SdpControllerResult_t ParseExtraAttributes( SdpControllerSdpDescription_t
             if( ( pAttribute->attributeValueLength == SDP_CONTROLLER_MEDIA_DTLS_ROLE_ACTIVE_LENGTH ) &&
                 ( strncmp( SDP_CONTROLLER_MEDIA_DTLS_ROLE_ACTIVE, pAttribute->pAttributeName, SDP_CONTROLLER_MEDIA_DTLS_ROLE_ACTIVE_LENGTH ) == 0 ) )
             {
-                pOffer->dtlsRole = SDP_CONTROLLER_DTLS_ROLE_ACTIVE;
+                pOffer->quickAccess.dtlsRole = SDP_CONTROLLER_DTLS_ROLE_ACTIVE;
             }
             else
             {
-                pOffer->dtlsRole = SDP_CONTROLLER_DTLS_ROLE_ACTPASS;
+                pOffer->quickAccess.dtlsRole = SDP_CONTROLLER_DTLS_ROLE_ACTPASS;
             }
         }
         else if( ( pAttribute->attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_ICE_OPTION_LENGTH ) &&
@@ -281,19 +281,19 @@ static SdpControllerResult_t ParseExtraAttributes( SdpControllerSdpDescription_t
                  ( pAttribute->attributeValueLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_VALUE_ICE_OPTION_LENGTH ) &&
                  ( strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_VALUE_ICE_OPTION, pAttribute->pAttributeValue, SDP_CONTROLLER_MEDIA_ATTRIBUTE_VALUE_ICE_OPTION_LENGTH ) == 0 ) )
         {
-            pOffer->isIceTrickle = 1U;
+            pOffer->quickAccess.isIceTrickle = 1U;
         }
         else if( ( pAttribute->attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_ICE_UFRAG_LENGTH ) &&
                  ( strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_ICE_UFRAG, pAttribute->pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_ICE_UFRAG_LENGTH ) == 0 ) )
         {
-            pOffer->pIceUfrag = pAttribute->pAttributeValue;
-            pOffer->iceUfragLength = pAttribute->attributeValueLength;
+            pOffer->quickAccess.pIceUfrag = pAttribute->pAttributeValue;
+            pOffer->quickAccess.iceUfragLength = pAttribute->attributeValueLength;
         }
         else if( ( pAttribute->attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_ICE_PWD_LENGTH ) &&
                  ( strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_ICE_PWD, pAttribute->pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_ICE_PWD_LENGTH ) == 0 ) )
         {
-            pOffer->pIcePwd = pAttribute->pAttributeValue;
-            pOffer->icePwdLength = pAttribute->attributeValueLength;
+            pOffer->quickAccess.pIcePwd = pAttribute->pAttributeValue;
+            pOffer->quickAccess.icePwdLength = pAttribute->attributeValueLength;
         }
         else if( ( pAttribute->attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_EXTMAP_LENGTH ) &&
                  ( strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_EXTMAP, pAttribute->pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_EXTMAP_LENGTH ) == 0 ) &&
@@ -305,18 +305,18 @@ static SdpControllerResult_t ParseExtraAttributes( SdpControllerSdpDescription_t
             if( strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_VALUE_TWCC_EXT_URL, pFindStart, SDP_CONTROLLER_MEDIA_ATTRIBUTE_VALUE_TWCC_EXT_URL_LENGTH ) == 0 )
             {
                 /* Found TWCC ext URL. */
-                stringResult = StringUtils_ConvertStringToUl( pAttribute->pAttributeValue, length, &pOffer->twccExtId );
+                stringResult = StringUtils_ConvertStringToUl( pAttribute->pAttributeValue, length, &pOffer->quickAccess.twccExtId );
                 if( stringResult != STRING_UTILS_RESULT_OK )
                 {
                     LogError( ( "StringUtils_ConvertStringToUl fail, result %d, converting %.*s to %lu",
                                 stringResult,
                                 ( int ) length, pAttribute->pAttributeValue,
-                                pOffer->twccExtId ) );
+                                pOffer->quickAccess.twccExtId ) );
                     ret = SDP_CONTROLLER_RESULT_SDP_INVALID_TWCC_ID;
                 }
                 else
                 {
-                    LogDebug( ( "Found TWCC, ID: %lu", pOffer->twccExtId ) );
+                    LogDebug( ( "Found TWCC, ID: %lu", pOffer->quickAccess.twccExtId ) );
                 }
             }
         }
@@ -1525,9 +1525,9 @@ static SdpControllerResult_t PopulateCodecAttributes( char ** ppBuffer,
     {
         uint16_t twccId = 0;
 
-        if( pSdpRemoteDescription && ( pSdpRemoteDescription->twccExtId > 0 ) )
+        if( pSdpRemoteDescription && ( pSdpRemoteDescription->quickAccess.twccExtId > 0 ) )
         {
-            twccId = pSdpRemoteDescription->twccExtId;
+            twccId = pSdpRemoteDescription->quickAccess.twccExtId;
         }
         ret = PopulateRtcpFb( ppBuffer, pBufferLength, pSdpLocalDescription, codec, twccId );
     }
@@ -2583,19 +2583,19 @@ SdpControllerResult_t SdpController_DeserializeSdpOffer( const char * pSdpOfferC
 
     if( ret == SDP_CONTROLLER_RESULT_OK )
     {
-        if( pOffer->pFingerprint == NULL )
+        if( pOffer->quickAccess.pFingerprint == NULL )
         {
             /* fingerprint is mandatory in the SDP. */
             LogError( ( "No fingerprint found in the SDP content." ) );
             ret = SDP_CONTROLLER_RESULT_SDP_FAIL_NO_FINGERPRINT_FOUND;
         }
-        else if( pOffer->pIceUfrag == NULL )
+        else if( pOffer->quickAccess.pIceUfrag == NULL )
         {
             /* ice-ufrag is mandatory in the SDP. */
             LogError( ( "No ice-ufrag found in the SDP content." ) );
             ret = SDP_CONTROLLER_RESULT_SDP_FAIL_NO_ICE_UFRAG_FOUND;
         }
-        else if( pOffer->pIcePwd == NULL )
+        else if( pOffer->quickAccess.pIcePwd == NULL )
         {
             /* ice-pwd is mandatory in the SDP. */
             LogError( ( "No ice-pwd found in the SDP content." ) );
@@ -2939,17 +2939,17 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
                 {
                     if( pTransceiver->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
                     {
-                        pSdpLocalDescription->isVideoCodecPayloadSet = 1;
-                        pSdpLocalDescription->videoCodecPayload = chosenCodec;
-                        pSdpRemoteDescription->isVideoCodecPayloadSet = 1;
-                        pSdpRemoteDescription->videoCodecPayload = chosenCodec;
+                        pSdpLocalDescription->quickAccess.isVideoCodecPayloadSet = 1;
+                        pSdpLocalDescription->quickAccess.videoCodecPayload = chosenCodec;
+                        pSdpRemoteDescription->quickAccess.isVideoCodecPayloadSet = 1;
+                        pSdpRemoteDescription->quickAccess.videoCodecPayload = chosenCodec;
                     }
                     else if( pTransceiver->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO )
                     {
-                        pSdpLocalDescription->isAudioCodecPayloadSet = 1;
-                        pSdpLocalDescription->audioCodecPayload = chosenCodec;
-                        pSdpRemoteDescription->isAudioCodecPayloadSet = 1;
-                        pSdpRemoteDescription->audioCodecPayload = chosenCodec;
+                        pSdpLocalDescription->quickAccess.isAudioCodecPayloadSet = 1;
+                        pSdpLocalDescription->quickAccess.audioCodecPayload = chosenCodec;
+                        pSdpRemoteDescription->quickAccess.isAudioCodecPayloadSet = 1;
+                        pSdpRemoteDescription->quickAccess.audioCodecPayload = chosenCodec;
                     }
                     else
                     {
@@ -2986,17 +2986,17 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
 
                 if( pTransceivers[i]->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
                 {
-                    pSdpLocalDescription->isVideoCodecPayloadSet = 1;
-                    pSdpLocalDescription->videoCodecPayload = chosenCodec;
-                    pSdpRemoteDescription->isVideoCodecPayloadSet = 1;
-                    pSdpRemoteDescription->videoCodecPayload = chosenCodec;
+                    pSdpLocalDescription->quickAccess.isVideoCodecPayloadSet = 1;
+                    pSdpLocalDescription->quickAccess.videoCodecPayload = chosenCodec;
+                    pSdpRemoteDescription->quickAccess.isVideoCodecPayloadSet = 1;
+                    pSdpRemoteDescription->quickAccess.videoCodecPayload = chosenCodec;
                 }
                 else if( pTransceivers[i]->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO )
                 {
-                    pSdpLocalDescription->isAudioCodecPayloadSet = 1;
-                    pSdpLocalDescription->audioCodecPayload = chosenCodec;
-                    pSdpRemoteDescription->isAudioCodecPayloadSet = 1;
-                    pSdpRemoteDescription->audioCodecPayload = chosenCodec;
+                    pSdpLocalDescription->quickAccess.isAudioCodecPayloadSet = 1;
+                    pSdpLocalDescription->quickAccess.audioCodecPayload = chosenCodec;
+                    pSdpRemoteDescription->quickAccess.isAudioCodecPayloadSet = 1;
+                    pSdpRemoteDescription->quickAccess.audioCodecPayload = chosenCodec;
                 }
                 else
                 {

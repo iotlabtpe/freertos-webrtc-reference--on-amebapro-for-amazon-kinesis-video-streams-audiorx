@@ -86,6 +86,7 @@ typedef struct PeerConnectionRemoteInfo
     uint8_t isAudioCodecPayloadSet;
     uint32_t videoCodecPayload;
     uint32_t audioCodecPayload;
+    uint16_t twccId;
 } PeerConnectionRemoteInfo_t;
 
 typedef struct PeerConnectionUserInfo
@@ -132,6 +133,9 @@ typedef struct PeerConnectionRtpConfig
     uint16_t audioSequenceNumber;
     uint32_t videoCodecPayload;
     uint32_t audioCodecPayload;
+
+    uint16_t twccId;
+    uint16_t twccSequence;
 } PeerConnectionRtpConfig_t;
 
 typedef struct PeerConnectionContext PeerConnectionContext_t;
