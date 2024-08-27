@@ -192,28 +192,3 @@ set_source_files_properties(
      PROPERTIES
      COMPILE_FLAGS "-Werror"
 )
-
-# Append config options to mbedtls config.h
-set(FILE_TO_MODIFY "${REPO_ROOT_DIRECTORY}/libraries/ambpro2_sdk/component/ssl/mbedtls-2.16.6/include/mbedtls/config.h")
-
-# Check if the file has already been modified
-if(NOT EXISTS "${FILE_TO_MODIFY}.modified")
-  # Read the original content
-  file(READ "${FILE_TO_MODIFY}" ORIGINAL_CONTENT)
-
-  # Append new lines to the file
-  file(APPEND "${FILE_TO_MODIFY}"
-  "\n"
-  "#define MBEDTLS_DEBUG_C\n"
-  "#define MBEDTLS_DTLS_DEBUG_C\n"
-
-  "#define MBEDTLS_PLATFORM_C\n"
-  "#define MBEDTLS_ERROR_C\n"
-
-  "// this will enable mbedtls_pem_write_buffer\n"
-  "#define MBEDTLS_PEM_WRITE_C\n"
-  )
-
-  # Create a marker file to indicate that the file has been modified
-  file(WRITE "${FILE_TO_MODIFY}.modified" "File has been modified.")
-endif()
