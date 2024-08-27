@@ -769,6 +769,37 @@ int32_t DTLS_send( DtlsNetworkContext_t * pNetworkContext,
 }
 /*-----------------------------------------------------------*/
 
+int32_t dtlsFillPseudoRandomBits( uint8_t * pBuf,
+                                  size_t bufSize )
+{
+    int32_t retStatus = 0;
+    uint32_t i;
+
+    if( ( bufSize >= DTLS_CERT_MIN_SERIAL_NUM_SIZE ) && ( bufSize <= DTLS_CERT_MAX_SERIAL_NUM_SIZE ) )
+    {
+        if( pBuf != NULL )
+        {
+
+            for( i = 0; i < bufSize; i++ )
+            {
+                *pBuf++ = ( uint8_t )( rand() & 0xFF );
+            }
+        }
+        else
+        {
+            retStatus = STATUS_NULL_ARG;
+        }
+    }
+    else
+    {
+        retStatus = STATUS_INVALID_ARG;
+        LogError( ( "invalid input, bufSize >= DTLS_CERT_MIN_SERIAL_NUM_SIZE && "
+                    "bufSize <= DTLS_CERT_MAX_SERIAL_NUM_SIZE " ) );
+    }
+    return retStatus;
+}
+/*-----------------------------------------------------------*/
+
 int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt * pCert,
                                           char * pBuff,
                                           const size_t bufLen )
@@ -1044,6 +1075,8 @@ int32_t createCertificateAndKey( int32_t certificateBits,
     mbedtls_ctr_drbg_context * pCtrDrbg = NULL;
     mbedtls_mpi serial;
     mbedtls_x509write_cert * pWriteCert = NULL;
+    uint8_t certSn[DTLS_CERT_MAX_SERIAL_NUM_SIZE];
+
     if( ( pCert != NULL ) && ( pKey != NULL ) )
     {
         if( ( pCertBuf = ( char * )pvPortMalloc( GENERATED_CERTIFICATE_MAX_SIZE ) ) )
@@ -1054,182 +1087,186 @@ int32_t createCertificateAndKey( int32_t certificateBits,
                 {
                     if( ( NULL != ( pWriteCert = ( mbedtls_x509write_cert * )pvPortMalloc( sizeof( mbedtls_x509write_cert ) ) ) ) )
                     {
-                        // initialize to sane values
-                        mbedtls_entropy_init( pEntropy );
-                        mbedtls_ctr_drbg_init( pCtrDrbg );
-                        mbedtls_mpi_init( &serial );
-                        mbedtls_x509write_crt_init( pWriteCert );
-                        mbedtls_x509_crt_init( pCert );
-                        mbedtls_pk_init( pKey );
-                        initialized = pdTRUE;
-                        if( mbedtls_ctr_drbg_seed( pCtrDrbg,
-                                                   mbedtls_entropy_func,
-                                                   pEntropy,
-                                                   NULL,
-                                                   0 ) == 0 )
+                        if( dtlsFillPseudoRandomBits( certSn,
+                                                      sizeof( certSn ) ) == 0 )
                         {
-                            LogDebug( ( "mbedtls_ctr_drbg_seed successful" ) );
-
-                            // generate a RSA key
-                            if( generateRSACertificate )
+                            // initialize to sane values
+                            mbedtls_entropy_init( pEntropy );
+                            mbedtls_ctr_drbg_init( pCtrDrbg );
+                            mbedtls_mpi_init( &serial );
+                            mbedtls_x509write_crt_init( pWriteCert );
+                            mbedtls_x509_crt_init( pCert );
+                            mbedtls_pk_init( pKey );
+                            initialized = pdTRUE;
+                            if( mbedtls_ctr_drbg_seed( pCtrDrbg,
+                                                       mbedtls_entropy_func,
+                                                       pEntropy,
+                                                       NULL,
+                                                       0 ) == 0 )
                             {
-                                LogWarn( ( "generateRSACertificate this will take about 10mins" ) );
+                                LogDebug( ( "mbedtls_ctr_drbg_seed successful" ) );
 
-                                if( mbedtls_pk_setup( pKey,
-                                                      mbedtls_pk_info_from_type( MBEDTLS_PK_RSA ) ) == 0 )
+                                // generate a RSA key
+                                if( generateRSACertificate )
                                 {
-                                    LogDebug( ( "mbedtls_pk_setup successful" ) );
-                                    if( mbedtls_rsa_gen_key( mbedtls_pk_rsa( *pKey ),
-                                                             mbedtls_ctr_drbg_random,
-                                                             pCtrDrbg,
-                                                             certificateBits,
-                                                             DTLS_RSA_F4 ) == 0 )
+                                    LogWarn( ( "generateRSACertificate this will take about 10mins" ) );
+
+                                    if( mbedtls_pk_setup( pKey,
+                                                          mbedtls_pk_info_from_type( MBEDTLS_PK_RSA ) ) == 0 )
                                     {
-                                        LogDebug( ( "mbedtls_rsa_gen_key successful" ) );
+                                        LogDebug( ( "mbedtls_pk_setup successful" ) );
+                                        if( mbedtls_rsa_gen_key( mbedtls_pk_rsa( *pKey ),
+                                                                 mbedtls_ctr_drbg_random,
+                                                                 pCtrDrbg,
+                                                                 certificateBits,
+                                                                 DTLS_RSA_F4 ) == 0 )
+                                        {
+                                            LogDebug( ( "mbedtls_rsa_gen_key successful" ) );
+                                        }
+                                        else
+                                        {
+                                            retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
+                                            LogError( ( "mbedtls_rsa_gen_key failed" ) );
+                                        }
                                     }
                                     else
                                     {
                                         retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
-                                        LogError( ( "mbedtls_rsa_gen_key failed" ) );
+                                        LogError( ( "mbedtls_pk_setup STATUS_CERTIFICATE_GENERATION_FAILED" ) );
                                     }
                                 }
-                                else
+                                else     // generate ECDSA
                                 {
-                                    retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
-                                    LogError( ( "mbedtls_pk_setup STATUS_CERTIFICATE_GENERATION_FAILED" ) );
+
+                                    if( ( mbedtls_pk_setup( pKey,
+                                                            mbedtls_pk_info_from_type( MBEDTLS_PK_ECKEY ) ) == 0 ) &&
+                                        ( mbedtls_ecp_gen_key( MBEDTLS_ECP_DP_SECP256R1,
+                                                               mbedtls_pk_ec( *pKey ),
+                                                               mbedtls_ctr_drbg_random,
+                                                               pCtrDrbg ) == 0 ) )
+                                    {
+                                        LogDebug( ( "mbedtls_pk_setup && mbedtls_ecp_gen_key successful" ) );
+                                    }
+                                    else
+                                    {
+                                        retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
+                                        LogError( ( "mbedtls_pk_setup or mbedtls_rsa_gen_key" ) );
+                                    }
                                 }
                             }
-                            else     // generate ECDSA
+
+                            // generate a new certificate
+                            int mbedtlsRet = mbedtls_mpi_read_binary( &serial,
+                                                                      certSn,
+                                                                      sizeof( certSn ) );
+                            if( mbedtlsRet == 0 )
                             {
+                                LogDebug( ( "mbedtls_mpi_read_binary successful" ) );
+                                struct timespec nowTime;
+                                time_t timeT;
+                                clock_gettime( CLOCK_REALTIME, &nowTime );
+                                timeT = nowTime.tv_sec;
 
-                                if( ( mbedtls_pk_setup( pKey,
-                                                        mbedtls_pk_info_from_type( MBEDTLS_PK_ECKEY ) ) == 0 ) &&
-                                    ( mbedtls_ecp_gen_key( MBEDTLS_ECP_DP_SECP256R1,
-                                                           mbedtls_pk_ec( *pKey ),
-                                                           mbedtls_ctr_drbg_random,
-                                                           pCtrDrbg ) == 0 ) )
-                                {
-                                    LogDebug( ( "mbedtls_pk_setup && mbedtls_ecp_gen_key successful" ) );
-                                }
-                                else
-                                {
-                                    retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
-                                    LogError( ( "mbedtls_pk_setup or mbedtls_rsa_gen_key" ) );
-                                }
-                            }
-                        }
-
-                        // generate a new certificate
-                        // if( mbedtls_mpi_read_binary( &serial,
-                        //                              certSn,
-                        //                              sizeof( certSn ) ) == 0 )
-                        int mbedtlsRet = mbedtls_mpi_read_string( &serial, 10, "1" );
-                        if( mbedtlsRet == 0 )
-                        {
-                            LogDebug( ( "mbedtls_mpi_read_binary successful" ) );
-
-
-                            // now = GETTIME();
-                            // TODO BEGIN
-                            struct timespec nowTime;
-                            time_t timeT;
-                            clock_gettime( CLOCK_REALTIME, &nowTime );
-                            timeT = nowTime.tv_sec;
-
-                            if( strftime( notBeforeBuf,
-                                          sizeof( notBeforeBuf ),
-                                          "%Y%m%d%H%M%S",
-                                          gmtime( &timeT ) ) != MBEDTLS_X509_RFC5280_UTC_TIME_LEN )
-                            {
-                                LogDebug( ( "notBefore: %s", notBeforeBuf ) );
-
-                                // notAfter = now + GENERATED_CERTIFICATE_DAYS *
-                                // HUNDREDS_OF_NANOS_IN_A_DAY;
-                                timeT = nowTime.tv_sec + ( GENERATED_CERTIFICATE_DAYS * DTLS_SECONDS_IN_A_DAY );
-                                if( strftime( notAfterBuf,
-                                              sizeof( notAfterBuf ),
+                                if( strftime( notBeforeBuf,
+                                              sizeof( notBeforeBuf ),
                                               "%Y%m%d%H%M%S",
                                               gmtime( &timeT ) ) != MBEDTLS_X509_RFC5280_UTC_TIME_LEN )
                                 {
-                                    LogDebug( ( "notAfter: %s", notAfterBuf ) );
+                                    LogDebug( ( "notBefore: %s", notBeforeBuf ) );
 
-                                    if( mbedtls_x509write_crt_set_serial( pWriteCert,
-                                                                          &serial ) == 0 )
+                                    // notAfter = now + GENERATED_CERTIFICATE_DAYS *
+                                    // HUNDREDS_OF_NANOS_IN_A_DAY;
+                                    timeT = nowTime.tv_sec + ( GENERATED_CERTIFICATE_DAYS * DTLS_SECONDS_IN_A_DAY );
+                                    if( strftime( notAfterBuf,
+                                                  sizeof( notAfterBuf ),
+                                                  "%Y%m%d%H%M%S",
+                                                  gmtime( &timeT ) ) != MBEDTLS_X509_RFC5280_UTC_TIME_LEN )
                                     {
-                                        if( mbedtls_x509write_crt_set_validity( pWriteCert,
-                                                                                notBeforeBuf,
-                                                                                notAfterBuf ) == 0 )
+                                        LogDebug( ( "notAfter: %s", notAfterBuf ) );
+
+                                        if( mbedtls_x509write_crt_set_serial( pWriteCert,
+                                                                              &serial ) == 0 )
                                         {
-                                            if( mbedtls_x509write_crt_set_subject_name( pWriteCert,
-                                                                                        "O"
-                                                                                        "=" GENERATED_CERTIFICATE_NAME ",CN"
-                                                                                        "=" GENERATED_CERTIFICATE_NAME ) == 0 )
+                                            if( mbedtls_x509write_crt_set_validity( pWriteCert,
+                                                                                    notBeforeBuf,
+                                                                                    notAfterBuf ) == 0 )
                                             {
-                                                if( mbedtls_x509write_crt_set_issuer_name( pWriteCert,
-                                                                                           "O"
-                                                                                           "=" GENERATED_CERTIFICATE_NAME ",CN"
-                                                                                           "=" GENERATED_CERTIFICATE_NAME ) != 0 )
+                                                if( mbedtls_x509write_crt_set_subject_name( pWriteCert,
+                                                                                            "O"
+                                                                                            "=" GENERATED_CERTIFICATE_NAME ",CN"
+                                                                                            "=" GENERATED_CERTIFICATE_NAME ) == 0 )
                                                 {
-                                                    retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
-                                                    LogError( ( "mbedtls_x509write_crt_set_issuer_name failed" ) );
+                                                    if( mbedtls_x509write_crt_set_issuer_name( pWriteCert,
+                                                                                               "O"
+                                                                                               "=" GENERATED_CERTIFICATE_NAME ",CN"
+                                                                                               "=" GENERATED_CERTIFICATE_NAME ) != 0 )
+                                                    {
+                                                        retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
+                                                        LogError( ( "mbedtls_x509write_crt_set_issuer_name failed" ) );
+                                                    }
                                                 }
+                                            }
+                                            else
+                                            {
+                                                retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
+                                                LogError( ( "mbedtls_x509write_crt_set_validity failed" ) );
+                                            }
+
+                                            // void functions, it must succeed
+                                            mbedtls_x509write_crt_set_version( pWriteCert,
+                                                                               MBEDTLS_X509_CRT_VERSION_3 );
+                                            mbedtls_x509write_crt_set_subject_key( pWriteCert,
+                                                                                   pKey );
+                                            mbedtls_x509write_crt_set_issuer_key( pWriteCert,
+                                                                                  pKey );
+                                            mbedtls_x509write_crt_set_md_alg( pWriteCert,
+                                                                              MBEDTLS_MD_SHA1 );
+
+                                            memset( pCertBuf,
+                                                    0,
+                                                    GENERATED_CERTIFICATE_MAX_SIZE );
+                                            len = mbedtls_x509write_crt_der( pWriteCert,
+                                                                             ( void * )pCertBuf,
+                                                                             GENERATED_CERTIFICATE_MAX_SIZE,
+                                                                             mbedtls_ctr_drbg_random,
+                                                                             pCtrDrbg );
+                                            LogDebug( ( "mbedtls_x509write_crt_der, len: %li", len ) );
+                                            if( len <= 0 )
+                                            {
+                                                retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
+                                                LogError( ( "mbedtls_x509write_crt_der STATUS_CERTIFICATE_GENERATION_FAILED" ) );
+                                            }
+
+                                            // mbedtls_x509write_crt_der starts
+                                            // writing from behind, so we need to
+                                            // use the return len to figure out
+                                            // where the data actually starts:
+                                            //
+                                            //         -----------------------------------------
+                                            //         |  padding      | certificate
+                                            //         |
+                                            //         -----------------------------------------
+                                            //         ^               ^
+                                            //       pCertBuf   pCertBuf +
+                                            //       (sizeof(pCertBuf) - len)
+                                            if( mbedtls_x509_crt_parse_der( pCert,
+                                                                            ( void * )( pCertBuf + GENERATED_CERTIFICATE_MAX_SIZE - len ),
+                                                                            len ) != 0 )
+                                            {
+                                                retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
+                                                LogError( ( "mbedtls_x509_crt_parse_der failed" ) );
                                             }
                                         }
                                         else
                                         {
                                             retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
-                                            LogError( ( "mbedtls_x509write_crt_set_validity failed" ) );
-                                        }
-
-                                        // void functions, it must succeed
-                                        mbedtls_x509write_crt_set_version( pWriteCert,
-                                                                           MBEDTLS_X509_CRT_VERSION_3 );
-                                        mbedtls_x509write_crt_set_subject_key( pWriteCert,
-                                                                               pKey );
-                                        mbedtls_x509write_crt_set_issuer_key( pWriteCert,
-                                                                              pKey );
-                                        mbedtls_x509write_crt_set_md_alg( pWriteCert,
-                                                                          MBEDTLS_MD_SHA1 );
-
-                                        memset( pCertBuf,
-                                                0,
-                                                GENERATED_CERTIFICATE_MAX_SIZE );
-                                        len = mbedtls_x509write_crt_der( pWriteCert,
-                                                                         ( void * )pCertBuf,
-                                                                         GENERATED_CERTIFICATE_MAX_SIZE,
-                                                                         mbedtls_ctr_drbg_random,
-                                                                         pCtrDrbg );
-                                        LogDebug( ( "mbedtls_x509write_crt_der, len: %li", len ) );
-                                        if( len <= 0 )
-                                        {
-                                            retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
-                                            LogError( ( "mbedtls_x509write_crt_der STATUS_CERTIFICATE_GENERATION_FAILED" ) );
-                                        }
-
-                                        // mbedtls_x509write_crt_der starts
-                                        // writing from behind, so we need to
-                                        // use the return len to figure out
-                                        // where the data actually starts:
-                                        //
-                                        //         -----------------------------------------
-                                        //         |  padding      | certificate
-                                        //         |
-                                        //         -----------------------------------------
-                                        //         ^               ^
-                                        //       pCertBuf   pCertBuf +
-                                        //       (sizeof(pCertBuf) - len)
-                                        if( mbedtls_x509_crt_parse_der( pCert,
-                                                                        ( void * )( pCertBuf + GENERATED_CERTIFICATE_MAX_SIZE - len ),
-                                                                        len ) != 0 )
-                                        {
-                                            retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
-                                            LogError( ( "mbedtls_x509_crt_parse_der failed" ) );
+                                            LogError( ( "mbedtls_x509write_crt_set_serial failed" ) );
                                         }
                                     }
                                     else
                                     {
                                         retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
-                                        LogError( ( "mbedtls_x509write_crt_set_serial failed" ) );
+                                        LogError( ( "generateTimestampStr failed" ) );
                                     }
                                 }
                                 else
@@ -1241,14 +1278,14 @@ int32_t createCertificateAndKey( int32_t certificateBits,
                             else
                             {
                                 retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
-                                LogError( ( "generateTimestampStr failed" ) );
+                                LogError( ( "mbedtls_mpi_read_binary failed, ret: %d", mbedtlsRet ) );
+                                MBEDTLS_ERROR_DESCRIPTION( mbedtlsRet );
                             }
                         }
                         else
                         {
                             retStatus = STATUS_CERTIFICATE_GENERATION_FAILED;
-                            LogError( ( "mbedtls_mpi_read_binary failed, ret: %d", mbedtlsRet ) );
-                            MBEDTLS_ERROR_DESCRIPTION( mbedtlsRet );
+                            LogError( ( "dtlsFillPseudoRandomBits failed" ) );
                         }
                     }
                     else
