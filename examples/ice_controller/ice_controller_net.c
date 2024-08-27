@@ -15,6 +15,8 @@
 #define ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_BINDING_FAILURE "BINDING_FAILURE_RESPONSE"
 #define ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_BINDING_INDICATION "BINDING_INDICATION"
 
+#define ICE_CONTROLLER_RESEND_DELAY_MS ( 50 )
+#define ICE_CONTROLLER_RESEND_TIMEOUT_MS ( 2000 )
 
 static void getLocalIPAdresses( IceEndpoint_t * pLocalIceEndpoints,
                                 size_t * pLocalIceEndpointsNum )
@@ -261,6 +263,7 @@ IceControllerResult_t IceControllerNet_SendPacket( IceControllerSocketContext_t 
     struct sockaddr_in ipv4Address;
     struct sockaddr_in6 ipv6Address;
     socklen_t addressLength = 0;
+    uint32_t totalDelayMs = 0;
 
     /* Set socket destination address, including IP type (v4/v6), IP address and port. */
     if( pDestinationIceEndpoint->transportAddress.family == STUN_ADDRESS_IPv4 )
@@ -298,6 +301,18 @@ IceControllerResult_t IceControllerNet_SendPacket( IceControllerSocketContext_t 
             if( ( errno == EAGAIN ) || ( errno == EWOULDBLOCK ) )
             {
                 /* Just retry for these kinds of errno. */
+            }
+            else if( ( errno == ENOMEM ) || ( errno == ENOSPC ) )
+            {
+                vTaskDelay( pdMS_TO_TICKS( ICE_CONTROLLER_RESEND_DELAY_MS ) );
+                totalDelayMs += ICE_CONTROLLER_RESEND_DELAY_MS;
+
+                if( ICE_CONTROLLER_RESEND_TIMEOUT_MS <= totalDelayMs )
+                {
+                    LogWarn( ( "Fail to send before timeout: %dms", ICE_CONTROLLER_RESEND_TIMEOUT_MS ) );
+                    ret = ICE_CONTROLLER_RESULT_FAIL_SOCKET_SENDTO;
+                    break;
+                }
             }
             else
             {

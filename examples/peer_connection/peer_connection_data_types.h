@@ -21,6 +21,7 @@ extern "C" {
 
 #include "srtp.h"
 #include "rtp_data_types.h"
+#include "rtp_pkt_queue.h"
 
 #define PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ( 2 )
 #define PEER_CONNECTION_USER_NAME_LENGTH ( 4 )
@@ -57,12 +58,28 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_FAIL_DECRYPT_SRTP_RTP_PACKET,
     PEER_CONNECTION_RESULT_FAIL_RTP_INIT,
     PEER_CONNECTION_RESULT_FAIL_RTP_SERIALIZE,
+    PEER_CONNECTION_RESULT_FAIL_CREATE_SENDER_MUTEX,
+    PEER_CONNECTION_RESULT_FAIL_TAKE_SENDER_MUTEX,
+    PEER_CONNECTION_RESULT_FAIL_ROLLING_BUFFER_SEQ_NOT_FOUND,
+    PEER_CONNECTION_RESULT_FAIL_ROLLING_BUFFER_NO_ENOUGH_MEMORY,
+    PEER_CONNECTION_RESULT_FAIL_PACKET_INFO_NO_ENOUGH_MEMORY,
+    PEER_CONNECTION_RESULT_FAIL_RTP_PACKET_QUEUE_INIT,
+    PEER_CONNECTION_RESULT_FAIL_RTP_PACKET_QUEUE_RETRIEVE,
+    PEER_CONNECTION_RESULT_FAIL_RTP_PACKET_ENQUEUE,
     PEER_CONNECTION_RESULT_FAIL_PACKETIZER_INIT,
     PEER_CONNECTION_RESULT_FAIL_PACKETIZER_ADD_FRAME,
     PEER_CONNECTION_RESULT_FAIL_PACKETIZER_GET_PACKET,
     PEER_CONNECTION_RESULT_UNKNOWN_SRTP_PROFILE,
     PEER_CONNECTION_RESULT_UNKNOWN_TX_CODEC,
 } PeerConnectionResult_t;
+
+typedef struct PeerConnectionRollingBuffer
+{
+    RtpPacketQueue_t packetQueue;
+    uint8_t * pPacketBuffer;
+    size_t maxSizePerPacket;
+    size_t capacity; /* Buffer duration * highest expected bitrate (in bps) / 8 / maxPacketSize. */
+} PeerConnectionRollingBuffer_t;
 
 typedef struct PeerConnectionFrame
 {
@@ -138,6 +155,15 @@ typedef struct PeerConnectionRtpConfig
     uint16_t twccSequence;
 } PeerConnectionRtpConfig_t;
 
+typedef struct PeerConnectionSrtpSender
+{
+    /* RTP Tx Rolling buffer. */
+    PeerConnectionRollingBuffer_t txRollingBuffer;
+
+    /* Mutex to protect sender info like rolling buffer. */
+    SemaphoreHandle_t senderMutex;
+} PeerConnectionSrtpSender_t;
+
 typedef struct PeerConnectionContext PeerConnectionContext_t;
 
 typedef struct PeerConnectionSession
@@ -174,6 +200,9 @@ typedef struct PeerConnectionSession
     srtp_t srtpReceiveSession;
     /* RTP config. */
     PeerConnectionRtpConfig_t rtpConfig;
+
+    PeerConnectionSrtpSender_t videoSrtpSender;
+    PeerConnectionSrtpSender_t audioSrtpSender;
 
     /* Pointer that points to peer connection context. */
     PeerConnectionContext_t * pCtx;

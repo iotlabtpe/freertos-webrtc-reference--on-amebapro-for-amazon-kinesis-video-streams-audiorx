@@ -1284,6 +1284,7 @@ PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionContext_t * pCtx
                                                   const PeerConnectionFrame_t * pFrame )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    int i;
 
     if( ( pCtx == NULL ) ||
         ( pTransceiver == NULL ) ||
@@ -1297,35 +1298,43 @@ PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionContext_t * pCtx
     /* Encode the frame into multiple payload buffers (>=1). */
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) )
+        for( i = 0; i < AWS_MAX_VIEWER_NUM; i++ )
         {
-            ret = PeerConnectionSrtp_WriteH264Frame( pCtx, pTransceiver, pFrame );
-        }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT ) )
-        {
+            if( pCtx->peerConnectionSessions[i].state < PEER_CONNECTION_SESSION_STATE_CONNECTION_READY )
+            {
+                continue;
+            }
 
-        }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_VP8_BIT ) )
-        {
+            if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) )
+            {
+                ret = PeerConnectionSrtp_WriteH264Frame( &pCtx->peerConnectionSessions[i], pTransceiver, pFrame );
+            }
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT ) )
+            {
 
-        }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT ) )
-        {
+            }
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_VP8_BIT ) )
+            {
 
-        }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_ALAW_BIT ) )
-        {
+            }
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT ) )
+            {
 
-        }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H265_BIT ) )
-        {
+            }
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_ALAW_BIT ) )
+            {
 
-        }
-        else
-        {
-            /* TODO: Unknown, no matching codec. */
-            LogError( ( "Codec is not supported, codec bit map: 0x%x", ( int ) pTransceiver->codecBitMap ) );
-            ret = PEER_CONNECTION_RESULT_UNKNOWN_TX_CODEC;
+            }
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H265_BIT ) )
+            {
+
+            }
+            else
+            {
+                /* TODO: Unknown, no matching codec. */
+                LogError( ( "Codec is not supported, codec bit map: 0x%x", ( int ) pTransceiver->codecBitMap ) );
+                ret = PEER_CONNECTION_RESULT_UNKNOWN_TX_CODEC;
+            }
         }
     }
 
