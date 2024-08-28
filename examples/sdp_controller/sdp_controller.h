@@ -151,6 +151,8 @@ typedef struct SdpControllerQuickAccess
     uint8_t isAudioCodecPayloadSet;
     uint32_t videoCodecPayload;
     uint32_t audioCodecPayload;
+    uint32_t videoCodecRtxPayload;
+    uint32_t audioCodecRtxPayload;
 } SdpControllerQuickAccess_t;
 
 typedef struct SdpControllerSdpOffer

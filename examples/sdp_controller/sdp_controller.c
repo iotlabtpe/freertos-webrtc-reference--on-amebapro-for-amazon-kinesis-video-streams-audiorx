@@ -99,6 +99,12 @@
 #define SDP_CONTROLLER_H264_PROFILE_LEVEL_ID "profile-level-id="
 #define SDP_CONTROLLER_H264_PROFILE_LEVEL_ID_LENGTH ( 17 )
 
+#define SDP_CONTROLLER_MAX_FMTP_APT_NUM ( 64 )
+
+#define SDP_CONTROLLER_GET_APT_CODEC_FROM_PAYLOAD( payload ) ( payload & 0xFF )
+#define SDP_CONTROLLER_GET_RTX_CODEC_FROM_PAYLOAD( payload ) ( payload >> 16 )
+#define SDP_CONTROLLER_SET_PAYLOAD( rtxPayload, aptPayload ) ( rtxPayload << 16 | aptPayload )
+
 // profile-level-id:
 //   A base16 [7] (hexadecimal) representation of the following
 //   three bytes in the sequence parameter set NAL unit is specified
@@ -130,6 +136,8 @@
 #define SDP_CONTROLLER_CODEC_ALAW_VALUE_LENGTH ( 9 )
 #define SDP_CONTROLLER_CODEC_RTX_VALUE "rtx/90000"
 #define SDP_CONTROLLER_CODEC_RTX_VALUE_LENGTH ( 9 )
+#define SDP_CONTROLLER_CODEC_APT_VALUE "apt="
+#define SDP_CONTROLLER_CODEC_APT_VALUE_LENGTH ( 4 )
 
 #define SDP_CONTROLLER_CODEC_MULAW_DEFAULT_INDEX "0"
 #define SDP_CONTROLLER_CODEC_MULAW_DEFAULT_INDEX_LENGTH ( 1 )
@@ -231,7 +239,9 @@ static SdpControllerResult_t PopulateSingleMedia( char ** ppBuffer,
 static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t * pAttributes,
                                               uint8_t attributeCount,
                                               uint32_t * pCodecPayloads,
-                                              size_t codecPayloadsSize );
+                                              size_t codecPayloadsSize,
+                                              uint32_t * pRtxCodecPayloads,
+                                              size_t * pRtxCodecPayloadsSize );
 static const Transceiver_t * OccupyProperTransceiver( SdpControllerMediaDescription_t * pRemoteMediaDescription,
                                                       const Transceiver_t * pTransceivers[],
                                                       size_t transceiversCount,
@@ -2103,18 +2113,29 @@ static uint32_t CalculateH264ScoreByFmtp( SdpControllerAttributes_t * pTargetFmt
 static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t * pAttributes,
                                               uint8_t attributeCount,
                                               uint32_t * pCodecPayloads,
-                                              size_t codecPayloadsSize )
+                                              size_t codecPayloadsSize,
+                                              uint32_t * pRtxCodecPayloads,
+                                              size_t * pRtxCodecPayloadsSize )
 {
     uint32_t codecBitMap = 0, h264Score = 0, highestH264Score = 0;
     int i;
     StringUtilsResult_t stringResult;
     SdpControllerAttributes_t * pH264FmtpAttribute = NULL;
+    uint32_t rtxPayloadNextIndex = 0;
+    const char * pAtp = NULL;
+    size_t stringLength;
+    uint32_t rtxPayload;
+    uint32_t aptPayload;
 
-    if( ( pAttributes == NULL ) || ( pCodecPayloads == NULL ) || ( codecPayloadsSize < TRANSCEIVER_RTC_CODEC_NUM ) )
+    if( ( pAttributes == NULL ) ||
+        ( pCodecPayloads == NULL ) ||
+        ( codecPayloadsSize < TRANSCEIVER_RTC_CODEC_NUM ) ||
+        ( pRtxCodecPayloads == NULL ) )
     {
-        LogError( ( "Invalid input, pAttributes: %p, pCodecPayloads: %p, codecPayloadsSize: %u",
+        LogError( ( "Invalid input, pAttributes: %p, pCodecPayloads: %p, pRtxCodecPayloads: %p, codecPayloadsSize: %u",
                     pAttributes,
                     pCodecPayloads,
+                    pRtxCodecPayloads,
                     codecPayloadsSize ) );
     }
     else
@@ -2237,7 +2258,63 @@ static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t * pAttri
                     /* Do nothing if it's not known string. */
                 }
             }
+            else if( ( pAttributes[i].attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_FMTP_LENGTH ) &&
+                     ( strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_FMTP, pAttributes[i].pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_FMTP_LENGTH ) == 0 ) )
+            {
+                pAtp = StringUtils_StrStr( pAttributes[i].pAttributeValue, pAttributes[i].attributeValueLength, SDP_CONTROLLER_CODEC_APT_VALUE, SDP_CONTROLLER_CODEC_APT_VALUE_LENGTH );
+
+                if( pAtp == NULL )
+                {
+                    /* It's not RTX FMTP message, ignore it. */
+                    continue;
+                }
+
+                /* It's RTX fmtp in format "fmtp:${RTX_payload} apt=${RTC_payload}". */
+                if( rtxPayloadNextIndex >= *pRtxCodecPayloadsSize )
+                {
+                    LogWarn( ( "No memory for RTX payloads, drop FMTP APT: %.*s",
+                               ( int ) pAttributes[i].attributeValueLength,
+                               pAttributes[i].pAttributeValue ) );
+                    continue;
+                }
+
+                /* Parse RTX payload */
+                stringResult = StringUtils_ConvertStringToUl( pAttributes[i].pAttributeValue,
+                                                              pAttributes[i].attributeValueLength, &rtxPayload );
+                if( stringResult != STRING_UTILS_RESULT_OK )
+                {
+                    LogWarn( ( "StringUtils_ConvertStringToUl RTX payload fail, result %d, converting %.*s to %lu",
+                               stringResult,
+                               ( int ) pAttributes[i].attributeValueLength, pAttributes[i].pAttributeValue,
+                               rtxPayload ) );
+                    continue;
+                }
+
+                /* Parse APT payload */
+                stringLength = pAttributes[i].pAttributeValue + pAttributes[i].attributeValueLength - pAtp - SDP_CONTROLLER_CODEC_APT_VALUE_LENGTH;
+                stringResult = StringUtils_ConvertStringToUl( pAtp + SDP_CONTROLLER_CODEC_APT_VALUE_LENGTH,
+                                                              stringLength, &aptPayload );
+                if( stringResult != STRING_UTILS_RESULT_OK )
+                {
+                    LogWarn( ( "StringUtils_ConvertStringToUl APT payload fail, result %d, converting %.*s to %lu",
+                               stringResult,
+                               ( int ) pAttributes[i].attributeValueLength, pAttributes[i].pAttributeValue,
+                               rtxPayload ) );
+                    continue;
+                }
+
+                pRtxCodecPayloads[ rtxPayloadNextIndex++ ] = SDP_CONTROLLER_SET_PAYLOAD( rtxPayload, aptPayload );
+                LogDebug( ( "Found RTX payload, rtxPayload: %lu, aptPayload: %lu",
+                            rtxPayload,
+                            aptPayload ) );
+            }
+            else
+            {
+                /* Empty else. */
+            }
         }
+
+        *pRtxCodecPayloadsSize = rtxPayloadNextIndex;
     }
 
     return codecBitMap;
@@ -2255,7 +2332,10 @@ static const Transceiver_t * OccupyProperTransceiver( SdpControllerMediaDescript
     uint8_t skipProcess = 0;
     uint32_t mediaCodecBitMap = 0;
     uint32_t codecPayloads[ TRANSCEIVER_RTC_CODEC_NUM ];
+    uint32_t rtxCodecPayloads[ SDP_CONTROLLER_MAX_FMTP_APT_NUM ];
+    size_t rtxCodecPayloadsCount = SDP_CONTROLLER_MAX_FMTP_APT_NUM;
     int count = 0;
+    int i,j;
     const char * pStart, * pEnd;
     size_t tokenLength, remainLength;
 
@@ -2290,7 +2370,8 @@ static const Transceiver_t * OccupyProperTransceiver( SdpControllerMediaDescript
     /* Search default MULAW & ALAW payload in media name. */
     if( !skipProcess )
     {
-        memset( codecPayloads, 0, sizeof( uint32_t ) * TRANSCEIVER_RTC_CODEC_NUM );
+        memset( codecPayloads, 0, sizeof( codecPayloads ) );
+        memset( rtxCodecPayloads, 0, sizeof( rtxCodecPayloads ) );
 
         pStart = pRemoteMediaDescription->pMediaName;
         remainLength = pRemoteMediaDescription->mediaNameLength;
@@ -2340,8 +2421,24 @@ static const Transceiver_t * OccupyProperTransceiver( SdpControllerMediaDescript
 
         /* Find proper codec bit map by looking for rtpmap. */
         mediaCodecBitMap |= CollectAttributesCodecBitMap( pRemoteMediaDescription->attributes, pRemoteMediaDescription->mediaAttributesCount,
-                                                          codecPayloads, TRANSCEIVER_RTC_CODEC_NUM );
+                                                          codecPayloads, TRANSCEIVER_RTC_CODEC_NUM,
+                                                          rtxCodecPayloads, &rtxCodecPayloadsCount );
         LogDebug( ( "Scanned codec from remote media description, mediaCodecBitMap: %lx", mediaCodecBitMap ) );
+    }
+
+    if( !skipProcess )
+    {
+        /* Set RTX payloads into codecPayloads. */
+        for( i = 0; i < rtxCodecPayloadsCount; i++ )
+        {
+            for( j = TRANSCEIVER_RTC_CODEC_MULAW_BIT; j < TRANSCEIVER_RTC_CODEC_NUM; j++ )
+            {
+                if( codecPayloads[ j ] == SDP_CONTROLLER_GET_APT_CODEC_FROM_PAYLOAD( rtxCodecPayloads[i] ) )
+                {
+                    codecPayloads[ j ] = rtxCodecPayloads[i];
+                }
+            }
+        }
     }
 
     if( !skipProcess )
@@ -2940,16 +3037,20 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
                     if( pTransceiver->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
                     {
                         pSdpLocalDescription->quickAccess.isVideoCodecPayloadSet = 1;
-                        pSdpLocalDescription->quickAccess.videoCodecPayload = chosenCodec;
+                        pSdpLocalDescription->quickAccess.videoCodecPayload = SDP_CONTROLLER_GET_APT_CODEC_FROM_PAYLOAD( chosenCodec );
                         pSdpRemoteDescription->quickAccess.isVideoCodecPayloadSet = 1;
-                        pSdpRemoteDescription->quickAccess.videoCodecPayload = chosenCodec;
+                        pSdpRemoteDescription->quickAccess.videoCodecPayload = SDP_CONTROLLER_GET_APT_CODEC_FROM_PAYLOAD( chosenCodec );
+                        pSdpLocalDescription->quickAccess.videoCodecRtxPayload = SDP_CONTROLLER_GET_RTX_CODEC_FROM_PAYLOAD( chosenCodec );
+                        pSdpRemoteDescription->quickAccess.videoCodecRtxPayload = SDP_CONTROLLER_GET_RTX_CODEC_FROM_PAYLOAD( chosenCodec );
                     }
                     else if( pTransceiver->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO )
                     {
                         pSdpLocalDescription->quickAccess.isAudioCodecPayloadSet = 1;
-                        pSdpLocalDescription->quickAccess.audioCodecPayload = chosenCodec;
+                        pSdpLocalDescription->quickAccess.audioCodecPayload = SDP_CONTROLLER_GET_APT_CODEC_FROM_PAYLOAD( chosenCodec );
                         pSdpRemoteDescription->quickAccess.isAudioCodecPayloadSet = 1;
-                        pSdpRemoteDescription->quickAccess.audioCodecPayload = chosenCodec;
+                        pSdpRemoteDescription->quickAccess.audioCodecPayload = SDP_CONTROLLER_GET_APT_CODEC_FROM_PAYLOAD( chosenCodec );
+                        pSdpLocalDescription->quickAccess.audioCodecRtxPayload = SDP_CONTROLLER_GET_RTX_CODEC_FROM_PAYLOAD( chosenCodec );
+                        pSdpRemoteDescription->quickAccess.audioCodecRtxPayload = SDP_CONTROLLER_GET_RTX_CODEC_FROM_PAYLOAD( chosenCodec );
                     }
                     else
                     {
@@ -2957,7 +3058,7 @@ SdpControllerResult_t SdpController_PopulateMediaDescriptions( char ** ppBuffer,
                         break;
                     }
 
-                    ret = PopulateSingleMedia( ppBuffer, pBufferLength, pSdpLocalDescription, pSdpRemoteDescription, pTransceiver, pPeerConnectionContext, chosenCodec, pLocalFingerprint, localFingerprintLength );
+                    ret = PopulateSingleMedia( ppBuffer, pBufferLength, pSdpLocalDescription, pSdpRemoteDescription, pTransceiver, pPeerConnectionContext, SDP_CONTROLLER_GET_APT_CODEC_FROM_PAYLOAD( chosenCodec ), pLocalFingerprint, localFingerprintLength );
                     if( ret != SDP_CONTROLLER_RESULT_OK )
                     {
                         LogWarn( ( "Fail to pupolate media, ret: %d", ret ) );

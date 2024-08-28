@@ -98,17 +98,15 @@ void PeerConnectionRollingBuffer_Free( PeerConnectionRollingBuffer_t * pRollingB
 
 PeerConnectionResult_t PeerConnectionRollingBuffer_GetRtpSequenceBuffer( PeerConnectionRollingBuffer_t * pRollingBuffer,
                                                                          uint16_t rtpSeq,
-                                                                         uint8_t ** ppBuffer,
-                                                                         size_t * pBufferLength )
+                                                                         PeerConnectionRollingBufferPacket_t ** ppPacket )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
 
     if( ( pRollingBuffer == NULL ) ||
-        ( ppBuffer == NULL ) ||
-        ( pBufferLength == NULL ) )
+        ( ppPacket == NULL ) )
     {
-        LogError( ( "Invalid input, pRollingBuffer: %p, ppBuffer: %p, pBufferLength: %p",
-                    pRollingBuffer, ppBuffer, pBufferLength ) );
+        LogError( ( "Invalid input, pRollingBuffer: %p, ppPacket: %p",
+                    pRollingBuffer, ppPacket ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
     else if( pRollingBuffer->capacity == 0 )
@@ -118,38 +116,37 @@ PeerConnectionResult_t PeerConnectionRollingBuffer_GetRtpSequenceBuffer( PeerCon
     }
     else
     {
-        *ppBuffer = ( uint8_t * )pvPortMalloc( pRollingBuffer->maxSizePerPacket );
-        *pBufferLength = pRollingBuffer->maxSizePerPacket;
+        *ppPacket = ( PeerConnectionRollingBufferPacket_t * )pvPortMalloc( sizeof( PeerConnectionRollingBufferPacket_t ) + pRollingBuffer->maxSizePerPacket );
+        ( *ppPacket )->pPacketBuffer = ( uint8_t * )( ( *ppPacket ) + 1 );
+        ( *ppPacket )->packetBufferLength = pRollingBuffer->maxSizePerPacket;
     }
 
     return ret;
 }
 
 void PeerConnectionRollingBuffer_DiscardRtpSequenceBuffer( PeerConnectionRollingBuffer_t * pRollingBuffer,
-                                                           uint8_t * pBuffer )
+                                                           PeerConnectionRollingBufferPacket_t * pPacket )
 {
     ( void ) pRollingBuffer;
-    if( pBuffer )
+    if( pPacket )
     {
-        vPortFree( pBuffer );
+        vPortFree( pPacket );
     }
 }
 
 PeerConnectionResult_t PeerConnectionRollingBuffer_SearchRtpSequenceBuffer( PeerConnectionRollingBuffer_t * pRollingBuffer,
                                                                             uint16_t rtpSeq,
-                                                                            uint8_t ** ppBuffer,
-                                                                            size_t * pBufferLength )
+                                                                            PeerConnectionRollingBufferPacket_t ** ppPacket )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     RtpPacketQueueResult_t resultRtpPacketQueue = RTP_PACKET_QUEUE_RESULT_OK;
     RtpPacketInfo_t rtpPacketInfo;
 
     if( ( pRollingBuffer == NULL ) ||
-        ( ppBuffer == NULL ) ||
-        ( pBufferLength == NULL ) )
+        ( ppPacket == NULL ) )
     {
-        LogError( ( "Invalid input, pRollingBuffer: %p, ppBuffer: %p, pBufferLength: %p",
-                    pRollingBuffer, ppBuffer, pBufferLength ) );
+        LogError( ( "Invalid input, pRollingBuffer: %p, ppPacket: %p",
+                    pRollingBuffer, ppPacket ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
     else if( pRollingBuffer->capacity == 0 )
@@ -178,8 +175,8 @@ PeerConnectionResult_t PeerConnectionRollingBuffer_SearchRtpSequenceBuffer( Peer
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        *ppBuffer = rtpPacketInfo.pSerializedRtpPacket;
-        *pBufferLength = rtpPacketInfo.serializedPacketLength;
+        *ppPacket = ( PeerConnectionRollingBufferPacket_t * )rtpPacketInfo.pSerializedRtpPacket;
+        ( *ppPacket )->packetBufferLength = rtpPacketInfo.serializedPacketLength;
     }
 
     return ret;
@@ -187,17 +184,16 @@ PeerConnectionResult_t PeerConnectionRollingBuffer_SearchRtpSequenceBuffer( Peer
 
 PeerConnectionResult_t PeerConnectionRollingBuffer_SetPacket( PeerConnectionRollingBuffer_t * pRollingBuffer,
                                                               uint16_t rtpSeq,
-                                                              uint8_t * pBuffer,
-                                                              size_t bufferLength )
+                                                              PeerConnectionRollingBufferPacket_t * pPacket )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     RtpPacketQueueResult_t resultRtpPacketQueue = RTP_PACKET_QUEUE_RESULT_OK;
     RtpPacketInfo_t rtpPacket, deletedRtpPacket;
 
-    if( pRollingBuffer == NULL )
+    if( ( pRollingBuffer == NULL ) || ( pPacket == NULL ) )
     {
-        LogError( ( "Invalid input, pRollingBuffer: %p",
-                    pRollingBuffer ) );
+        LogError( ( "Invalid input, pRollingBuffer: %p, pPacket: %p",
+                    pRollingBuffer, pPacket ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
     else if( pRollingBuffer->capacity == 0 )
@@ -214,9 +210,9 @@ PeerConnectionResult_t PeerConnectionRollingBuffer_SetPacket( PeerConnectionRoll
     {
         memset( &rtpPacket, 0, sizeof( RtpPacketInfo_t ) );
         memset( &deletedRtpPacket, 0, sizeof( RtpPacketInfo_t ) );
-        rtpPacket.pSerializedRtpPacket = pBuffer;
+        rtpPacket.pSerializedRtpPacket = ( uint8_t * )pPacket;
         rtpPacket.seqNum = rtpSeq;
-        rtpPacket.serializedPacketLength = bufferLength;
+        rtpPacket.serializedPacketLength = pPacket->packetBufferLength;
         resultRtpPacketQueue = RtpPacketQueue_ForceEnqueue( &pRollingBuffer->packetQueue,
                                                             &rtpPacket,
                                                             &deletedRtpPacket );

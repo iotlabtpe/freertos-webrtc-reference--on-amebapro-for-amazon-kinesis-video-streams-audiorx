@@ -26,21 +26,18 @@ void PeerConnectionRollingBuffer_Free( PeerConnectionRollingBuffer_t * pRollingB
 
 PeerConnectionResult_t PeerConnectionRollingBuffer_GetRtpSequenceBuffer( PeerConnectionRollingBuffer_t * pRollingBuffer,
                                                                          uint16_t rtpSeq,
-                                                                         uint8_t ** ppBuffer,
-                                                                         size_t * pBufferLength );
+                                                                         PeerConnectionRollingBufferPacket_t ** ppPacket );
 
 void PeerConnectionRollingBuffer_DiscardRtpSequenceBuffer( PeerConnectionRollingBuffer_t * pRollingBuffer,
-                                                           uint8_t * pBuffer );
+                                                           PeerConnectionRollingBufferPacket_t * pPacket );
 
 PeerConnectionResult_t PeerConnectionRollingBuffer_SearchRtpSequenceBuffer( PeerConnectionRollingBuffer_t * pRollingBuffer,
                                                                             uint16_t rtpSeq,
-                                                                            uint8_t ** ppBuffer,
-                                                                            size_t * pBufferLength );
+                                                                            PeerConnectionRollingBufferPacket_t ** ppPacket );
 
 PeerConnectionResult_t PeerConnectionRollingBuffer_SetPacket( PeerConnectionRollingBuffer_t * pRollingBuffer,
                                                               uint16_t rtpSeq,
-                                                              uint8_t * pBuffer,
-                                                              size_t bufferLength );
+                                                              PeerConnectionRollingBufferPacket_t * pPacket );
 
 #ifdef __cplusplus
 }

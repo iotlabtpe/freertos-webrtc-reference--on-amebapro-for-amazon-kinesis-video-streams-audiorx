@@ -79,10 +79,16 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_UNKNOWN_SSRC,
 } PeerConnectionResult_t;
 
+typedef struct PeerConnectionRollingBufferPacket
+{
+    RtpPacket_t rtpPacket;
+    uint8_t * pPacketBuffer;
+    size_t packetBufferLength;
+} PeerConnectionRollingBufferPacket_t;
+
 typedef struct PeerConnectionRollingBuffer
 {
     RtpPacketQueue_t packetQueue;
-    uint8_t * pPacketBuffer;
     size_t maxSizePerPacket;
     size_t capacity; /* Buffer duration * highest expected bitrate (in bps) / 8 / maxPacketSize. */
 } PeerConnectionRollingBuffer_t;
@@ -109,6 +115,10 @@ typedef struct PeerConnectionRemoteInfo
     uint8_t isAudioCodecPayloadSet;
     uint32_t videoCodecPayload;
     uint32_t audioCodecPayload;
+    uint8_t isVideoCodecRtxPayloadSet;
+    uint8_t isAudioCodecRtxPayloadSet;
+    uint32_t videoCodecRtxPayload;
+    uint32_t audioCodecRtxPayload;
     uint16_t twccId;
 } PeerConnectionRemoteInfo_t;
 
@@ -156,6 +166,10 @@ typedef struct PeerConnectionRtpConfig
     uint16_t audioSequenceNumber;
     uint32_t videoCodecPayload;
     uint32_t audioCodecPayload;
+    uint32_t videoCodecRtxPayload;
+    uint32_t audioCodecRtxPayload;
+    uint16_t videoRtxSequenceNumber;
+    uint16_t audioRtxSequenceNumber;
 
     uint16_t twccId;
     uint16_t twccSequence;

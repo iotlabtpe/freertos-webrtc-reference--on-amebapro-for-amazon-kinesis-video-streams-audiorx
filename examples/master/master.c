@@ -163,6 +163,8 @@ static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCt
         remoteInfo.pRemoteCertFingerprint = pSessionInformation->sdpDescription.quickAccess.pFingerprint + DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
         remoteInfo.remoteCertFingerprintLength = pSessionInformation->sdpDescription.quickAccess.fingerprintLength - DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
         remoteInfo.twccId = pSessionInformation->sdpDescription.quickAccess.twccExtId;
+        remoteInfo.videoCodecRtxPayload = pSessionInformation->sdpDescription.quickAccess.videoCodecRtxPayload;
+        remoteInfo.audioCodecRtxPayload = pSessionInformation->sdpDescription.quickAccess.audioCodecRtxPayload;
 
         if( pSessionInformation->sdpDescription.quickAccess.isVideoCodecPayloadSet )
         {
