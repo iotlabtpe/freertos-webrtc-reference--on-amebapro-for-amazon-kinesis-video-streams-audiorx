@@ -6,6 +6,7 @@
 
 /* API includes. */
 #include "rtp_api.h"
+#include "rtcp_api.h"
 #include "h264_packetizer.h"
 #include "ice_controller.h"
 
@@ -32,6 +33,8 @@
 // https://tools.ietf.org/html/draft-holmer-rmcat-transport-wide-cc-extensions-01
 #define PEER_CONNECTION_SRTP_TWCC_EXT_PROFILE ( 0xBEDE )
 #define PEER_CONNECTION_SRTP_GET_TWCC_PAYLOAD( extId, sequenceNum ) ( ( ( ( extId ) & 0xfu ) << 28u ) | ( 1u << 24u ) | ( ( uint32_t ) ( sequenceNum ) << 8u ) )
+
+#define PEER_CONNECTION_SRTCP_NACK_MAX_SEQ_NUM ( 128 )
 
 static PeerConnectionResult_t ConstructRtpAndSendSessions( PeerConnectionSession_t * pSession,
                                                            Transceiver_t * pTransceiver,
@@ -182,6 +185,157 @@ static PeerConnectionResult_t ConstructRtpAndSendSessions( PeerConnectionSession
         /* If any failure, release the allocated RTP buffer. */
         PeerConnectionRollingBuffer_DiscardRtpSequenceBuffer( &pSrtpSender->txRollingBuffer,
                                                               pRtpBuffer );
+    }
+
+    return ret;
+}
+
+static PeerConnectionResult_t ResendSrtpPacket( PeerConnectionSession_t * pSession,
+                                                const Transceiver_t * pTransceiver,
+                                                uint16_t rtpSeq )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    PeerConnectionSrtpSender_t * pSrtpSender = NULL;
+    uint8_t isLocked = 0;
+    uint8_t * pRtpBuffer = NULL;
+    size_t rtpBufferLength = 0;
+    IceControllerResult_t resultIceController;
+
+    if( ( pSession == NULL ) || ( pTransceiver == NULL ) )
+    {
+        LogError( ( "Invalid input, pSession: %p, pTransceiver: %p", pSession, pTransceiver ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        if( pTransceiver->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
+        {
+            pSrtpSender = &pSession->videoSrtpSender;
+        }
+        else
+        {
+            pSrtpSender = &pSession->audioSrtpSender;
+        }
+
+        /* Lock sender. */
+        if( xSemaphoreTake( pSrtpSender->senderMutex, portMAX_DELAY ) == pdTRUE )
+        {
+            isLocked = 1;
+        }
+        else
+        {
+            LogError( ( "Fail to take sender mutex" ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_TAKE_SENDER_MUTEX;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        ret = PeerConnectionRollingBuffer_GetRtpSequenceBuffer( &pSrtpSender->txRollingBuffer,
+                                                                rtpSeq,
+                                                                &pRtpBuffer,
+                                                                &rtpBufferLength );
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        resultIceController = IceController_SendToRemotePeer( &pSession->iceControllerContext,
+                                                              pRtpBuffer,
+                                                              rtpBufferLength );
+        if( resultIceController != ICE_CONTROLLER_RESULT_OK )
+        {
+            LogWarn( ( "Fail to re-send RTP packet, ret: %d, seq: %u", resultIceController, rtpSeq ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_RESEND_RTP_PACKET;
+        }
+        else
+        {
+            LogDebug( ( "Re-send RTP successfully, RTP seq: %u, SSRC: %lu", rtpSeq, pTransceiver->ssrc ) );
+        }
+    }
+
+    if( isLocked )
+    {
+        xSemaphoreGive( pSrtpSender->senderMutex );
+    }
+
+    return ret;
+}
+
+static PeerConnectionResult_t OnRtcpNackEvent( PeerConnectionSession_t * pSession,
+                                               RtcpPacket_t * pRtcpPacket )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    RtcpResult_t resultRtcp;
+    RtcpNackPacket_t nackPacket;
+    const Transceiver_t * pTransceiver = NULL;
+    uint16_t seqNumList[ PEER_CONNECTION_SRTCP_NACK_MAX_SEQ_NUM ];
+    int i;
+
+    if( ( pSession == NULL ) || ( pRtcpPacket == NULL ) )
+    {
+        LogError( ( "Invalid input, pSession: %p, pRtcpPacket: %p", pSession, pRtcpPacket ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    for( i = 0; i < pRtcpPacket->payloadLength; i += 4 )
+    {
+        if( i + 3 < pRtcpPacket->payloadLength )
+        {
+            LogDebug( ( "Dumping whole RTCP NACK packet: 0x%x 0x%x 0x%x 0x%x",
+                        pRtcpPacket->pPayload[i],pRtcpPacket->pPayload[i + 1],pRtcpPacket->pPayload[i + 2],pRtcpPacket->pPayload[i + 3] ) );
+        }
+        else if( i + 2 < pRtcpPacket->payloadLength )
+        {
+            LogDebug( ( "Dumping whole RTCP NACK packet: 0x%x 0x%x 0x%x",
+                        pRtcpPacket->pPayload[i],pRtcpPacket->pPayload[i + 1],pRtcpPacket->pPayload[i + 2] ) );
+        }
+        else if( i + 1 < pRtcpPacket->payloadLength )
+        {
+            LogDebug( ( "Dumping whole RTCP NACK packet: 0x%x 0x%x",
+                        pRtcpPacket->pPayload[i],pRtcpPacket->pPayload[i + 1] ) );
+        }
+        else
+        {
+            LogDebug( ( "Dumping whole RTCP NACK packet: 0x%x",
+                        pRtcpPacket->pPayload[i] ) );
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        memset( &nackPacket, 0, sizeof( RtcpNackPacket_t ) );
+        memset( &seqNumList, 0, sizeof( seqNumList ) );
+        nackPacket.pSeqNumList = seqNumList;
+        nackPacket.seqNumListLength = PEER_CONNECTION_SRTCP_NACK_MAX_SEQ_NUM;
+        resultRtcp = Rtcp_ParseNackPacket( &pSession->pCtx->rtcpContext,
+                                           pRtcpPacket,
+                                           &nackPacket );
+        if( resultRtcp != RTCP_RESULT_OK )
+        {
+            LogError( ( "Fail to parse RTCP NACK packet, result: %d", resultRtcp ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_RTCP_PARSE_NACK;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        ret = PeerConnection_MatchTransceiverBySsrc( pSession->pCtx,
+                                                     nackPacket.mediaSourceSsrc,
+                                                     &pTransceiver );
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        for( i = 0; i < nackPacket.seqNumListLength; i++ )
+        {
+            /* Retransmit matching sequence number one by one. */
+            ret = ResendSrtpPacket( pSession, pTransceiver, nackPacket.pSeqNumList[i] );
+            if( ret != PEER_CONNECTION_RESULT_OK )
+            {
+                break;
+            }
+        }
     }
 
     return ret;
@@ -404,6 +558,102 @@ PeerConnectionResult_t PeerConnectionSrtp_HandleSrtpPacket( PeerConnectionSessio
         else
         {
             LogVerbose( ( "Decrypt SRTP packet successfully, decrypted length: %u", rtpBufferLength ) );
+        }
+    }
+
+    return ret;
+}
+
+PeerConnectionResult_t PeerConnectionSrtp_HandleSrtcpPacket( PeerConnectionSession_t * pSession,
+                                                             uint8_t * pBuffer,
+                                                             size_t bufferLength )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    srtp_err_status_t errorStatus;
+    static uint8_t rtcpBuffer[ PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH ];
+    size_t rtcpBufferLength = PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH;
+    RtcpResult_t resultRtcp;
+    RtcpPacket_t rtcpPacket;
+
+    if( ( pSession == NULL ) || ( pBuffer == NULL ) )
+    {
+        LogError( ( "Invalid input, pSession: %p, pBuffer: %p", pSession, pBuffer ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        errorStatus = srtp_unprotect_rtcp( pSession->srtpReceiveSession,
+                                           pBuffer,
+                                           bufferLength,
+                                           rtcpBuffer,
+                                           &rtcpBufferLength );
+        if( errorStatus != srtp_err_status_ok )
+        {
+            LogError( ( "Fail to decrypt Rx SRTP packet, errorStatus: %d", errorStatus ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_DECRYPT_SRTP_RTP_PACKET;
+        }
+        else
+        {
+            LogVerbose( ( "Decrypt SRTCP packet successfully, decrypted length: %u", rtpBufferLength ) );
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        resultRtcp = Rtcp_DeserializePacket( &pSession->pCtx->rtcpContext,
+                                             rtcpBuffer,
+                                             rtcpBufferLength,
+                                             &rtcpPacket );
+        if( resultRtcp != RTCP_RESULT_OK )
+        {
+            LogError( ( "Fail to deserialize RTCP packet, result: %d", resultRtcp ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_RTCP_DESERIALIZE;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        switch( rtcpPacket.header.packetType )
+        {
+            case RTCP_PACKET_FIR:
+                // CHK_STATUS(onRtcpFIRPacket(&rtcpPacket, pKvsPeerConnection));
+                break;
+            case RTCP_PACKET_TRANSPORT_FEEDBACK_NACK:
+                ret = OnRtcpNackEvent( pSession, &rtcpPacket );
+                break;
+            case RTCP_PACKET_TRANSPORT_FEEDBACK_TWCC:
+                // if (rtcpPacket.header.receptionReportCount == RTCP_FEEDBACK_MESSAGE_TYPE_NACK) {
+                //     CHK_STATUS(resendPacketOnNack(&rtcpPacket, pKvsPeerConnection));
+                // } else if (rtcpPacket.header.receptionReportCount == RTCP_FEEDBACK_MESSAGE_TYPE_APPLICATION_LAYER_FEEDBACK) {
+                //     CHK_STATUS(onRtcpTwccPacket(&rtcpPacket, pKvsPeerConnection));
+                // } else {
+                //     DLOGW("unhandled RTCP_PACKET_TYPE_GENERIC_RTP_FEEDBACK %d", rtcpPacket.header.receptionReportCount);
+                // }
+                break;
+            case RTCP_PACKET_PAYLOAD_FEEDBACK_PLI:
+            case RTCP_PACKET_PAYLOAD_FEEDBACK_SLI:
+            case RTCP_PACKET_PAYLOAD_FEEDBACK_REMB:
+                // if (rtcpPacket.header.receptionReportCount == RTCP_FEEDBACK_MESSAGE_TYPE_APPLICATION_LAYER_FEEDBACK &&
+                //     isRembPacket(rtcpPacket.payload, rtcpPacket.payloadLength) == STATUS_SUCCESS) {
+                //     CHK_STATUS(onRtcpRembPacket(&rtcpPacket, pKvsPeerConnection));
+                // } else if (rtcpPacket.header.receptionReportCount == RTCP_PSFB_PLI) {
+                //     CHK_STATUS(onRtcpPLIPacket(&rtcpPacket, pKvsPeerConnection));
+                // } else if (rtcpPacket.header.receptionReportCount == RTCP_PSFB_SLI) {
+                //     CHK_STATUS(onRtcpSLIPacket(&rtcpPacket, pKvsPeerConnection));
+                // } else {
+                //     DLOGW("unhandled packet type RTCP_PACKET_TYPE_PAYLOAD_SPECIFIC_FEEDBACK %d", rtcpPacket.header.receptionReportCount);
+                // }
+                break;
+            case RTCP_PACKET_SENDER_REPORT:
+                // CHK_STATUS(onRtcpSenderReport(&rtcpPacket, pKvsPeerConnection));
+                break;
+            case RTCP_PACKET_RECEIVER_REPORT:
+                // CHK_STATUS(onRtcpReceiverReport(&rtcpPacket, pKvsPeerConnection));
+                break;
+            default:
+                LogWarn( ( "unhandled packet type %d", rtcpPacket.header.packetType ) );
+                break;
         }
     }
 

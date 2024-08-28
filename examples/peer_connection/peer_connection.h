@@ -18,6 +18,9 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t * pCtx,
 PeerConnectionResult_t PeerConnection_Destroy( PeerConnectionContext_t * pCtx );
 PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t * pCtx,
                                                       Transceiver_t * pTransceiver );
+PeerConnectionResult_t PeerConnection_MatchTransceiverBySsrc( PeerConnectionContext_t * pCtx,
+                                                              uint32_t ssrc,
+                                                              const Transceiver_t ** ppTransceiver );
 PeerConnectionResult_t PeerConnection_SetLocalDescription( PeerConnectionContext_t * pCtx );
 PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContext_t * pCtx,
                                                             const PeerConnectionRemoteInfo_t * pRemoteInfo );

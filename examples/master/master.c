@@ -268,7 +268,6 @@ static int32_t OnMediaSinkHook( void * pCustom,
         else if( pFrame->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO )
         {
             ret = AppMediaSource_GetAudioTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
-            ( void ) pTransceiver;
         }
         else
         {

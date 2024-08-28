@@ -144,7 +144,7 @@ include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-stream
 # Include RTP
 include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-rtp/rtpFilePaths.cmake )
 
-# Include RTP
+# Include RTCP
 include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-rtcp/rtcpFilePaths.cmake )
 
 # Include ICE

@@ -6,6 +6,7 @@
 #include "peer_connection_srtp.h"
 #include "signaling_controller.h"
 #include "rtp_api.h"
+#include "rtcp_api.h"
 
 #include "lwip/sockets.h"
 
@@ -598,6 +599,12 @@ static int32_t HandleRtpRtcpPackets( void * pCustomContext,
         {
             /* RTCP packet */
             LogInfo( ( "Receiving RTCP packets with length %u", bufferLength ) );
+            resultPeerConnection = PeerConnectionSrtp_HandleSrtcpPacket( pSession, pBuffer, bufferLength );
+            if( resultPeerConnection != PEER_CONNECTION_RESULT_OK )
+            {
+                LogWarn( ( "Failed to handle SRTCP packets, result: %d", resultPeerConnection ) );
+                ret = -2;
+            }
         }
         else
         {
@@ -946,6 +953,7 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
     PeerConnectionSession_t * pSession = NULL;
     IceControllerResult_t iceControllerResult;
     RtpResult_t resultRtp;
+    RtcpResult_t resultRtcp;
 
     if( ( pCtx == NULL ) || ( pRemoteInfo == NULL ) ||
         ( pRemoteInfo->pRemoteClientId == NULL ) ||
@@ -1049,6 +1057,16 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
+        resultRtcp = Rtcp_Init( &pCtx->rtcpContext );
+        if( resultRtcp != RTCP_RESULT_OK )
+        {
+            LogError( ( "Fail to initialize RTCP context, result: %d", resultRtcp ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_RTCP_INIT;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
         if( pRemoteInfo->isVideoCodecPayloadSet )
         {
             pSession->rtpConfig.isVideoCodecPayloadSet = 1;
@@ -1131,6 +1149,41 @@ PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t * 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
         ret = AllocateTransceiver( pCtx, pTransceiver );
+    }
+
+    return ret;
+}
+
+PeerConnectionResult_t PeerConnection_MatchTransceiverBySsrc( PeerConnectionContext_t * pCtx,
+                                                              uint32_t ssrc,
+                                                              const Transceiver_t ** ppTransceiver )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    int i;
+
+    if( ( pCtx == NULL ) || ( ppTransceiver == NULL ) )
+    {
+        LogError( ( "Invalid input, pCtx: %p, ppTransceiver: %p", pCtx, ppTransceiver ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        *ppTransceiver = NULL;
+        for( i = 0; i < pCtx->transceiverCount; i++ )
+        {
+            if( ssrc == pCtx->pTransceivers[i]->ssrc )
+            {
+                *ppTransceiver = pCtx->pTransceivers[i];
+                break;
+            }
+        }
+
+        if( i == pCtx->transceiverCount )
+        {
+            LogWarn( ( "No transceiver for SSRC: %lu", ssrc ) );
+            ret = PEER_CONNECTION_RESULT_UNKNOWN_SSRC;
+        }
     }
 
     return ret;
