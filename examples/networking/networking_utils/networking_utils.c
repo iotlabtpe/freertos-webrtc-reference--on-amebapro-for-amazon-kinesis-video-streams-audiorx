@@ -1,6 +1,7 @@
 #include <time.h>
 
 #include "FreeRTOS_POSIX/time.h"
+#include "sntp/sntp.h" // SNTP series APIs
 #include "logging.h"
 #include "networking_utils.h"
 
@@ -367,4 +368,68 @@ NetworkingUtilsResult_t NetworkingUtils_GetIso8601CurrentTime( char * pDate,
     }
 
     return ret;
+}
+
+uint64_t NetworkingUtils_GetCurrentTimeSec( void * pTick )
+{
+    long long sec;
+    long long usec;
+    unsigned int tick;
+    unsigned int tickDiff;
+
+    sntp_get_lasttime( &sec, &usec, &tick );
+
+    if( pTick == NULL )
+    {
+        tickDiff = xTaskGetTickCount() - tick;
+    }
+    else
+    {
+        tickDiff = ( *( uint32_t * )pTick ) - tick;
+    }
+
+    sec += tickDiff / configTICK_RATE_HZ;
+    usec += ( ( tickDiff % configTICK_RATE_HZ ) / portTICK_RATE_MS ) * 1000;
+
+    while( usec >= 1000000 )
+    {
+        usec -= 1000000;
+        sec++;
+    }
+
+    LogDebug( ( "sec: %lld, usec: %lld, tick: %u", sec, usec, tick ) );
+
+    return ( uint64_t ) sec;
+}
+
+uint64_t NetworkingUtils_GetCurrentTimeUs( void * pTick )
+{
+    long long sec;
+    long long usec;
+    unsigned int tick;
+    unsigned int tickDiff;
+
+    sntp_get_lasttime( &sec, &usec, &tick );
+
+    if( pTick == NULL )
+    {
+        tickDiff = xTaskGetTickCount() - tick;
+    }
+    else
+    {
+        tickDiff = ( *( uint32_t * )pTick ) - tick;
+    }
+
+    sec += tickDiff / configTICK_RATE_HZ;
+    usec += ( ( tickDiff % configTICK_RATE_HZ ) / portTICK_RATE_MS ) * 1000;
+
+    while( usec >= 1000000 )
+    {
+        usec -= 1000000;
+        sec++;
+    }
+
+    // LogDebug( ( "pTick: %p, tickDiff: %u, sec: %lld, usec: %lld, tick: %u", pTick, tickDiff, sec, usec, tick ) );
+
+    return ( ( uint64_t )sec * 1000000 ) + usec;
 }

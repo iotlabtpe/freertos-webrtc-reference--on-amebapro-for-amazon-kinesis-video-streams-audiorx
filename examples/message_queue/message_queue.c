@@ -127,3 +127,27 @@ MessageQueueResult_t MessageQueue_IsEmpty( MessageQueueHandler_t * pMessageQueue
 
     return ret;
 }
+
+MessageQueueResult_t MessageQueue_IsFull( MessageQueueHandler_t * pMessageQueueHandler )
+{
+    MessageQueueResult_t ret = MESSAGE_QUEUE_RESULT_OK;
+
+    if( pMessageQueueHandler == NULL )
+    {
+        ret = MESSAGE_QUEUE_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == MESSAGE_QUEUE_RESULT_OK )
+    {
+        if( uxQueueSpacesAvailable( pMessageQueueHandler->messageQueue ) == 0 )
+        {
+            ret = MESSAGE_QUEUE_RESULT_MQ_IS_FULL;
+        }
+        else
+        {
+            ret = MESSAGE_QUEUE_RESULT_MQ_IS_NOT_FULL;
+        }
+    }
+
+    return ret;
+}

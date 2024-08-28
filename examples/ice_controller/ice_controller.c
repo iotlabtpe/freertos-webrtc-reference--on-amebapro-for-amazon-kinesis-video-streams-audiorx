@@ -203,7 +203,9 @@ IceControllerResult_t IceController_AddRemoteCandidate( IceControllerContext_t *
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     IceResult_t iceResult;
+    #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
     char ipBuffer[ INET_ADDRSTRLEN ];
+    #endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE  */
 
     if( ( pCtx == NULL ) || ( pRemoteCandidate == NULL ) )
     {
@@ -222,7 +224,7 @@ IceControllerResult_t IceController_AddRemoteCandidate( IceControllerContext_t *
         }
         else
         {
-            LogDebug( ( "Received remote candidate with IP/port: %s/%d",
+            LogVerbose( ( "Received remote candidate with IP/port: %s/%d",
                         IceControllerNet_LogIpAddressInfo( pRemoteCandidate->pEndpoint,
                                                            ipBuffer,
                                                            sizeof( ipBuffer ) ),
@@ -262,8 +264,10 @@ IceControllerResult_t IceController_SendConnectivityCheck( IceControllerContext_
     uint8_t stunBuffer[ ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE ];
     size_t stunBufferLength = ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE;
     IceControllerSocketContext_t * pSocketContext;
+    #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
     char ipFromBuffer[ INET_ADDRSTRLEN ];
     char ipToBuffer[ INET_ADDRSTRLEN ];
+    #endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE  */
 
     if( pCtx->metrics.isFirstConnectivityRequest == 1 )
     {
@@ -316,7 +320,7 @@ IceControllerResult_t IceController_SendConnectivityCheck( IceControllerContext_
                 continue;
             }
 
-            LogDebug( ( "Sending connecitivity check from IP/port: %s/%d to %s/%d",
+            LogVerbose( ( "Sending connecitivity check from IP/port: %s/%d to %s/%d",
                         IceControllerNet_LogIpAddressInfo( &pCtx->iceContext.pCandidatePairs[i].pLocalCandidate->endpoint,
                                                            ipFromBuffer,
                                                            sizeof( ipFromBuffer ) ),
@@ -1106,6 +1110,49 @@ IceControllerResult_t IceController_Start( IceControllerContext_t * pCtx,
                 ret = ICE_CONTROLLER_RESULT_FAIL_SET_CONNECTIVITY_CHECK_TIMER;
             }
         }
+    }
+
+    return ret;
+}
+
+IceControllerResult_t IceController_SendToRemotePeer( IceControllerContext_t * pCtx,
+                                                      const uint8_t * pBuffer,
+                                                      size_t bufferLength )
+{
+    IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
+
+    if( ( pCtx == NULL ) ||
+        ( pBuffer == NULL ) )
+    {
+        LogError( ( "Invalid input, pCtx: %p, pBuffer: %p", pCtx, pBuffer ) );
+        ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        if( ( pCtx->pNominatedSocketContext == NULL ) ||
+            ( pCtx->pNominatedSocketContext->state < ICE_CONTROLLER_SOCKET_CONTEXT_STATE_PASS_HANDSHAKE ) )
+        {
+            LogWarn( ( "The connection of this session is not ready." ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL_CONNECTION_NOT_READY;
+        }
+        else if( pCtx->pNominatedSocketContext->pRemoteCandidate == NULL )
+        {
+            LogWarn( ( "The connection of this session is not ready." ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL_CONNECTION_NOT_READY;
+        }
+        else
+        {
+            /* Do nothing. */
+        }
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        ret = IceControllerNet_SendPacket( pCtx->pNominatedSocketContext,
+                                           &pCtx->pNominatedSocketContext->pRemoteCandidate->endpoint,
+                                           pBuffer,
+                                           bufferLength );
     }
 
     return ret;

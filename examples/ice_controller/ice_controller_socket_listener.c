@@ -180,9 +180,9 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
                 /* Found nominated pair, execute DTLS handshake and release all other resources. */
                 if( onIceEventCallbackFunc )
                 {
-                    peerToPeerConnectionFoundContent.requestContent.peerTopeerConnectionFoundMsg.socketFd = pSocketContext->socketFd;
-                    peerToPeerConnectionFoundContent.requestContent.peerTopeerConnectionFoundMsg.pLocalCandidate = pSocketContext->pLocalCandidate;
-                    peerToPeerConnectionFoundContent.requestContent.peerTopeerConnectionFoundMsg.pRemoteCandidate = pSocketContext->pRemoteCandidate;
+                    peerToPeerConnectionFoundContent.iceControllerCallbackContent.peerTopeerConnectionFoundMsg.socketFd = pSocketContext->socketFd;
+                    peerToPeerConnectionFoundContent.iceControllerCallbackContent.peerTopeerConnectionFoundMsg.pLocalCandidate = pSocketContext->pLocalCandidate;
+                    peerToPeerConnectionFoundContent.iceControllerCallbackContent.peerTopeerConnectionFoundMsg.pRemoteCandidate = pSocketContext->pRemoteCandidate;
                     retPeerToPeerConnectionFound = onIceEventCallbackFunc( pOnIceEventCallbackCustomContext, ICE_CONTROLLER_CB_EVENT_PEER_TO_PEER_CONNECTION_FOUND, &peerToPeerConnectionFoundContent );
                     if( retPeerToPeerConnectionFound != 0 )
                     {
@@ -199,7 +199,7 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
             }
             else if( ret != ICE_CONTROLLER_RESULT_OK )
             {
-                LogError( ( "Fail to handle this RX packet, readBytes: %d", readBytes ) );
+                LogError( ( "Fail to handle this RX packet, ret: %d, readBytes: %d", ret, readBytes ) );
             }
             else
             {
@@ -290,7 +290,7 @@ static void pollingSockets( IceControllerContext_t * pCtx )
         {
             if( FD_ISSET( fds[i], &rfds ) )
             {
-                LogDebug( ( "Detect packets on fd %d, idx: %d", fds[i], i ) );
+                LogVerbose( ( "Detect packets on fd %d, idx: %d", fds[i], i ) );
 
                 HandleRxPacket( pCtx, &pCtx->socketsContexts[i],
                                 onRecvRtpRtcpPacketCallbackFunc, pOnRecvRtpRtcpPacketCallbackCustomContext,

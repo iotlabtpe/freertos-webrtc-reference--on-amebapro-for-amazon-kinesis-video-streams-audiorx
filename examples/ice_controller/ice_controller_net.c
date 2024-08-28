@@ -130,51 +130,6 @@ void IceControllerNet_FreeSocketContext( IceControllerContext_t * pCtx,
     }
 }
 
-extern uint16_t ReadUint16Swap( const uint8_t * pSrc );
-extern uint16_t ReadUint16NoSwap( const uint8_t * pSrc );
-static const char * convertStunMsgTypeToString( uint16_t stunMsgType )
-{
-    const char * ret = ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_UNKNOWN;
-    static ReadUint16_t readUint16Fn;
-    static uint8_t isFirst = 1;
-    uint8_t isLittleEndian;
-    uint16_t msgType;
-
-    if( isFirst )
-    {
-        isFirst = 0;
-        isLittleEndian = ( *( uint8_t * )( &( uint16_t ) { 1 } ) == 1 );
-
-        if( isLittleEndian != 0 )
-        {
-            readUint16Fn = ReadUint16Swap;
-        }
-        else
-        {
-            readUint16Fn = ReadUint16NoSwap;
-        }
-    }
-
-    msgType = readUint16Fn( ( uint8_t * ) &stunMsgType );
-    switch( msgType )
-    {
-        case STUN_MESSAGE_TYPE_BINDING_REQUEST:
-            ret = ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_BINDING_REQUEST;
-            break;
-        case STUN_MESSAGE_TYPE_BINDING_SUCCESS_RESPONSE:
-            ret = ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_BINDING_SUCCESS;
-            break;
-        case STUN_MESSAGE_TYPE_BINDING_FAILURE_RESPONSE:
-            ret = ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_BINDING_FAILURE;
-            break;
-        case STUN_MESSAGE_TYPE_BINDING_INDICATION:
-            ret = ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_BINDING_INDICATION;
-            break;
-    }
-
-    return ret;
-}
-
 static void IceControllerNet_AddSrflxCandidate( IceControllerContext_t * pCtx,
                                                 IceEndpoint_t * pLocalIceEndpoint )
 {
@@ -184,7 +139,9 @@ static void IceControllerNet_AddSrflxCandidate( IceControllerContext_t * pCtx,
     IceControllerSocketContext_t * pSocketContext;
     uint8_t stunBuffer[ ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE ];
     size_t stunBufferLength = ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE;
+    #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
     char ipBuffer[ INET_ADDRSTRLEN ];
+    #endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE  */
 
     for( i = 0; i < pCtx->iceServersCount; i++ )
     {
@@ -212,7 +169,7 @@ static void IceControllerNet_AddSrflxCandidate( IceControllerContext_t * pCtx,
         {
             pSocketContext = &pCtx->socketsContexts[ pCtx->socketsContextsCount ];
             ret = createSocketConnection( &pSocketContext->socketFd, pLocalIceEndpoint, ICE_SOCKET_PROTOCOL_UDP );
-            LogDebug( ( "Create srflx candidate with fd %d, IP/port: %s/%d",
+            LogVerbose( ( "Create srflx candidate with fd %d, IP/port: %s/%d",
                         pSocketContext->socketFd,
                         IceControllerNet_LogIpAddressInfo( pLocalIceEndpoint, ipBuffer, sizeof( ipBuffer ) ),
                         pLocalIceEndpoint->transportAddress.port ) );
@@ -295,7 +252,7 @@ IceControllerResult_t IceControllerNet_Htons( uint16_t port,
 
 IceControllerResult_t IceControllerNet_SendPacket( IceControllerSocketContext_t * pSocketContext,
                                                    IceEndpoint_t * pDestinationIceEndpoint,
-                                                   uint8_t * pBuffer,
+                                                   const uint8_t * pBuffer,
                                                    size_t length )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
@@ -365,9 +322,11 @@ IceControllerResult_t IceControllerNet_AddLocalCandidates( IceControllerContext_
     uint32_t i;
     IceCandidate_t * pCandidate;
     IceControllerSocketContext_t * pSocketContext;
-    char ipBuffer[ INET_ADDRSTRLEN ];
     int32_t retLocalCandidateReady;
     IceControllerCallbackContent_t localCandidateReadyContent;
+    #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+    char ipBuffer[ INET_ADDRSTRLEN ];
+    #endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE  */
 
     if( pCtx == NULL )
     {
@@ -407,8 +366,8 @@ IceControllerResult_t IceControllerNet_AddLocalCandidates( IceControllerContext_
                     pCandidate = &( pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ] );
                     if( pCtx->onIceEventCallbackFunc )
                     {
-                        localCandidateReadyContent.requestContent.localCandidateReadyMsg.pLocalCandidate = pCandidate;
-                        localCandidateReadyContent.requestContent.localCandidateReadyMsg.localCandidateIndex = pCtx->candidateFoundationCounter;
+                        localCandidateReadyContent.iceControllerCallbackContent.localCandidateReadyMsg.pLocalCandidate = pCandidate;
+                        localCandidateReadyContent.iceControllerCallbackContent.localCandidateReadyMsg.localCandidateIndex = pCtx->candidateFoundationCounter;
                         retLocalCandidateReady = pCtx->onIceEventCallbackFunc( pCtx->pOnIceEventCustomContext, ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY, &localCandidateReadyContent );
                         if( retLocalCandidateReady == 0 )
                         {
@@ -431,7 +390,7 @@ IceControllerResult_t IceControllerNet_AddLocalCandidates( IceControllerContext_
                     pSocketContext->pLocalCandidate = pCandidate;
                     pCtx->socketsContextsCount++;
 
-                    LogDebug( ( "Created host candidate with fd %d, IP/port: %s/%d",
+                    LogVerbose( ( "Created host candidate with fd %d, IP/port: %s/%d",
                                 pSocketContext->socketFd,
                                 IceControllerNet_LogIpAddressInfo( &pCtx->localEndpoints[i], ipBuffer, sizeof( ipBuffer ) ),
                                 pCtx->localEndpoints[i].transportAddress.port ) );
@@ -466,12 +425,14 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
     IceHandleStunPacketResult_t iceHandleStunResult;
     uint8_t * pTransactionIdBuffer;
     IceCandidatePair_t * pCandidatePair = NULL;
-    uint8_t sentStunBuffer[ ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE ];
-    size_t sentStunBufferLength = ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE;
-    char ipBuffer[ INET_ADDRSTRLEN ];
-    char ipBuffer2[ INET_ADDRSTRLEN ];
+    #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+        char ipBuffer[ INET_ADDRSTRLEN ];
+        char ipBuffer2[ INET_ADDRSTRLEN ];
+    #endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
     int32_t retLocalCandidateReady;
     IceControllerCallbackContent_t localCandidateReadyContent;
+    uint8_t sentStunBuffer[ ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE ];
+    size_t sentStunBufferLength = ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE;
 
     if( ( pCtx == NULL ) || ( pReceiveBuffer == NULL ) || ( pRemoteIceEndpoint == NULL ) )
     {
@@ -482,7 +443,7 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
-        LogDebug( ( "Receiving %d bytes from IP/port: %s/%d", receiveBufferLength,
+        LogVerbose( ( "Receiving %d bytes from IP/port: %s/%d", receiveBufferLength,
                     IceControllerNet_LogIpAddressInfo( pRemoteIceEndpoint, ipBuffer, sizeof( ipBuffer ) ),
                     pRemoteIceEndpoint->transportAddress.port ) );
         IceControllerNet_LogStunPacket( pReceiveBuffer, receiveBufferLength );
@@ -509,8 +470,8 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
                         xSemaphoreGive( pCtx->socketMutex );
                     }
 
-                    localCandidateReadyContent.requestContent.localCandidateReadyMsg.pLocalCandidate = pSocketContext->pLocalCandidate;
-                    localCandidateReadyContent.requestContent.localCandidateReadyMsg.localCandidateIndex = pCtx->candidateFoundationCounter;
+                    localCandidateReadyContent.iceControllerCallbackContent.localCandidateReadyMsg.pLocalCandidate = pSocketContext->pLocalCandidate;
+                    localCandidateReadyContent.iceControllerCallbackContent.localCandidateReadyMsg.localCandidateIndex = pCtx->candidateFoundationCounter;
                     retLocalCandidateReady = pCtx->onIceEventCallbackFunc( pCtx->pOnIceEventCustomContext, ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY, &localCandidateReadyContent );
                     if( retLocalCandidateReady == 0 )
                     {
@@ -555,7 +516,7 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
                         if( iceHandleStunResult == ICE_HANDLE_STUN_PACKET_RESULT_SEND_RESPONSE_FOR_NOMINATION )
                         {
                             LogInfo( ( "Sent nominating STUN bind response" ) );
-                            LogDebug( ( "Candidiate pair is nominated, local IP/port: %s/%u, remote IP/port: %s/%u",
+                            LogVerbose( ( "Candidiate pair is nominated, local IP/port: %s/%u, remote IP/port: %s/%u",
                                         IceControllerNet_LogIpAddressInfo( &pCandidatePair->pLocalCandidate->endpoint, ipBuffer, sizeof( ipBuffer ) ), pCandidatePair->pLocalCandidate->endpoint.transportAddress.port,
                                         IceControllerNet_LogIpAddressInfo( &pCandidatePair->pRemoteCandidate->endpoint, ipBuffer2, sizeof( ipBuffer2 ) ), pCandidatePair->pRemoteCandidate->endpoint.transportAddress.port ) );
                             gettimeofday( &pCtx->metrics.sentNominationResponseTime, NULL );
@@ -667,23 +628,73 @@ IceControllerResult_t IceControllerNet_DnsLookUp( char * pUrl,
     return ret;
 }
 
-const char * IceControllerNet_LogIpAddressInfo( const IceEndpoint_t * pIceEndpoint,
-                                                char * pIpBuffer,
-                                                size_t ipBufferLength )
-{
-    const char * ret = ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_UNKNOWN;
-
-    if( ( pIceEndpoint != NULL ) && ( pIpBuffer != NULL ) && ( ipBufferLength >= INET_ADDRSTRLEN ) )
+#if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+    const char * IceControllerNet_LogIpAddressInfo( const IceEndpoint_t * pIceEndpoint,
+                                                    char * pIpBuffer,
+                                                    size_t ipBufferLength )
     {
-        ret = inet_ntop( AF_INET, pIceEndpoint->transportAddress.address, pIpBuffer, ipBufferLength );
-    }
+        const char * ret = ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_UNKNOWN;
 
-    return ret;
-}
+        if( ( pIceEndpoint != NULL ) && ( pIpBuffer != NULL ) && ( ipBufferLength >= INET_ADDRSTRLEN ) )
+        {
+            ret = inet_ntop( AF_INET, pIceEndpoint->transportAddress.address, pIpBuffer, ipBufferLength );
+        }
+
+        return ret;
+    }
+#endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
+
+#if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+    extern uint16_t ReadUint16Swap( const uint8_t * pSrc );
+    extern uint16_t ReadUint16NoSwap( const uint8_t * pSrc );
+    static const char * convertStunMsgTypeToString( uint16_t stunMsgType )
+    {
+        const char * ret = ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_UNKNOWN;
+        static ReadUint16_t readUint16Fn;
+        static uint8_t isFirst = 1;
+        uint8_t isLittleEndian;
+        uint16_t msgType;
+
+        if( isFirst )
+        {
+            isFirst = 0;
+            isLittleEndian = ( *( uint8_t * )( &( uint16_t ) { 1 } ) == 1 );
+
+            if( isLittleEndian != 0 )
+            {
+                readUint16Fn = ReadUint16Swap;
+            }
+            else
+            {
+                readUint16Fn = ReadUint16NoSwap;
+            }
+        }
+
+        msgType = readUint16Fn( ( uint8_t * ) &stunMsgType );
+        switch( msgType )
+        {
+            case STUN_MESSAGE_TYPE_BINDING_REQUEST:
+                ret = ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_BINDING_REQUEST;
+                break;
+            case STUN_MESSAGE_TYPE_BINDING_SUCCESS_RESPONSE:
+                ret = ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_BINDING_SUCCESS;
+                break;
+            case STUN_MESSAGE_TYPE_BINDING_FAILURE_RESPONSE:
+                ret = ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_BINDING_FAILURE;
+                break;
+            case STUN_MESSAGE_TYPE_BINDING_INDICATION:
+                ret = ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_BINDING_INDICATION;
+                break;
+        }
+
+        return ret;
+    }
+#endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
 
 void IceControllerNet_LogStunPacket( uint8_t * pStunPacket,
                                      size_t stunPacketSize )
 {
+    #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
     IceControllerStunMsgHeader_t * pStunMsgHeader = ( IceControllerStunMsgHeader_t * ) pStunPacket;
 
     if( ( pStunPacket == NULL ) || ( stunPacketSize < sizeof( IceControllerStunMsgHeader_t ) ) )
@@ -692,11 +703,15 @@ void IceControllerNet_LogStunPacket( uint8_t * pStunPacket,
     }
     else
     {
-        LogDebug( ( "Dumping STUN packets: STUN type: %s, content length:: 0x%02x%02x, transaction ID: 0x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
+        LogVerbose( ( "Dumping STUN packets: STUN type: %s, content length:: 0x%02x%02x, transaction ID: 0x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
                     convertStunMsgTypeToString( pStunMsgHeader->msgType ),
                     pStunMsgHeader->contentLength[0], pStunMsgHeader->contentLength[1],
                     pStunMsgHeader->transactionId[0], pStunMsgHeader->transactionId[1], pStunMsgHeader->transactionId[2], pStunMsgHeader->transactionId[3],
                     pStunMsgHeader->transactionId[4], pStunMsgHeader->transactionId[5], pStunMsgHeader->transactionId[6], pStunMsgHeader->transactionId[7],
                     pStunMsgHeader->transactionId[8], pStunMsgHeader->transactionId[9], pStunMsgHeader->transactionId[10], pStunMsgHeader->transactionId[11] ) );
     }
+    #endif /* #if LIBRARY_LOG_LEVEL >= LOG_DEBUG  */
+
+    (void) pStunPacket;
+    (void) stunPacketSize;
 }

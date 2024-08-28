@@ -815,7 +815,6 @@ static WebsocketResult_t GenerateWebSocketClientKey( char * pClientKey,
         else
         {
             LogInfo( ( "Base64 encode output length %u, original length %u", outputLength, clientKeyLength ) );
-            LogInfo( ( "Last byte 0x%x", pClientKey[ clientKeyLength - 1 ] ) );
         }
     }
 
@@ -857,7 +856,6 @@ static WebsocketResult_t GenerateAcceptKey( const char * pClientKey,
         else
         {
             LogInfo( ( "Base64 encode output length %u, original length %u", outputLength, outAcceptKeyLength ) );
-            LogInfo( ( "Last byte 0x%x", pOutAcceptKey[ clientKeyLength - 1 ] ) );
         }
     }
 
@@ -1033,12 +1031,18 @@ static WebsocketResult_t SendWebsocketMessage( struct wslay_event_msg * pArg )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
     int retWslay;
-    size_t prev = 0, mid = 0, last = 0;
+    #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+        size_t prev = 0, mid = 0, last = 0;
+    #endif /* if LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
 
     if( wslay_event_get_write_enabled( networkingWslayContext.wslayContext ) == 1 )
     {
         // send the message out immediately.
-        prev = wslay_event_get_queued_msg_count( networkingWslayContext.wslayContext );
+        #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+            /* Get the queued message count before sending message */
+            prev = wslay_event_get_queued_msg_count( networkingWslayContext.wslayContext );
+        #endif /* if LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
+
         retWslay = wslay_event_queue_msg( networkingWslayContext.wslayContext, pArg );
         if( retWslay != 0 )
         {
@@ -1048,17 +1052,24 @@ static WebsocketResult_t SendWebsocketMessage( struct wslay_event_msg * pArg )
 
         if( ret == NETWORKING_WSLAY_RESULT_OK )
         {
-            mid = wslay_event_get_queued_msg_count( networkingWslayContext.wslayContext );
+            #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+                /* Get the queued message count between queue and send message. */
+                mid = wslay_event_get_queued_msg_count( networkingWslayContext.wslayContext );
+            #endif /* if LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
+
             retWslay = wslay_event_send( networkingWslayContext.wslayContext );
 
-            last = wslay_event_get_queued_msg_count( networkingWslayContext.wslayContext );
+            #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+                /* Get the queued message count after sending message. */
+                last = wslay_event_get_queued_msg_count( networkingWslayContext.wslayContext );
+            #endif /* if LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
 
             if( retWslay != 0 )
             {
                 LogInfo( ( "Fail to send this message at this moment." ) );
             }
 
-            LogDebug( ( "Monitor wslay send queue (%u, %u, %u)", prev, mid, last ) );
+            LogVerbose( ( "Monitor wslay send queue (%u, %u, %u)", prev, mid, last ) );
         }
     }
     else

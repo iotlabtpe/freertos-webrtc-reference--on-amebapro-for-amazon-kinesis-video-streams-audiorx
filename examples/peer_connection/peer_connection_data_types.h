@@ -19,11 +19,16 @@ extern "C" {
 #include "ice_controller.h"
 #include "transceiver_data_types.h"
 
+#include "srtp.h"
+#include "rtp_data_types.h"
+
 #define PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ( 2 )
 #define PEER_CONNECTION_USER_NAME_LENGTH ( 4 )
 #define PEER_CONNECTION_PASSWORD_LENGTH ( 24 )
 #define PEER_CONNECTION_CNAME_LENGTH ( 16 )
 #define PEER_CONNECTION_CERTIFICATE_FINGERPRINT_LENGTH ( CERTIFICATE_FINGERPRINT_LENGTH )
+
+#define PEER_CONNECTION_FRAME_CURRENT_VERSION ( 0 )
 
 typedef enum PeerConnectionResult
 {
@@ -40,13 +45,32 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_DESTROY,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_DESERIALIZE_CANDIDATE,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_REMOTE_CANDIDATE,
-    PEER_CONNECTION_RESULT_FAIL_CREATE_CERT,
+    PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_RTP_PACKET,
     PEER_CONNECTION_RESULT_FAIL_CREATE_CERT_AND_KEY,
     PEER_CONNECTION_RESULT_FAIL_CREATE_CERT_FINGERPRINT,
     PEER_CONNECTION_RESULT_FAIL_WRITE_KEY_PEM,
     PEER_CONNECTION_RESULT_FAIL_MQ_INIT,
     PEER_CONNECTION_RESULT_FAIL_MQ_SEND,
+    PEER_CONNECTION_RESULT_FAIL_CREATE_SRTP_RX_SESSION,
+    PEER_CONNECTION_RESULT_FAIL_CREATE_SRTP_TX_SESSION,
+    PEER_CONNECTION_RESULT_FAIL_ENCRYPT_SRTP_RTP_PACKET,
+    PEER_CONNECTION_RESULT_FAIL_DECRYPT_SRTP_RTP_PACKET,
+    PEER_CONNECTION_RESULT_FAIL_RTP_INIT,
+    PEER_CONNECTION_RESULT_FAIL_RTP_SERIALIZE,
+    PEER_CONNECTION_RESULT_FAIL_PACKETIZER_INIT,
+    PEER_CONNECTION_RESULT_FAIL_PACKETIZER_ADD_FRAME,
+    PEER_CONNECTION_RESULT_FAIL_PACKETIZER_GET_PACKET,
+    PEER_CONNECTION_RESULT_UNKNOWN_SRTP_PROFILE,
+    PEER_CONNECTION_RESULT_UNKNOWN_TX_CODEC,
 } PeerConnectionResult_t;
+
+typedef struct PeerConnectionFrame
+{
+    uint32_t version;
+    uint8_t * pData;
+    size_t dataLength;
+    uint64_t presentationUs;
+} PeerConnectionFrame_t;
 
 typedef struct PeerConnectionRemoteInfo
 {
@@ -58,6 +82,10 @@ typedef struct PeerConnectionRemoteInfo
     size_t remotePasswordLength;
     const char * pRemoteCertFingerprint; /* From fingerprint in SDP attributes */
     size_t remoteCertFingerprintLength;
+    uint8_t isVideoCodecPayloadSet;
+    uint8_t isAudioCodecPayloadSet;
+    uint32_t videoCodecPayload;
+    uint32_t audioCodecPayload;
 } PeerConnectionRemoteInfo_t;
 
 typedef struct PeerConnectionUserInfo
@@ -82,16 +110,36 @@ typedef struct PeerConnectionSessionRequestMessage
     PeerConnectionSessionRequestType_t requestType;
 
     /* Decode the request message based on request type. */
-    union RequestContent_t
+    union
     {
         IceControllerCandidate_t remoteCandidate; /* PEER_CONNECTION_SESSION_REQUEST_TYPE_ADD_REMOTE_CANDIDATE */
-    } requestContent;
+    } peerConnectionSessionRequestContent;
 } PeerConnectionSessionRequestMessage_t;
+
+typedef enum PeerConnectionSessionState
+{
+    PEER_CONNECTION_SESSION_STATE_NONE = 0,
+    PEER_CONNECTION_SESSION_STATE_START,
+    PEER_CONNECTION_SESSION_STATE_P2P_CONNECTION_FOUND,
+    PEER_CONNECTION_SESSION_STATE_CONNECTION_READY,
+} PeerConnectionSessionState_t;
+
+typedef struct PeerConnectionRtpConfig
+{
+    uint8_t isVideoCodecPayloadSet;
+    uint8_t isAudioCodecPayloadSet;
+    uint16_t videoSequenceNumber;
+    uint16_t audioSequenceNumber;
+    uint32_t videoCodecPayload;
+    uint32_t audioCodecPayload;
+} PeerConnectionRtpConfig_t;
 
 typedef struct PeerConnectionContext PeerConnectionContext_t;
 
 typedef struct PeerConnectionSession
 {
+    PeerConnectionSessionState_t state;
+
     /* The signaling controller context initialized by application. */
     SignalingControllerContext_t * pSignalingControllerContext;
     TaskHandle_t * pTaskHandler;
@@ -117,6 +165,11 @@ typedef struct PeerConnectionSession
 
     /* DTLS session. */
     DtlsSession_t dtlsSession;
+    /* SRTP sessions. */
+    srtp_t srtpTransmitSession;
+    srtp_t srtpReceiveSession;
+    /* RTP config. */
+    PeerConnectionRtpConfig_t rtpConfig;
 
     /* Pointer that points to peer connection context. */
     PeerConnectionContext_t * pCtx;
@@ -137,11 +190,12 @@ typedef struct PeerConnectionContext
     char localPassword[ PEER_CONNECTION_PASSWORD_LENGTH + 1 ];
     char localCname[ PEER_CONNECTION_CNAME_LENGTH + 1 ];
 
-    Transceiver_t transceivers[ PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ];
+    const Transceiver_t * pTransceivers[ PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ];
     uint32_t transceiverCount;
 
     /* DTLS cert/key/fingerprint. */
     PeerConnectionDtlsContext_t dtlsContext;
+    RtpContext_t rtpContext;
 
     PeerConnectionSession_t peerConnectionSessions[ AWS_MAX_VIEWER_NUM ];
 } PeerConnectionContext_t;

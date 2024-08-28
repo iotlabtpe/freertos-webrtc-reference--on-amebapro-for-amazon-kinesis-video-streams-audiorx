@@ -44,7 +44,11 @@ extern "C" {
 #define ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT      ( 100 )
 #define ICE_CONTROLLER_MAX_REMOTE_CANDIDATE_COUNT     ( 100 )
 
-#define ICE_CONTROLLER_CONNECTIVITY_TIMER_INTERVAL_MS ( 5000 )
+#if LIBRARY_LOG_LEVEL >= LOG_DEBUG
+    #define ICE_CONTROLLER_CONNECTIVITY_TIMER_INTERVAL_MS ( 5000 )
+#else
+    #define ICE_CONTROLLER_CONNECTIVITY_TIMER_INTERVAL_MS ( 100 )
+#endif /* LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
 
 #define AWS_DEFAULT_STUN_SERVER_URL_POSTFIX "amazonaws.com"
 #define AWS_DEFAULT_STUN_SERVER_URL_POSTFIX_CN "amazonaws.com.cn"
@@ -77,12 +81,12 @@ typedef struct IceControllerPeerToPeerConnectionFoundMsg
 
 typedef struct IceControllerCallbackContent
 {
-    union MessageContent_t
+    union
     {
         IceControllerLocalCandidateReadyMsg_t localCandidateReadyMsg; /* ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY */
         /* NULL for ICE_CONTROLLER_CB_EVENT_CONNECTIVITY_CHECK_TIMEOUT */
         IceControllerPeerToPeerConnectionFoundMsg_t peerTopeerConnectionFoundMsg; /* ICE_CONTROLLER_CB_EVENT_PEER_TO_PEER_CONNECTION_FOUND */
-    } requestContent;
+    } iceControllerCallbackContent;
 } IceControllerCallbackContent_t;
 
 typedef int32_t (* OnIceEventCallback_t)( void * pCustomContext,
@@ -128,6 +132,7 @@ typedef enum IceControllerResult
     ICE_CONTROLLER_RESULT_FAIL_CREATE_CERT_AND_KEY,
     ICE_CONTROLLER_RESULT_FAIL_CREATE_CERT_FINGERPRINT,
     ICE_CONTROLLER_RESULT_FAIL_WRITE_KEY_PEM,
+    ICE_CONTROLLER_RESULT_FAIL_CONNECTION_NOT_READY,
     ICE_CONTROLLER_RESULT_JSON_CANDIDATE_NOT_FOUND,
     ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_PRIORITY,
     ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_PROTOCOL,

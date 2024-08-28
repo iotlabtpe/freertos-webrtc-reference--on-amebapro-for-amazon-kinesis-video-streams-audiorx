@@ -3,7 +3,9 @@
 #include "task.h"
 #include "logging.h"
 #include "peer_connection.h"
+#include "peer_connection_srtp.h"
 #include "signaling_controller.h"
+#include "rtp_api.h"
 
 #include "lwip/sockets.h"
 
@@ -108,7 +110,7 @@ static PeerConnectionResult_t HandleAddRemoteCandidateRequest( PeerConnectionSes
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     IceControllerResult_t iceControllerResult;
-    IceControllerCandidate_t * pRemoteCandidate = ( IceControllerCandidate_t * )&pRequestMessage->requestContent;
+    IceControllerCandidate_t * pRemoteCandidate = ( IceControllerCandidate_t * )&pRequestMessage->peerConnectionSessionRequestContent;
     IceRemoteCandidateInfo_t remoteCandidateInfo;
 
     if( ret == PEER_CONNECTION_RESULT_OK )
@@ -168,7 +170,7 @@ static PeerConnectionResult_t SendRemoteCandidateRequest( PeerConnectionSession_
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        pMessageContent = &requestMessage.requestContent.remoteCandidate;
+        pMessageContent = &requestMessage.peerConnectionSessionRequestContent.remoteCandidate;
         memcpy( pMessageContent,
                 pRemoteCandidate,
                 sizeof( IceControllerCandidate_t ) );
@@ -357,6 +359,8 @@ static int32_t OnIceEventPeerToPeerConnectionFound( PeerConnectionSession_t * pS
                                                     IceCandidate_t * pRemoteCandidate )
 {
     int32_t ret = 0;
+    PeerConnectionResult_t retPeerConnection;
+    int i;
 
     if( ( pSession == NULL ) ||
         ( pRemoteCandidate == NULL ) ||
@@ -368,8 +372,35 @@ static int32_t OnIceEventPeerToPeerConnectionFound( PeerConnectionSession_t * pS
 
     if( ret == 0 )
     {
+        pSession->state = PEER_CONNECTION_SESSION_STATE_P2P_CONNECTION_FOUND;
+
         /* Execute DTLS handshaking. */
         ret = ExecuteDtlsHandshake( pSession, socketFd, pRemoteCandidate );
+    }
+
+    if( ret == 0 )
+    {
+        /* Initialize SRTP sessions. */
+        retPeerConnection = PeerConnectionSrtp_Init( pSession );
+        if( retPeerConnection != PEER_CONNECTION_RESULT_OK )
+        {
+            LogError( ( "Fail to create SRTP sessions, ret: %d", retPeerConnection ) );
+            ret = -12;
+        }
+    }
+
+    if( ret == 0 )
+    {
+        pSession->state = PEER_CONNECTION_SESSION_STATE_CONNECTION_READY;
+        for( i = 0; i < pSession->pCtx->transceiverCount; i++ )
+        {
+            if( pSession->pCtx->pTransceivers[i]->onPcEventCallbackFunc )
+            {
+                pSession->pCtx->pTransceivers[i]->onPcEventCallbackFunc( pSession->pCtx->pTransceivers[i]->pOnPcEventCustomContext,
+                                                                         TRANSCEIVER_CB_EVENT_REMOTE_PEER_READY,
+                                                                         NULL );
+            }
+        }
     }
 
     return ret;
@@ -403,7 +434,7 @@ static int32_t HandleIceEventCallback( void * pCustomContext,
             case ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY:
                 if( pEventMsg != NULL )
                 {
-                    pLocalCandidateReadyMsg = &pEventMsg->requestContent.localCandidateReadyMsg;
+                    pLocalCandidateReadyMsg = &pEventMsg->iceControllerCallbackContent.localCandidateReadyMsg;
                     ret = OnIceEventLocalCandidateReady( pSession, pLocalCandidateReadyMsg->pLocalCandidate, pLocalCandidateReadyMsg->localCandidateIndex );
                 }
                 else
@@ -415,7 +446,7 @@ static int32_t HandleIceEventCallback( void * pCustomContext,
                 ret = OnIceEventConnectivityCheck( pSession );
                 break;
             case ICE_CONTROLLER_CB_EVENT_PEER_TO_PEER_CONNECTION_FOUND:
-                pPeerToPeerConnectionFoundMsg = &pEventMsg->requestContent.peerTopeerConnectionFoundMsg;
+                pPeerToPeerConnectionFoundMsg = &pEventMsg->iceControllerCallbackContent.peerTopeerConnectionFoundMsg;
                 ret = OnIceEventPeerToPeerConnectionFound( pSession, pPeerToPeerConnectionFoundMsg->socketFd, pPeerToPeerConnectionFoundMsg->pRemoteCandidate );
                 break;
             default:
@@ -492,13 +523,11 @@ static int32_t ExecuteDtlsHandshake( PeerConnectionSession_t * pSession,
         {
             /* Assign local cert to the DTLS session. */
             LogDebug( ( "setting pDtlsSession->xNetworkCredentials.pClientCert" ) );
-            pDtlsSession->xNetworkCredentials.pClientCert = pSession->pCtx->dtlsContext.localCert.raw.p;
-            pDtlsSession->xNetworkCredentials.clientCertSize = pSession->pCtx->dtlsContext.localCert.raw.len;
+            pDtlsSession->xNetworkCredentials.pClientCert = &pSession->pCtx->dtlsContext.localCert;
 
-            /* Assign local key to the DTLS session. */
+            // /* Assign local key to the DTLS session. */
             LogDebug( ( "setting pDtlsSession->xNetworkCredentials.pPrivateKey" ) );
-            pDtlsSession->xNetworkCredentials.pPrivateKey = ( uint8_t * ) pSession->pCtx->dtlsContext.privateKeyPcsPem;
-            pDtlsSession->xNetworkCredentials.privateKeySize = PRIVATE_KEY_PCS_PEM_SIZE;
+            pDtlsSession->xNetworkCredentials.pPrivateKey = &pSession->pCtx->dtlsContext.localKey;
 
             /* Attempt to create a DTLS connection. */
             xNetworkStatus = DTLS_Connect( &pDtlsSession->xNetworkContext,
@@ -553,7 +582,8 @@ static int32_t HandleRtpRtcpPackets( void * pCustomContext,
                                      size_t bufferLength )
 {
     int32_t ret = 0;
-    // PeerConnectionSession_t * pSession = ( PeerConnectionSession_t * ) pCustomContext;
+    PeerConnectionSession_t * pSession = ( PeerConnectionSession_t * ) pCustomContext;
+    PeerConnectionResult_t resultPeerConnection;
 
     if( ( pCustomContext == NULL ) || ( pBuffer == NULL ) )
     {
@@ -573,6 +603,12 @@ static int32_t HandleRtpRtcpPackets( void * pCustomContext,
         {
             /* RTP packet */
             LogInfo( ( "Receiving RTP packets with length %u", bufferLength ) );
+            resultPeerConnection = PeerConnectionSrtp_HandleSrtpPacket( pSession, pBuffer, bufferLength );
+            if( resultPeerConnection != PEER_CONNECTION_RESULT_OK )
+            {
+                LogWarn( ( "Failed to handle SRTP packets, result: %d", resultPeerConnection ) );
+                ret = -2;
+            }
         }
     }
 
@@ -658,16 +694,32 @@ static PeerConnectionResult_t DestroyIceController( PeerConnectionSession_t * pS
     return ret;
 }
 
-static Transceiver_t * AllocateFreeTransceiver( PeerConnectionContext_t * pCtx )
+static PeerConnectionResult_t AllocateTransceiver( PeerConnectionContext_t * pCtx,
+                                                   Transceiver_t * pTransceiver )
 {
-    Transceiver_t * pReturn = NULL;
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
 
-    if( pCtx && ( pCtx->transceiverCount < PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ) )
+    if( pCtx == NULL )
     {
-        pReturn = &pCtx->transceivers[ pCtx->transceiverCount++ ];
+        LogError( ( "Invalid input, pCtx: %p", pCtx ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
 
-    return pReturn;
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        if( pCtx->transceiverCount < PEER_CONNECTION_TRANSCEIVER_MAX_COUNT )
+        {
+            pCtx->pTransceivers[ pCtx->transceiverCount++ ] = pTransceiver;
+            pTransceiver->ssrc = ( uint32_t ) rand();
+        }
+        else
+        {
+            LogWarn( ( "No space to add transceiver" ) );
+            ret = PEER_CONNECTION_RESULT_NO_FREE_TRANSCEIVER;
+        }
+    }
+
+    return ret;
 }
 
 static PeerConnectionSession_t * GetExistingSession( PeerConnectionContext_t * pCtx,
@@ -731,7 +783,6 @@ static PeerConnectionResult_t InitializeDtlsContext( PeerConnectionDtlsContext_t
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     DtlsTransportStatus_t xNetworkStatus = DTLS_TRANSPORT_SUCCESS;
-    int mbedtlsRet = 0;
 
     if( pDtlsContext == NULL )
     {
@@ -763,24 +814,6 @@ static PeerConnectionResult_t InitializeDtlsContext( PeerConnectionDtlsContext_t
         {
             LogError( ( "Fail to dtlsCertificateFingerprint answer cert, return %d", xNetworkStatus ) );
             ret = PEER_CONNECTION_RESULT_FAIL_CREATE_CERT_FINGERPRINT;
-        }
-    }
-
-    /* Parse key from DER to PEM format. */
-    if( ret == PEER_CONNECTION_RESULT_OK )
-    {
-        mbedtlsRet = mbedtls_pk_write_key_pem( &pDtlsContext->localKey,
-                                               pDtlsContext->privateKeyPcsPem,
-                                               PRIVATE_KEY_PCS_PEM_SIZE );
-        if( mbedtlsRet == 0 )
-        {
-            LogDebug( ( "Key:\n%s", ( char * ) pDtlsContext->privateKeyPcsPem ) );
-        }
-        else
-        {
-            LogError( ( "Fail to mbedtls_pk_write_key_pem, return %d", mbedtlsRet ) );
-            MBEDTLS_ERROR_DESCRIPTION( mbedtlsRet );
-            ret = PEER_CONNECTION_RESULT_FAIL_WRITE_KEY_PEM;
         }
     }
 
@@ -834,7 +867,7 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t * pCtx,
 
             if( xTaskCreate( PeerConnection_SessionTask,
                              tempName,
-                             10240,
+                             4096,
                              &pCtx->peerConnectionSessions[i],
                              tskIDLE_PRIORITY + 2,
                              pCtx->peerConnectionSessions[i].pTaskHandler ) != pdPASS )
@@ -854,7 +887,7 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t * pCtx,
             ( void ) snprintf( tempName, sizeof( tempName ), "%s%02d", PEER_CONNECTION_SESSION_RX_TASK_NAME, i );
             if( xTaskCreate( IceControllerSocketListener_Task,
                              tempName,
-                             10240,
+                             4096,
                              &pCtx->peerConnectionSessions[i].iceControllerContext,
                              tskIDLE_PRIORITY + 1,
                              NULL ) != pdPASS )
@@ -912,6 +945,7 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     PeerConnectionSession_t * pSession = NULL;
     IceControllerResult_t iceControllerResult;
+    RtpResult_t resultRtp;
 
     if( ( pCtx == NULL ) || ( pRemoteInfo == NULL ) ||
         ( pRemoteInfo->pRemoteClientId == NULL ) ||
@@ -1003,6 +1037,35 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
         }
     }
 
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        resultRtp = Rtp_Init( &pCtx->rtpContext );
+        if( resultRtp != RTP_RESULT_OK )
+        {
+            LogError( ( "Fail to initialize RTP context, result: %d", resultRtp ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_RTP_INIT;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        if( pRemoteInfo->isVideoCodecPayloadSet )
+        {
+            pSession->rtpConfig.isVideoCodecPayloadSet = 1;
+            pSession->rtpConfig.videoCodecPayload = pRemoteInfo->videoCodecPayload;
+            pSession->rtpConfig.videoSequenceNumber = 0U;
+        }
+
+        if( pRemoteInfo->isAudioCodecPayloadSet )
+        {
+            pSession->rtpConfig.isAudioCodecPayloadSet = 1;
+            pSession->rtpConfig.audioCodecPayload = pRemoteInfo->audioCodecPayload;
+            pSession->rtpConfig.audioSequenceNumber = 0U;
+        }
+
+        pSession->state = PEER_CONNECTION_SESSION_STATE_START;
+    }
+
     return ret;
 }
 
@@ -1054,10 +1117,9 @@ PeerConnectionResult_t PeerConnection_AddRemoteCandidate( PeerConnectionContext_
 }
 
 PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t * pCtx,
-                                                      const Transceiver_t transceiver )
+                                                      Transceiver_t * pTransceiver )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
-    Transceiver_t * pTargetTransceiver;
 
     if( pCtx == NULL )
     {
@@ -1066,40 +1128,35 @@ PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t * 
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        pTargetTransceiver = AllocateFreeTransceiver( pCtx );
-        if( pTargetTransceiver == NULL )
-        {
-            LogWarn( ( "No space to add transceiver" ) );
-            ret = PEER_CONNECTION_RESULT_NO_FREE_TRANSCEIVER;
-        }
-    }
-
-    if( ret == PEER_CONNECTION_RESULT_OK )
-    {
-        memcpy( pTargetTransceiver, &transceiver, sizeof( Transceiver_t ) );
-        pTargetTransceiver->ssrc = ( uint32_t ) rand();
+        ret = AllocateTransceiver( pCtx, pTransceiver );
     }
 
     return ret;
 }
 
 PeerConnectionResult_t PeerConnection_GetTransceivers( PeerConnectionContext_t * pCtx,
-                                                       const Transceiver_t ** ppTransceivers,
+                                                       const Transceiver_t * pTransceivers[],
                                                        size_t * pTransceiversCount )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    int i;
 
     if( ( pCtx == NULL ) ||
-        ( ppTransceivers == NULL ) ||
-        ( pTransceiversCount == NULL ) )
+        ( pTransceivers == NULL ) ||
+        ( pTransceiversCount == NULL ) ||
+        ( *pTransceiversCount > PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ) )
     {
-        LogError( ( "Invalid input." ) );
+        LogError( ( "Invalid input, pCtx: %p, pTransceivers: %p, pTransceiversCount: %p",
+                    pCtx, pTransceivers, pTransceiversCount ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        *ppTransceivers = pCtx->transceivers;
+        for( i = 0; i < pCtx->transceiverCount; i++ )
+        {
+            pTransceivers[i] = pCtx->pTransceivers[i];
+        }
         *pTransceiversCount = pCtx->transceiverCount;
     }
 
@@ -1163,6 +1220,7 @@ PeerConnectionResult_t PeerConnection_CreateSession( PeerConnectionContext_t * p
     /* Generate answer cert in DER format */
     if( ( ret == PEER_CONNECTION_RESULT_OK ) && ( pCtx->dtlsContext.isInitialized == 0 ) )
     {
+        /* pCtx->dtlsContext.isInitialized would be set to 1 in InitializeDtlsContext(). */
         ret = InitializeDtlsContext( &pCtx->dtlsContext );
     }
 
@@ -1173,17 +1231,6 @@ PeerConnectionResult_t PeerConnection_CreateSession( PeerConnectionContext_t * p
         memset( pDtlsSession,
                 0,
                 sizeof( DtlsSession_t ) );
-
-        if( pCtx->dtlsContext.localCert.raw.p != NULL )
-        {
-            pDtlsSession->xNetworkCredentials.pClientCert = pCtx->dtlsContext.localCert.raw.p;
-            pDtlsSession->xNetworkCredentials.clientCertSize = pCtx->dtlsContext.localCert.raw.len;
-        }
-        else
-        {
-            LogError( ( "pSession->answerCert.raw.p == NULL" ) );
-            ret = PEER_CONNECTION_RESULT_FAIL_CREATE_CERT;
-        }
     }
 
     if( ret == PEER_CONNECTION_RESULT_OK )
@@ -1225,6 +1272,59 @@ PeerConnectionResult_t PeerConnection_CloseSession( PeerConnectionContext_t * pC
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
 
+    }
+
+    return ret;
+}
+
+PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionContext_t * pCtx,
+                                                  Transceiver_t * pTransceiver,
+                                                  const PeerConnectionFrame_t * pFrame )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+
+    if( ( pCtx == NULL ) ||
+        ( pTransceiver == NULL ) ||
+        ( pFrame == NULL ) )
+    {
+        LogError( ( "Invalid input, pCtx: %p, pTransceiver: %p, pFrame: %p",
+                    pCtx, pTransceiver, pFrame ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    /* Encode the frame into multiple payload buffers (>=1). */
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) )
+        {
+            ret = PeerConnectionSrtp_WriteH264Frame( pCtx, pTransceiver, pFrame );
+        }
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT ) )
+        {
+
+        }
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_VP8_BIT ) )
+        {
+
+        }
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT ) )
+        {
+
+        }
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_ALAW_BIT ) )
+        {
+
+        }
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H265_BIT ) )
+        {
+
+        }
+        else
+        {
+            /* TODO: Unknown, no matching codec. */
+            LogError( ( "Codec is not supported, codec bit map: 0x%x", ( int ) pTransceiver->codecBitMap ) );
+            ret = PEER_CONNECTION_RESULT_UNKNOWN_TX_CODEC;
+        }
     }
 
     return ret;

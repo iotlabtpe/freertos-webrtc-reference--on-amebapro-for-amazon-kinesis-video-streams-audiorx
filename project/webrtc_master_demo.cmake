@@ -80,7 +80,9 @@ file(
   "${REPO_ROOT_DIRECTORY}/examples/sdp_controller/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/string_utils/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/ice_controller/*.c"
-  "${REPO_ROOT_DIRECTORY}/examples/timer_controller/*.c" )
+  "${REPO_ROOT_DIRECTORY}/examples/timer_controller/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/app_media_source/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/app_media_source/port/ameba_pro2/*.c" )
 
 set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/master/"
@@ -100,7 +102,9 @@ set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/sdp_controller"
      "${REPO_ROOT_DIRECTORY}/examples/string_utils"
      "${REPO_ROOT_DIRECTORY}/examples/ice_controller"
-     "${REPO_ROOT_DIRECTORY}/examples/timer_controller" )
+     "${REPO_ROOT_DIRECTORY}/examples/timer_controller"
+     "${REPO_ROOT_DIRECTORY}/examples/app_media_source"
+     "${REPO_ROOT_DIRECTORY}/examples/app_media_source/port/ameba_pro2" )
 
 # Include dependencies
 # Include coreHTTP
@@ -137,8 +141,14 @@ include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-stream
 # Include STUN
 include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-stun/stunFilePaths.cmake )
 
+# Include RTP
+include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-rtp/rtpFilePaths.cmake )
+
 # Include ICE
 include( ${REPO_ROOT_DIRECTORY}/CMake/ice.cmake )
+
+# Include libsrtp
+include( ${REPO_ROOT_DIRECTORY}/CMake/libsrtp.cmake )
 
 list(
 	APPEND app_flags
@@ -155,7 +165,8 @@ set( webrtc_master_demo_src
      ${WSLAY_SOURCE_FILES}
      ${SDP_SOURCES}
      ${STUN_SOURCES}
-     ${ICE_SOURCES} )
+     ${ICE_SOURCES}
+     ${RTP_SOURCES} )
 
 set( webrtc_master_demo_include
      ${WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS}
@@ -166,7 +177,8 @@ set( webrtc_master_demo_include
      ${WSLAY_INCLUDE_DIRS}
      ${SDP_INCLUDE_PUBLIC_DIRS}
      ${STUN_INCLUDE_PUBLIC_DIRS}
-     ${ICE_INCLUDE_PUBLIC_DIRS} )
+     ${ICE_INCLUDE_PUBLIC_DIRS}
+     ${RTP_INCLUDE_PUBLIC_DIRS} )
 
 # Set more strict rules to application code only
 set_source_files_properties(

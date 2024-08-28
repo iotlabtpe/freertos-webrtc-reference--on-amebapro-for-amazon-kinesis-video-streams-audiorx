@@ -3,31 +3,29 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #include "sys_api.h" // sys_backtrace_enable()
 #include "sntp/sntp.h" // SNTP series APIs
 #include "wifi_conf.h" // WiFi series APIs
 #include "lwip_netconf.h" // LwIP_GetIP()
+#include "srtp.h"
 
 #include "logging.h"
 #include "demo_config.h"
 #include "demo_data_types.h"
+#include "networking_utils.h"
 
-#define DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND ( 3 )
-
-// Considering 4 Mbps for 720p (which is what our samples use). This is for H.264.
-// The value could be different for other codecs.
-#define DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE ( 4 * 1024 * 1024 )
-
-#define DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID "myKvsVideoStream"
-#define DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID "myVideoTrack"
-#define DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID "myAudioTrack"
 #define DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH ( 8 ) // the length of "sha-256 "
-
 #define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect
+
+DemoContext_t demoContext;
+
+static void Master_Task( void * pParameter );
 
 static void platform_init( void );
 static void wifi_common_init( void );
-static long long GetCurrentTimeSec( void );
 static uint8_t respondWithSdpAnswer( const char * pRemoteClientId,
                                      size_t remoteClientIdLength,
                                      DemoContext_t * pDemoContext,
@@ -41,8 +39,6 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEven
                                        void * pUserContext );
 static int initializeApplication( DemoContext_t * pDemoContext );
 static int initializePeerConnection( DemoContext_t * pDemoContext );
-static int addTransceivers( DemoContext_t * pDemoContext );
-static void Master_Task( void * pParameter );
 
 extern uint8_t populateSdpContent( DemoSessionInformation_t * pRemoteSessionDescription,
                                    DemoSessionInformation_t * pLocalSessionDescription,
@@ -54,8 +50,6 @@ extern uint8_t serializeSdpMessage( DemoSessionInformation_t * pSessionInDescrip
 extern uint8_t addressSdpOffer( const char * pEventSdpOffer,
                                 size_t eventSdpOfferlength,
                                 DemoContext_t * pDemoContext );
-
-DemoContext_t demoContext;
 
 extern int crypto_init( void );
 extern int platform_set_malloc_free( void * ( *malloc_func )( size_t ),
@@ -76,7 +70,7 @@ static void platform_init( void )
 
     /* Block until get time via SNTP. */
     sntp_init();
-    while( ( sec = GetCurrentTimeSec() ) < 1000000000ULL )
+    while( ( sec = NetworkingUtils_GetCurrentTimeSec( NULL ) ) < 1000000000ULL )
     {
         vTaskDelay( pdMS_TO_TICKS( 200 ) );
         LogInfo( ( "waiting get epoch timer" ) );
@@ -85,6 +79,9 @@ static void platform_init( void )
     /* Seed random. */
     LogInfo( ( "srand seed: %lld", sec ) );
     srand( sec );
+
+    /* init srtp library. */
+    srtp_init();
 }
 
 static void wifi_common_init( void )
@@ -101,30 +98,6 @@ static void wifi_common_init( void )
             wifi_wait_count = 0;
         }
     }
-}
-
-static long long GetCurrentTimeSec( void )
-{
-    long long sec;
-    long long usec;
-    unsigned int tick;
-    unsigned int tickDiff;
-
-    sntp_get_lasttime( &sec, &usec, &tick );
-    tickDiff = xTaskGetTickCount() - tick;
-
-    sec += tickDiff / configTICK_RATE_HZ;
-    usec += ( ( tickDiff % configTICK_RATE_HZ ) / portTICK_RATE_MS ) * 1000;
-
-    while( usec >= 1000000 )
-    {
-        usec -= 1000000;
-        sec++;
-    }
-
-    LogDebug( ( "sec: %lld, usec: %lld, tick: %u", sec, usec, tick ) );
-
-    return sec;
 }
 
 static uint8_t respondWithSdpAnswer( const char * pRemoteClientId,
@@ -190,6 +163,26 @@ static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCt
         remoteInfo.pRemoteCertFingerprint = demoContext.sessionInformationSdpOffer.sdpDescription.pFingerprint + DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
         remoteInfo.remoteCertFingerprintLength = demoContext.sessionInformationSdpOffer.sdpDescription.fingerprintLength - DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH;
 
+        if( pSessionInformation->sdpDescription.isVideoCodecPayloadSet )
+        {
+            remoteInfo.isVideoCodecPayloadSet = 1;
+            remoteInfo.videoCodecPayload = pSessionInformation->sdpDescription.videoCodecPayload;
+        }
+        else
+        {
+            remoteInfo.isVideoCodecPayloadSet = 0;
+        }
+
+        if( pSessionInformation->sdpDescription.isAudioCodecPayloadSet )
+        {
+            remoteInfo.isAudioCodecPayloadSet = 1;
+            remoteInfo.audioCodecPayload = pSessionInformation->sdpDescription.audioCodecPayload;
+        }
+        else
+        {
+            remoteInfo.isAudioCodecPayloadSet = 0;
+        }
+
         peerConnectionResult = PeerConnection_SetRemoteDescription( pPeerConnectionCtx, &remoteInfo );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
@@ -250,6 +243,116 @@ static int initializeApplication( DemoContext_t * pDemoContext )
     return ret;
 }
 
+static int32_t OnMediaSinkHook( void * pCustom,
+                                webrtc_frame_t * pFrame )
+{
+    int32_t ret = 0;
+    DemoContext_t * pDemoContext = ( DemoContext_t * ) pCustom;
+    PeerConnectionResult_t peerConnectionResult;
+    Transceiver_t * pTransceiver = NULL;
+    PeerConnectionFrame_t peerConnectionFrame;
+
+    if( ( pDemoContext == NULL ) || ( pFrame == NULL ) )
+    {
+        LogError( ( "Invalid input, pCustom: %p, pFrame: %p", pCustom, pFrame ) );
+        ret = -1;
+    }
+
+    if( ret == 0 )
+    {
+        if( pFrame->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
+        {
+            ret = AppMediaSource_GetVideoTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
+        }
+        else if( pFrame->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO )
+        {
+            ret = AppMediaSource_GetAudioTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
+            ( void ) pTransceiver;
+        }
+        else
+        {
+            LogError( ( "Unknown track kind: %d", pFrame->trackKind ) );
+            ret = -2;
+        }
+    }
+
+    if( ret == 0 )
+    {
+        peerConnectionFrame.version = PEER_CONNECTION_FRAME_CURRENT_VERSION;
+        peerConnectionFrame.presentationUs = pFrame->timestampUs;
+        peerConnectionFrame.pData = pFrame->pData;
+        peerConnectionFrame.dataLength = pFrame->size;
+        peerConnectionResult = PeerConnection_WriteFrame( &pDemoContext->peerConnectionContext,
+                                                          pTransceiver,
+                                                          &peerConnectionFrame );
+        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+        {
+            LogError( ( "Fail to write frame, result: %d", peerConnectionResult ) );
+            ret = -3;
+        }
+    }
+
+    return ret;
+}
+
+static int32_t InitializeAppMediaSource( DemoContext_t * pDemoContext )
+{
+    int32_t ret = 0;
+    PeerConnectionResult_t peerConnectionResult;
+    Transceiver_t * pTransceiver;
+
+    if( pDemoContext == NULL )
+    {
+        LogError( ( "Invalid input, pDemoContext: %p", pDemoContext ) );
+        ret = -1;
+    }
+
+    if( ret == 0 )
+    {
+        ret = AppMediaSource_Init( &pDemoContext->appMediaSourcesContext, OnMediaSinkHook, pDemoContext );
+    }
+
+    /* Add video transceiver */
+    if( ret == 0 )
+    {
+        ret = AppMediaSource_GetVideoTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
+        if( ret != 0 )
+        {
+            LogError( ( "Fail to get video transceiver." ) );
+        }
+        else
+        {
+            peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, pTransceiver );
+            if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+            {
+                LogError( ( "Fail to add video transceiver, result = %d.", peerConnectionResult ) );
+                ret = -1;
+            }
+        }
+    }
+
+    /* Add audio transceiver */
+    if( ret == 0 )
+    {
+        ret = AppMediaSource_GetAudioTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
+        if( ret != 0 )
+        {
+            LogError( ( "Fail to get audio transceiver." ) );
+        }
+        else
+        {
+            peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, pTransceiver );
+            if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+            {
+                LogError( ( "Fail to add audio transceiver, result = %d.", peerConnectionResult ) );
+                ret = -1;
+            }
+        }
+    }
+
+    return ret;
+}
+
 static int initializePeerConnection( DemoContext_t * pDemoContext )
 {
     int ret = 0;
@@ -260,54 +363,6 @@ static int initializePeerConnection( DemoContext_t * pDemoContext )
     {
         LogError( ( "Fail to initialize Peer Connection." ) );
         ret = -1;
-    }
-
-    return ret;
-}
-
-static int addTransceivers( DemoContext_t * pDemoContext )
-{
-    int ret = 0;
-    PeerConnectionResult_t peerConnectionResult;
-    Transceiver_t transceiver;
-
-    /* Add video transceiver. */
-    memset( &transceiver, 0, sizeof( Transceiver_t ) );
-    transceiver.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
-    transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
-    TRANSCEIVER_ENABLE_CODEC( transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT );
-    transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
-    transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE;
-    strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID, sizeof( transceiver.streamId ) );
-    transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
-    strncpy( transceiver.trackId, DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID, sizeof( transceiver.trackId ) );
-    transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID );
-    peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
-    if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
-    {
-        LogError( ( "Fail to add video transceiver, result = %d.", peerConnectionResult ) );
-        ret = -1;
-    }
-
-    if( ret == 0 )
-    {
-        /* Add audio transceiver. */
-        memset( &transceiver, 0, sizeof( Transceiver_t ) );
-        transceiver.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
-        transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
-        TRANSCEIVER_ENABLE_CODEC( transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT );
-        transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
-        transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_BIT_RATE;
-        strncpy( transceiver.streamId, DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID, sizeof( transceiver.streamId ) );
-        transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
-        strncpy( transceiver.trackId, DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID, sizeof( transceiver.trackId ) );
-        transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID );
-        peerConnectionResult = PeerConnection_AddTransceiver( &pDemoContext->peerConnectionContext, transceiver );
-        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
-        {
-            LogError( ( "Fail to add audio transceiver, result = %d.", peerConnectionResult ) );
-            ret = -1;
-        }
     }
 
     return ret;
@@ -404,7 +459,7 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEven
 
 static void Master_Task( void * pParameter )
 {
-    int ret = 0;
+    int32_t ret = 0;
     SignalingControllerResult_t signalingControllerReturn;
 
     ( void ) pParameter;
@@ -417,7 +472,7 @@ static void Master_Task( void * pParameter )
 
     if( ret == 0 )
     {
-        ret = addTransceivers( &demoContext );
+        ret = InitializeAppMediaSource( &demoContext );
     }
 
     if( ret == 0 )

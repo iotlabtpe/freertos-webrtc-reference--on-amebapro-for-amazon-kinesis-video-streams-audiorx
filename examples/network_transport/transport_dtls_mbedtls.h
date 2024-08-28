@@ -122,7 +122,7 @@ typedef struct
     // client random bytes + server random bytes
     uint8_t randBytes[2 * MAX_DTLS_RANDOM_BYTES_LEN];
     mbedtls_tls_prf_types tlsProfile;
-} TlsKeys, * pTlsKeys;
+} TlsKeys;
 
 
 
@@ -137,6 +137,7 @@ typedef struct DtlsSSLContext
     mbedtls_x509_crt rootCa;                 /**< @brief Root CA certificate context. */
     mbedtls_x509_crt clientCert;             /**< @brief Client certificate context. */
     mbedtls_pk_context privKey;              /**< @brief Client private key context. */
+    TlsKeys tlsKeys;                         /**< @brief Client private key context. */
     mbedtls_entropy_context entropyContext;  /**< @brief Entropy context for random number generation. */
     mbedtls_ctr_drbg_context ctrDrbgContext; /**< @brief CTR DRBG context for random number generation. */
 } DtlsSSLContext_t;
@@ -170,7 +171,7 @@ typedef struct DtlsTransportParams
 {
     Socket_t udpSocket;
     DtlsSSLContext_t dtlsSslContext;
-    DtlsSessionTimer_t * xSessionTimer;
+    DtlsSessionTimer_t xSessionTimer;
 } DtlsTransportParams_t;
 
 
@@ -223,10 +224,8 @@ typedef struct DtlsNetworkCredentials
 
     const uint8_t * pRootCa;     /**< @brief String representing a trusted server root certificate. */
     size_t rootCaSize;          /**< @brief Size associated with #NetworkCredentials.pRootCa. */
-    const uint8_t * pClientCert; /**< @brief String representing the client certificate. */
-    size_t clientCertSize;      /**< @brief Size associated with #NetworkCredentials.pClientCert. */
-    const uint8_t * pPrivateKey; /**< @brief String representing the client certificate's private key. */
-    size_t privateKeySize;      /**< @brief Size associated with #NetworkCredentials.pPrivateKey. */
+    mbedtls_x509_crt * pClientCert;             /**< @brief Client certificate context. */
+    mbedtls_pk_context * pPrivateKey;
 
     DtlsKeyingMaterial dtlsKeyingMaterial; /**< @brief derivated SRTP keys */
 } DtlsNetworkCredentials_t;
@@ -355,6 +354,7 @@ void dtls_mbedtls_string_printf( void * dtlsSslContext,
 #define DTLS_CERT_MIN_SERIAL_NUM_SIZE 8
 #define DTLS_CERT_MAX_SERIAL_NUM_SIZE 20
 #define GENERATED_CERTIFICATE_DAYS 365
+#define DTLS_SECONDS_IN_A_DAY ( 86400 )
 #define GENERATED_CERTIFICATE_NAME "KVS-WebRTC-Client"
 #define KEYING_EXTRACTOR_LABEL "EXTRACTOR-dtls_srtp"
 
@@ -377,29 +377,29 @@ void dtls_mbedtls_string_printf( void * dtlsSslContext,
 /// DTLS related status codes
 /////////////////////////////////////////////////////
 
-int32_t createCertificateAndKey( int32_t,
-                                 BaseType_t,
-                                 mbedtls_x509_crt *,
-                                 mbedtls_pk_context * );
+int32_t createCertificateAndKey( int32_t certificateBits,
+                                 BaseType_t generateRSACertificate,
+                                 mbedtls_x509_crt * pCert,
+                                 mbedtls_pk_context * pKey );
 
-int32_t freeCertificateAndKey( mbedtls_x509_crt *,
-                               mbedtls_pk_context * );
+int32_t freeCertificateAndKey( mbedtls_x509_crt * pCert,
+                               mbedtls_pk_context * pKey );
 
-int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt *,
-                                          char *,
-                                          const size_t );
+int32_t dtlsCreateCertificateFingerprint( const mbedtls_x509_crt * pCert,
+                                          char * pBuff,
+                                          const size_t bufLen );
 
-int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t *,
-                                                       char *,
-                                                       const size_t );
+int32_t dtlsSessionVerifyRemoteCertificateFingerprint( DtlsSSLContext_t * pSslContext,
+                                                       char * pExpectedFingerprint,
+                                                       const size_t fingerprintMaxLen );
 
-int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t *,
-                                           pDtlsKeyingMaterial_t );
+int32_t dtlsSessionPopulateKeyingMaterial( DtlsSSLContext_t * pSslContext,
+                                           pDtlsKeyingMaterial_t pDtlsKeyingMaterial );
 
-int32_t dtlsCertificateDemToPem( const unsigned char *,
-                                 size_t,
-                                 unsigned char *,
-                                 size_t,
-                                 size_t * );
+int32_t dtlsCertificateDemToPem( const unsigned char * der_data,
+                                 size_t der_len,
+                                 unsigned char * pem_buf,
+                                 size_t pem_buf_len,
+                                 size_t * olen );
 
 #endif /* ifndef TRANSPORT_DTLS_MBEDTLS_H */

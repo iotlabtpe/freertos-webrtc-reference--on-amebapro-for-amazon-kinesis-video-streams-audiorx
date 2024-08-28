@@ -190,6 +190,10 @@ typedef struct SdpControllerSdpOffer
     const char * pIcePwd;
     size_t icePwdLength;
     uint32_t twccExtId;
+    uint8_t isVideoCodecPayloadSet;
+    uint8_t isAudioCodecPayloadSet;
+    uint32_t videoCodecPayload;
+    uint32_t audioCodecPayload;
 } SdpControllerSdpDescription_t;
 
 typedef enum SdpControllerMessageType

@@ -11,6 +11,7 @@ extern "C" {
 #include "sdp_controller.h"
 #include "signaling_controller.h"
 #include "peer_connection.h"
+#include "app_media_source.h"
 
 #define DEMO_SDP_BUFFER_MAX_LENGTH ( 10000 )
 
@@ -34,6 +35,7 @@ typedef struct DemoContext
 
     /* Peer Connection. */
     PeerConnectionContext_t peerConnectionContext;
+    AppMediaSourcesContext_t appMediaSourcesContext;
 } DemoContext_t;
 
 #ifdef __cplusplus

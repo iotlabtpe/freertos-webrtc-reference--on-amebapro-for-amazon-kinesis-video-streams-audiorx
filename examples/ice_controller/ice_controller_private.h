@@ -24,13 +24,10 @@ IceControllerResult_t IceControllerNet_DnsLookUp( char * pUrl,
                                                   IceTransportAddress_t * pIceTransportAddress );
 IceControllerResult_t IceControllerNet_SendPacket( IceControllerSocketContext_t * pSocketContext,
                                                    IceEndpoint_t * pDestinationIceEndpoint,
-                                                   uint8_t * pBuffer,
+                                                   const uint8_t * pBuffer,
                                                    size_t length );
 void IceControllerNet_FreeSocketContext( IceControllerContext_t * pCtx,
                                          IceControllerSocketContext_t * pSocketContext );
-const char * IceControllerNet_LogIpAddressInfo( const IceEndpoint_t * pIceEndpoint,
-                                                char * pIpBuffer,
-                                                size_t ipBufferLength );
 void IceControllerNet_LogStunPacket( uint8_t * pStunPacket,
                                      size_t stunPacketSize );
 void IceController_PrintMetrics( IceControllerContext_t * pCtx );
@@ -40,6 +37,13 @@ IceControllerResult_t IceControllerSocketListener_Init( IceControllerContext_t *
                                                         void * pOnRecvRtpRtcpPacketCallbackContext );
 IceControllerResult_t IceControllerSocketListener_StartPolling( IceControllerContext_t * pCtx );
 IceControllerResult_t IceControllerSocketListener_StopPolling( IceControllerContext_t * pCtx );
+
+/* Debug utils. */
+#if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+    const char * IceControllerNet_LogIpAddressInfo( const IceEndpoint_t * pIceEndpoint,
+                                                    char * pIpBuffer,
+                                                    size_t ipBufferLength );
+#endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE  */
 
 #ifdef __cplusplus
 }
