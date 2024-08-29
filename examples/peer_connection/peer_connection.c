@@ -7,6 +7,7 @@
 #include "signaling_controller.h"
 #include "rtp_api.h"
 #include "rtcp_api.h"
+#include "peer_connection_rolling_buffer.h"
 
 #include "lwip/sockets.h"
 
@@ -936,8 +937,12 @@ PeerConnectionResult_t PeerConnection_Destroy( PeerConnectionContext_t * pCtx )
     {
         for( i = 0; i < AWS_MAX_VIEWER_NUM; i++ )
         {
-            /* Deinitialize Ice Controller. */
-            ret = DestroyIceController( &pCtx->peerConnectionSessions[i] );
+            /* Free the sender for this session. */
+            ( void ) DestroyIceController( &pCtx->peerConnectionSessions[i] );
+            vSemaphoreDelete( pCtx->peerConnectionSessions[i].videoSrtpSender.senderMutex );
+            vSemaphoreDelete( pCtx->peerConnectionSessions[i].audioSrtpSender.senderMutex );
+            ( void ) PeerConnectionRollingBuffer_Free( &pCtx->peerConnectionSessions[i].videoSrtpSender.txRollingBuffer );
+            ( void ) PeerConnectionRollingBuffer_Free( &pCtx->peerConnectionSessions[i].audioSrtpSender.txRollingBuffer );
         }
     }
 

@@ -658,6 +658,11 @@ IceControllerResult_t IceController_Destroy( IceControllerContext_t * pCtx )
         }
     }
 
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        vSemaphoreDelete( pCtx->socketMutex );
+    }
+
     return ret;
 }
 
