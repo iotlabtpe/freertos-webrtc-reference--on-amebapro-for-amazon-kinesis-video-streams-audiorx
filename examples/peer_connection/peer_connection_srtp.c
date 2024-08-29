@@ -10,6 +10,21 @@
 #include "h264_packetizer.h"
 #include "ice_controller.h"
 
+/* At write frame, we reserve 2 bytes at the beginning of payload buffer for re-transmission if RTX is enabled. */
+/* The format of a retransmission packet is shown below:
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ |                         RTP Header                            |
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ |            OSN                |                               |
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               |
+ |                  Original RTP Packet Payload                  |
+ |                                                               |
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ */
+#define PEER_CONNECTION_SRTP_RTX_WRITE_RESERVED_BYTES ( 2 )
+
 #define PEER_CONNECTION_SRTP_H264_MAX_NALUS_IN_A_FRAME        ( 64 )
 #define PEER_CONNECTION_SRTP_RTP_PAYLOAD_MAX_LENGTH      ( 1200 )
 
@@ -157,6 +172,7 @@ static PeerConnectionResult_t ResendSrtpPacket( PeerConnectionSession_t * pSessi
     size_t srtpPacketLength = 0;
     uint32_t payloadType;
     uint16_t * pRtpSeq = NULL;
+    uint16_t * pOsn = NULL;
 
     if( ( pSession == NULL ) || ( pTransceiver == NULL ) )
     {
@@ -213,8 +229,18 @@ static PeerConnectionResult_t ResendSrtpPacket( PeerConnectionSession_t * pSessi
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
         if( bufferAfterEncrypt == 0 )
         {
+            /* Follow RTX format to add OSN(original RTP sequence number) at the very beginning of payload.
+             * Note that we reserve PEER_CONNECTION_SRTP_RTX_WRITE_RESERVED_BYTES at the beginning of buffer at write frame. */
+            pOsn = ( uint16_t * ) pRollingBufferPacket->pPacketBuffer;
+            *pOsn = htons( rtpSeq );
+            pRollingBufferPacket->packetBufferLength += 2;
+
             pSrtpPacket = srtpBuffer;
             srtpPacketLength = PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH;
             ret = ConstructSrtpPacket( pSession,
@@ -244,12 +270,12 @@ static PeerConnectionResult_t ResendSrtpPacket( PeerConnectionSession_t * pSessi
                                                               srtpPacketLength );
         if( resultIceController != ICE_CONTROLLER_RESULT_OK )
         {
-            LogWarn( ( "Fail to re-send RTP packet, ret: %d, seq: %u, SSRC: 0x%lx", resultIceController, rtpSeq - 1, ssrc ) );
+            LogWarn( ( "Fail to re-send RTP packet, ret: %d, seq: %u, SSRC: 0x%lx", resultIceController, rtpSeq, ssrc ) );
             ret = PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_RESEND_RTP_PACKET;
         }
         else
         {
-            LogDebug( ( "Re-send RTP successfully, RTP seq: %u, SSRC: 0x%lx", rtpSeq - 1, ssrc ) );
+            LogDebug( ( "Re-send RTP successfully, RTP seq: %u, SSRC: 0x%lx", rtpSeq, ssrc ) );
         }
     }
 
@@ -576,8 +602,8 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionSession_
         /* Get each NALU payload then serialize SRTP packet. */
         if( bufferAfterEncrypt == 0 )
         {
-            packetH264.pPacketData = pRollingBufferPacket->pPacketBuffer;
-            packetH264.packetDataLength = pRollingBufferPacket->packetBufferLength;
+            packetH264.pPacketData = pRollingBufferPacket->pPacketBuffer + PEER_CONNECTION_SRTP_RTX_WRITE_RESERVED_BYTES;
+            packetH264.packetDataLength = pRollingBufferPacket->packetBufferLength - PEER_CONNECTION_SRTP_RTX_WRITE_RESERVED_BYTES;
 
             /* Using local buffer for SRTP packet, use the entire packet length. */
             pSrtpPacket = rtpBuffer;
