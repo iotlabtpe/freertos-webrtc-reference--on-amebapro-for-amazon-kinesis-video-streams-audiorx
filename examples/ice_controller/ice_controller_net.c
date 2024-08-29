@@ -704,7 +704,6 @@ static const char * convertStunMsgTypeToString( uint16_t stunMsgType )
 
     return ret;
 }
-#endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
 
 void IceControllerNet_LogStunPacket( uint8_t * pStunPacket,
                                      size_t stunPacketSize )
