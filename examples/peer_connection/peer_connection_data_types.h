@@ -79,6 +79,17 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_UNKNOWN_SSRC,
 } PeerConnectionResult_t;
 
+typedef struct PeerConnectionFrame
+{
+    uint32_t version;
+    uint8_t * pData;
+    size_t dataLength;
+    uint64_t presentationUs;
+} PeerConnectionFrame_t;
+
+typedef PeerConnectionResult_t (* OnFrameReadyCallback_t)( void * pCustomContext,
+                                                           PeerConnectionFrame_t * pFrame );
+
 typedef struct PeerConnectionRollingBufferPacket
 {
     RtpPacket_t rtpPacket;
@@ -92,14 +103,6 @@ typedef struct PeerConnectionRollingBuffer
     size_t maxSizePerPacket;
     size_t capacity; /* Buffer duration * highest expected bitrate (in bps) / 8 / maxPacketSize. */
 } PeerConnectionRollingBuffer_t;
-
-typedef struct PeerConnectionFrame
-{
-    uint32_t version;
-    uint8_t * pData;
-    size_t dataLength;
-    uint64_t presentationUs;
-} PeerConnectionFrame_t;
 
 typedef struct PeerConnectionRemoteInfo
 {
@@ -177,12 +180,21 @@ typedef struct PeerConnectionRtpConfig
 
 typedef struct PeerConnectionSrtpSender
 {
-    /* RTP Tx Rolling buffer. */
+    /* RTP Tx rolling buffer. */
     PeerConnectionRollingBuffer_t txRollingBuffer;
 
     /* Mutex to protect sender info like rolling buffer. */
     SemaphoreHandle_t senderMutex;
 } PeerConnectionSrtpSender_t;
+
+typedef struct PeerConnectionSrtpReceiver
+{
+    /* RTP Rx jitter buffer. */
+    PeerConnectionRollingBuffer_t rxJitterBuffer;
+
+    OnFrameReadyCallback_t onFrameReadyCallbackFunc;
+    void * pOnFrameReadyCallbackCustomContext;
+} PeerConnectionSrtpReceiver_t;
 
 typedef struct PeerConnectionContext PeerConnectionContext_t;
 
@@ -223,6 +235,8 @@ typedef struct PeerConnectionSession
 
     PeerConnectionSrtpSender_t videoSrtpSender;
     PeerConnectionSrtpSender_t audioSrtpSender;
+    PeerConnectionSrtpReceiver_t videoSrtpReceiver;
+    PeerConnectionSrtpReceiver_t audioSrtpReceiver;
 
     /* Pointer that points to peer connection context. */
     PeerConnectionContext_t * pCtx;

@@ -24,6 +24,16 @@ PeerConnectionResult_t PeerConnection_MatchTransceiverBySsrc( PeerConnectionCont
 PeerConnectionResult_t PeerConnection_SetLocalDescription( PeerConnectionContext_t * pCtx );
 PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContext_t * pCtx,
                                                             const PeerConnectionRemoteInfo_t * pRemoteInfo );
+PeerConnectionResult_t PeerConnection_SetVideoOnFrame( PeerConnectionContext_t * pCtx,
+                                                       const char * pRemoteClientId,
+                                                       size_t remoteClientIdLength,
+                                                       OnFrameReadyCallback_t onFrameReadyCallbackFunc,
+                                                       void * pOnFrameReadyCallbackCustomContext );
+PeerConnectionResult_t PeerConnection_SetAudioOnFrame( PeerConnectionContext_t * pCtx,
+                                                       const char * pRemoteClientId,
+                                                       size_t remoteClientIdLength,
+                                                       OnFrameReadyCallback_t onFrameReadyCallbackFunc,
+                                                       void * pOnFrameReadyCallbackCustomContext );
 PeerConnectionResult_t PeerConnection_AddRemoteCandidate( PeerConnectionContext_t * pCtx,
                                                           const char * pRemoteClientId,
                                                           size_t remoteClientIdLength,
