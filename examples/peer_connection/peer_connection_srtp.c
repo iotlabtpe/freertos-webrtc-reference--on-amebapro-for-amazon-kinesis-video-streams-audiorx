@@ -628,6 +628,13 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionSession_
                                                          pRollingBufferPacket );
         }
 
+        if( ( ret != PEER_CONNECTION_RESULT_OK ) && ( pRollingBufferPacket != NULL ) )
+        {
+            /* If any failure, release the allocated RTP buffer. */
+            PeerConnectionRollingBuffer_DiscardRtpSequenceBuffer( &pSrtpSender->txRollingBuffer,
+                                                                  pRollingBufferPacket );
+        }
+
         /* Write the constructed RTP packets through network. */
         if( ret == PEER_CONNECTION_RESULT_OK )
         {
@@ -639,13 +646,6 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionSession_
                 LogWarn( ( "Fail to send RTP packet, ret: %d", resultIceController ) );
                 ret = PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_RTP_PACKET;
             }
-        }
-
-        if( ( ret != PEER_CONNECTION_RESULT_OK ) && ( pRollingBufferPacket != NULL ) )
-        {
-            /* If any failure, release the allocated RTP buffer. */
-            PeerConnectionRollingBuffer_DiscardRtpSequenceBuffer( &pSrtpSender->txRollingBuffer,
-                                                                  pRollingBufferPacket );
         }
     }
 
