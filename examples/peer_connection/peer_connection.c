@@ -6,6 +6,7 @@
 #include "peer_connection_srtp.h"
 #include "signaling_controller.h"
 #include "rtp_api.h"
+#include "rtcp_api.h"
 
 #include "lwip/sockets.h"
 
@@ -598,11 +599,16 @@ static int32_t HandleRtpRtcpPackets( void * pCustomContext,
         {
             /* RTCP packet */
             LogInfo( ( "Receiving RTCP packets with length %u", bufferLength ) );
+            resultPeerConnection = PeerConnectionSrtp_HandleSrtcpPacket( pSession, pBuffer, bufferLength );
+            if( resultPeerConnection != PEER_CONNECTION_RESULT_OK )
+            {
+                LogWarn( ( "Failed to handle SRTCP packets, result: %d", resultPeerConnection ) );
+                ret = -2;
+            }
         }
         else
         {
             /* RTP packet */
-            LogInfo( ( "Receiving RTP packets with length %u", bufferLength ) );
             resultPeerConnection = PeerConnectionSrtp_HandleSrtpPacket( pSession, pBuffer, bufferLength );
             if( resultPeerConnection != PEER_CONNECTION_RESULT_OK )
             {
@@ -946,6 +952,7 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
     PeerConnectionSession_t * pSession = NULL;
     IceControllerResult_t iceControllerResult;
     RtpResult_t resultRtp;
+    RtcpResult_t resultRtcp;
 
     if( ( pCtx == NULL ) || ( pRemoteInfo == NULL ) ||
         ( pRemoteInfo->pRemoteClientId == NULL ) ||
@@ -1049,6 +1056,16 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
+        resultRtcp = Rtcp_Init( &pCtx->rtcpContext );
+        if( resultRtcp != RTCP_RESULT_OK )
+        {
+            LogError( ( "Fail to initialize RTCP context, result: %d", resultRtcp ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_RTCP_INIT;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
         if( pRemoteInfo->isVideoCodecPayloadSet )
         {
             pSession->rtpConfig.isVideoCodecPayloadSet = 1;
@@ -1062,6 +1079,12 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
             pSession->rtpConfig.audioCodecPayload = pRemoteInfo->audioCodecPayload;
             pSession->rtpConfig.audioSequenceNumber = 0U;
         }
+
+        pSession->rtpConfig.videoCodecRtxPayload = pRemoteInfo->videoCodecRtxPayload;
+        pSession->rtpConfig.videoRtxSequenceNumber = 0U;
+        pSession->rtpConfig.audioCodecRtxPayload = pRemoteInfo->audioCodecRtxPayload;
+        pSession->rtpConfig.audioRtxSequenceNumber = 0U;
+        pSession->rtpConfig.twccId = pRemoteInfo->twccId;
 
         pSession->state = PEER_CONNECTION_SESSION_STATE_START;
     }
@@ -1129,6 +1152,41 @@ PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t * 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
         ret = AllocateTransceiver( pCtx, pTransceiver );
+    }
+
+    return ret;
+}
+
+PeerConnectionResult_t PeerConnection_MatchTransceiverBySsrc( PeerConnectionContext_t * pCtx,
+                                                              uint32_t ssrc,
+                                                              const Transceiver_t ** ppTransceiver )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    int i;
+
+    if( ( pCtx == NULL ) || ( ppTransceiver == NULL ) )
+    {
+        LogError( ( "Invalid input, pCtx: %p, ppTransceiver: %p", pCtx, ppTransceiver ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        *ppTransceiver = NULL;
+        for( i = 0; i < pCtx->transceiverCount; i++ )
+        {
+            if( ssrc == pCtx->pTransceivers[i]->ssrc )
+            {
+                *ppTransceiver = pCtx->pTransceivers[i];
+                break;
+            }
+        }
+
+        if( i == pCtx->transceiverCount )
+        {
+            LogWarn( ( "No transceiver for SSRC: %lu", ssrc ) );
+            ret = PEER_CONNECTION_RESULT_UNKNOWN_SSRC;
+        }
     }
 
     return ret;
@@ -1282,6 +1340,7 @@ PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionContext_t * pCtx
                                                   const PeerConnectionFrame_t * pFrame )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    int i;
 
     if( ( pCtx == NULL ) ||
         ( pTransceiver == NULL ) ||
@@ -1295,35 +1354,43 @@ PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionContext_t * pCtx
     /* Encode the frame into multiple payload buffers (>=1). */
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) )
+        for( i = 0; i < AWS_MAX_VIEWER_NUM; i++ )
         {
-            ret = PeerConnectionSrtp_WriteH264Frame( pCtx, pTransceiver, pFrame );
-        }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT ) )
-        {
+            if( pCtx->peerConnectionSessions[i].state < PEER_CONNECTION_SESSION_STATE_CONNECTION_READY )
+            {
+                continue;
+            }
 
-        }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_VP8_BIT ) )
-        {
+            if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) )
+            {
+                ret = PeerConnectionSrtp_WriteH264Frame( &pCtx->peerConnectionSessions[i], pTransceiver, pFrame );
+            }
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT ) )
+            {
 
-        }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT ) )
-        {
+            }
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_VP8_BIT ) )
+            {
 
-        }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_ALAW_BIT ) )
-        {
+            }
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT ) )
+            {
 
-        }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H265_BIT ) )
-        {
+            }
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_ALAW_BIT ) )
+            {
 
-        }
-        else
-        {
-            /* TODO: Unknown, no matching codec. */
-            LogError( ( "Codec is not supported, codec bit map: 0x%x", ( int ) pTransceiver->codecBitMap ) );
-            ret = PEER_CONNECTION_RESULT_UNKNOWN_TX_CODEC;
+            }
+            else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H265_BIT ) )
+            {
+
+            }
+            else
+            {
+                /* TODO: Unknown, no matching codec. */
+                LogError( ( "Codec is not supported, codec bit map: 0x%x", ( int ) pTransceiver->codecBitMap ) );
+                ret = PEER_CONNECTION_RESULT_UNKNOWN_TX_CODEC;
+            }
         }
     }
 

@@ -18,6 +18,9 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t * pCtx,
 PeerConnectionResult_t PeerConnection_Destroy( PeerConnectionContext_t * pCtx );
 PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t * pCtx,
                                                       Transceiver_t * pTransceiver );
+PeerConnectionResult_t PeerConnection_MatchTransceiverBySsrc( PeerConnectionContext_t * pCtx,
+                                                              uint32_t ssrc,
+                                                              const Transceiver_t ** ppTransceiver );
 PeerConnectionResult_t PeerConnection_SetLocalDescription( PeerConnectionContext_t * pCtx );
 PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContext_t * pCtx,
                                                             const PeerConnectionRemoteInfo_t * pRemoteInfo );
@@ -41,7 +44,7 @@ PeerConnectionResult_t PeerConnection_CloseSession( PeerConnectionContext_t * pC
                                                     size_t remoteClientIdLength );
 PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionContext_t * pCtx,
                                                   Transceiver_t * pTransceiver,
-                                                  const PeerConnectionFrame_t * pFrame );;
+                                                  const PeerConnectionFrame_t * pFrame );
 
 #ifdef __cplusplus
 }

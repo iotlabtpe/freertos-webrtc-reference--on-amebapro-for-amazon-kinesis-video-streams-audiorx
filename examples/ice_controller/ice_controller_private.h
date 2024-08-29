@@ -40,9 +40,9 @@ IceControllerResult_t IceControllerSocketListener_StopPolling( IceControllerCont
 
 /* Debug utils. */
 #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
-    const char * IceControllerNet_LogIpAddressInfo( const IceEndpoint_t * pIceEndpoint,
-                                                    char * pIpBuffer,
-                                                    size_t ipBufferLength );
+const char * IceControllerNet_LogIpAddressInfo( const IceEndpoint_t * pIceEndpoint,
+                                                char * pIpBuffer,
+                                                size_t ipBufferLength );
 #endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE  */
 
 #ifdef __cplusplus

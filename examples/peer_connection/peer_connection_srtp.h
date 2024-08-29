@@ -12,16 +12,18 @@ extern "C" {
 
 #include "peer_connection_data_types.h"
 
+#define PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH      ( 1400 )
+
 PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSession );
-PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionContext_t * pCtx,
+PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionSession_t * pSession,
                                                           Transceiver_t * pTransceiver,
                                                           const PeerConnectionFrame_t * pFrame );
-// PeerConnectionResult_t PeerConnectionSrtp_EncryptRtpPacket( PeerConnectionSession_t * pSession );
-// PeerConnectionResult_t PeerConnectionSrtp_EncryptRtcpPacket( PeerConnectionSession_t * pSession );
 PeerConnectionResult_t PeerConnectionSrtp_HandleSrtpPacket( PeerConnectionSession_t * pSession,
                                                             uint8_t * pBuffer,
                                                             size_t bufferLength );
-// PeerConnectionResult_t PeerConnectionSrtp_DecryptRtcpPacket( PeerConnectionSession_t * pSession );
+PeerConnectionResult_t PeerConnectionSrtp_HandleSrtcpPacket( PeerConnectionSession_t * pSession,
+                                                             uint8_t * pBuffer,
+                                                             size_t bufferLength );
 
 #ifdef __cplusplus
 }

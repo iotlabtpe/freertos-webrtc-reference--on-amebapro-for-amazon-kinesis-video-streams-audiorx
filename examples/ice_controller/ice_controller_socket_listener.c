@@ -177,6 +177,9 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
                                                      &remoteIceEndpoint );
             if( ( ret == ICE_CONTROLLER_RESULT_FOUND_CONNECTION ) && ( pCtx->pNominatedSocketContext->state != ICE_CONTROLLER_SOCKET_CONTEXT_STATE_PASS_HANDSHAKE ) )
             {
+                /* Set state to pass handshake in ReleaseOtherSockets. */
+                ReleaseOtherSockets( pCtx, pSocketContext );
+
                 /* Found nominated pair, execute DTLS handshake and release all other resources. */
                 if( onIceEventCallbackFunc )
                 {
@@ -193,8 +196,6 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
                 {
                     LogWarn( ( "No callback function to handle P2P connection found event." ) );
                 }
-                /* Set state to pass handshake in ReleaseOtherSockets. */
-                ReleaseOtherSockets( pCtx, pSocketContext );
                 LogDebug( ( "Released all other socket contexts" ) );
             }
             else if( ret != ICE_CONTROLLER_RESULT_OK )

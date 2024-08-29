@@ -21,6 +21,8 @@ extern "C" {
 
 #include "srtp.h"
 #include "rtp_data_types.h"
+#include "rtp_pkt_queue.h"
+#include "rtcp_data_types.h"
 
 #define PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ( 2 )
 #define PEER_CONNECTION_USER_NAME_LENGTH ( 4 )
@@ -46,6 +48,7 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_DESERIALIZE_CANDIDATE,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_REMOTE_CANDIDATE,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_RTP_PACKET,
+    PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_RESEND_RTP_PACKET,
     PEER_CONNECTION_RESULT_FAIL_CREATE_CERT_AND_KEY,
     PEER_CONNECTION_RESULT_FAIL_CREATE_CERT_FINGERPRINT,
     PEER_CONNECTION_RESULT_FAIL_WRITE_KEY_PEM,
@@ -57,12 +60,38 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_FAIL_DECRYPT_SRTP_RTP_PACKET,
     PEER_CONNECTION_RESULT_FAIL_RTP_INIT,
     PEER_CONNECTION_RESULT_FAIL_RTP_SERIALIZE,
+    PEER_CONNECTION_RESULT_FAIL_RTCP_INIT,
+    PEER_CONNECTION_RESULT_FAIL_RTCP_DESERIALIZE,
+    PEER_CONNECTION_RESULT_FAIL_RTCP_PARSE_NACK,
+    PEER_CONNECTION_RESULT_FAIL_CREATE_SENDER_MUTEX,
+    PEER_CONNECTION_RESULT_FAIL_TAKE_SENDER_MUTEX,
+    PEER_CONNECTION_RESULT_FAIL_ROLLING_BUFFER_SEQ_NOT_FOUND,
+    PEER_CONNECTION_RESULT_FAIL_ROLLING_BUFFER_NO_ENOUGH_MEMORY,
+    PEER_CONNECTION_RESULT_FAIL_PACKET_INFO_NO_ENOUGH_MEMORY,
+    PEER_CONNECTION_RESULT_FAIL_RTP_PACKET_QUEUE_INIT,
+    PEER_CONNECTION_RESULT_FAIL_RTP_PACKET_QUEUE_RETRIEVE,
+    PEER_CONNECTION_RESULT_FAIL_RTP_PACKET_ENQUEUE,
     PEER_CONNECTION_RESULT_FAIL_PACKETIZER_INIT,
     PEER_CONNECTION_RESULT_FAIL_PACKETIZER_ADD_FRAME,
     PEER_CONNECTION_RESULT_FAIL_PACKETIZER_GET_PACKET,
     PEER_CONNECTION_RESULT_UNKNOWN_SRTP_PROFILE,
     PEER_CONNECTION_RESULT_UNKNOWN_TX_CODEC,
+    PEER_CONNECTION_RESULT_UNKNOWN_SSRC,
 } PeerConnectionResult_t;
+
+typedef struct PeerConnectionRollingBufferPacket
+{
+    RtpPacket_t rtpPacket;
+    uint8_t * pPacketBuffer;
+    size_t packetBufferLength;
+} PeerConnectionRollingBufferPacket_t;
+
+typedef struct PeerConnectionRollingBuffer
+{
+    RtpPacketQueue_t packetQueue;
+    size_t maxSizePerPacket;
+    size_t capacity; /* Buffer duration * highest expected bitrate (in bps) / 8 / maxPacketSize. */
+} PeerConnectionRollingBuffer_t;
 
 typedef struct PeerConnectionFrame
 {
@@ -86,6 +115,11 @@ typedef struct PeerConnectionRemoteInfo
     uint8_t isAudioCodecPayloadSet;
     uint32_t videoCodecPayload;
     uint32_t audioCodecPayload;
+    uint8_t isVideoCodecRtxPayloadSet;
+    uint8_t isAudioCodecRtxPayloadSet;
+    uint32_t videoCodecRtxPayload;
+    uint32_t audioCodecRtxPayload;
+    uint16_t twccId;
 } PeerConnectionRemoteInfo_t;
 
 typedef struct PeerConnectionUserInfo
@@ -132,7 +166,23 @@ typedef struct PeerConnectionRtpConfig
     uint16_t audioSequenceNumber;
     uint32_t videoCodecPayload;
     uint32_t audioCodecPayload;
+    uint32_t videoCodecRtxPayload;
+    uint32_t audioCodecRtxPayload;
+    uint16_t videoRtxSequenceNumber;
+    uint16_t audioRtxSequenceNumber;
+
+    uint16_t twccId;
+    uint16_t twccSequence;
 } PeerConnectionRtpConfig_t;
+
+typedef struct PeerConnectionSrtpSender
+{
+    /* RTP Tx Rolling buffer. */
+    PeerConnectionRollingBuffer_t txRollingBuffer;
+
+    /* Mutex to protect sender info like rolling buffer. */
+    SemaphoreHandle_t senderMutex;
+} PeerConnectionSrtpSender_t;
 
 typedef struct PeerConnectionContext PeerConnectionContext_t;
 
@@ -171,6 +221,9 @@ typedef struct PeerConnectionSession
     /* RTP config. */
     PeerConnectionRtpConfig_t rtpConfig;
 
+    PeerConnectionSrtpSender_t videoSrtpSender;
+    PeerConnectionSrtpSender_t audioSrtpSender;
+
     /* Pointer that points to peer connection context. */
     PeerConnectionContext_t * pCtx;
 } PeerConnectionSession_t;
@@ -196,6 +249,7 @@ typedef struct PeerConnectionContext
     /* DTLS cert/key/fingerprint. */
     PeerConnectionDtlsContext_t dtlsContext;
     RtpContext_t rtpContext;
+    RtcpContext_t rtcpContext;
 
     PeerConnectionSession_t peerConnectionSessions[ AWS_MAX_VIEWER_NUM ];
 } PeerConnectionContext_t;

@@ -136,6 +136,25 @@ typedef struct SdpControllerMediaDescription
     uint8_t mediaAttributesCount;
 } SdpControllerMediaDescription_t;
 
+typedef struct SdpControllerQuickAccess
+{
+    const char * pFingerprint;
+    size_t fingerprintLength;
+    SdpControllerDtlsRole_t dtlsRole;
+    uint8_t isIceTrickle;
+    const char * pIceUfrag;
+    size_t iceUfragLength;
+    const char * pIcePwd;
+    size_t icePwdLength;
+    uint32_t twccExtId;
+    uint8_t isVideoCodecPayloadSet;
+    uint8_t isAudioCodecPayloadSet;
+    uint32_t videoCodecPayload;
+    uint32_t audioCodecPayload;
+    uint32_t videoCodecRtxPayload;
+    uint32_t audioCodecRtxPayload;
+} SdpControllerQuickAccess_t;
+
 typedef struct SdpControllerSdpOffer
 {
     // https://tools.ietf.org/html/rfc4566#section-5.1
@@ -180,20 +199,8 @@ typedef struct SdpControllerSdpOffer
 
     uint16_t mediaCount;
 
-    /* Below is extra info to accerlate SDP creation. */
-    const char * pFingerprint;
-    size_t fingerprintLength;
-    SdpControllerDtlsRole_t dtlsRole;
-    uint8_t isIceTrickle;
-    const char * pIceUfrag;
-    size_t iceUfragLength;
-    const char * pIcePwd;
-    size_t icePwdLength;
-    uint32_t twccExtId;
-    uint8_t isVideoCodecPayloadSet;
-    uint8_t isAudioCodecPayloadSet;
-    uint32_t videoCodecPayload;
-    uint32_t audioCodecPayload;
+    /* Below is extra info to accerlate SDP creation and provide some info for peer connection creation. */
+    SdpControllerQuickAccess_t quickAccess;
 } SdpControllerSdpDescription_t;
 
 typedef enum SdpControllerMessageType

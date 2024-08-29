@@ -1,15 +1,32 @@
 #include <stdlib.h>
 #include "logging.h"
 #include "peer_connection.h"
+#include "peer_connection_srtp.h"
+#include "peer_connection_rolling_buffer.h"
 
 /* API includes. */
 #include "rtp_api.h"
+#include "rtcp_api.h"
 #include "h264_packetizer.h"
 #include "ice_controller.h"
 
-#define PEER_CONNECTION_SRTP_H264_MAX_NALUS_IN_A_FRAME        64
-#define PEER_CONNECTION_SRTP_RTP_PAYLOAD_MAX_LENGTH      1200
-#define PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH      1400
+/* At write frame, we reserve 2 bytes at the beginning of payload buffer for re-transmission if RTX is enabled. */
+/* The format of a retransmission packet is shown below:
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ |                         RTP Header                            |
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ |            OSN                |                               |
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               |
+ |                  Original RTP Packet Payload                  |
+ |                                                               |
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ */
+#define PEER_CONNECTION_SRTP_RTX_WRITE_RESERVED_BYTES ( 2 )
+
+#define PEER_CONNECTION_SRTP_H264_MAX_NALUS_IN_A_FRAME        ( 64 )
+#define PEER_CONNECTION_SRTP_RTP_PAYLOAD_MAX_LENGTH      ( 1200 )
 
 #define PEER_CONNECTION_SRTP_VIDEO_CLOCKRATE ( uint32_t ) 90000
 #define PEER_CONNECTION_SRTP_OPUS_CLOCKRATE  ( uint32_t ) 48000
@@ -18,129 +35,268 @@
 #define PEER_CONNECTION_SRTP_US_IN_A_SECOND ( 1000000 )
 #define PEER_CONNECTION_SRTP_CONVERT_TIME_US_TO_RTP_TIMESTAMP( clockRate, presentationUs ) ( uint32_t )( ( ( ( presentationUs ) * ( clockRate ) ) / PEER_CONNECTION_SRTP_US_IN_A_SECOND ) & 0xFFFFFFFF )
 
-static PeerConnectionResult_t ConstructRtpAndSendSessions( PeerConnectionContext_t * pCtx,
-                                                           Transceiver_t * pTransceiver,
-                                                           uint8_t * pBuffer,
-                                                           size_t bufferLength,
-                                                           uint8_t isLastPacket,
-                                                           uint32_t rtpTimestamp )
+/*
+ *
+     0                   1                   2                   3
+      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ |       0xBE    |    0xDE       |           length=1            |
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ |  ID   | L=1   |transport-wide sequence number | zero padding  |
+ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ */
+// https://tools.ietf.org/html/draft-holmer-rmcat-transport-wide-cc-extensions-01
+#define PEER_CONNECTION_SRTP_TWCC_EXT_PROFILE ( 0xBEDE )
+#define PEER_CONNECTION_SRTP_GET_TWCC_PAYLOAD( extId, sequenceNum ) ( ( ( ( extId ) & 0xfu ) << 28u ) | ( 1u << 24u ) | ( ( uint32_t ) ( sequenceNum ) << 8u ) )
+
+#define PEER_CONNECTION_SRTCP_NACK_MAX_SEQ_NUM ( 128 )
+
+static PeerConnectionResult_t ConstructSrtpPacket( PeerConnectionSession_t * pSession,
+                                                   RtpPacket_t * pPacketRtp,
+                                                   uint8_t * pOutputSrtpPacket,
+                                                   size_t * pOutputSrtpPacketLength )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     RtpResult_t resultRtp;
-    RtpPacket_t packetRtp;
-    int i;
-    PeerConnectionSession_t * pSession = NULL;
-    uint8_t rtpBuffer[ PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH ];
     size_t rtpBufferLength;
-    size_t srtpBufferLength;
-    IceControllerResult_t resultIceController;
     srtp_err_status_t errorStatus;
 
-    if( ( pCtx == NULL ) ||
-        ( pBuffer == NULL ) ||
-        ( pTransceiver == NULL ) )
+    if( ( pSession == NULL ) ||
+        ( pPacketRtp == NULL ) ||
+        ( pOutputSrtpPacket == NULL ) ||
+        ( pOutputSrtpPacketLength == NULL ) )
     {
-        LogError( ( "Invalid input, pCtx: %p, pBuffer: %p, pTransceiver: %p", pCtx, pBuffer, pTransceiver ) );
+        LogError( ( "Invalid input, pSession: %p, pPacketRtp: %p, pOutputSrtpPacket: %p, pOutputSrtpPacketLength: %p",
+                    pSession,
+                    pPacketRtp,
+                    pOutputSrtpPacket,
+                    pOutputSrtpPacketLength ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    /* Get buffer from sender for serializing RTP packet */
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        rtpBufferLength = *pOutputSrtpPacketLength;
     }
 
     /* Contruct RTP packet for each payload buffer. */
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        // LogDebug( ( "Serializing RTP packet with size: %u, rtpTimestamp: %lu", bufferLength, rtpTimestamp ) );
-        for( i = 0; i < AWS_MAX_VIEWER_NUM; i++ )
+        resultRtp = Rtp_Serialize( &pSession->pCtx->rtpContext,
+                                   pPacketRtp,
+                                   pOutputSrtpPacket,
+                                   &rtpBufferLength );
+        if( resultRtp != RTP_RESULT_OK )
         {
-            if( pCtx->peerConnectionSessions[i].state < PEER_CONNECTION_SESSION_STATE_CONNECTION_READY )
+            LogError( ( "Fail to serialize RTP packet, result: %d", resultRtp ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_RTP_SERIALIZE;
+        }
+    }
+
+    /* Encrypt it by SRTP. */
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        errorStatus = srtp_protect( pSession->srtpTransmitSession, pOutputSrtpPacket, rtpBufferLength, pOutputSrtpPacket, pOutputSrtpPacketLength, 0 );
+        if( errorStatus != srtp_err_status_ok )
+        {
+            LogError( ( "Fail to encrypt Tx SRTP packet, errorStatus: %d", errorStatus ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_ENCRYPT_SRTP_RTP_PACKET;
+        }
+    }
+
+    return ret;
+}
+
+static PeerConnectionResult_t ResendSrtpPacket( PeerConnectionSession_t * pSession,
+                                                const Transceiver_t * pTransceiver,
+                                                uint16_t rtpSeq,
+                                                uint32_t ssrc )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    PeerConnectionSrtpSender_t * pSrtpSender = NULL;
+    uint8_t isLocked = 0;
+    PeerConnectionRollingBufferPacket_t * pRollingBufferPacket = NULL;
+    IceControllerResult_t resultIceController;
+    uint8_t bufferAfterEncrypt = 1;
+    uint8_t srtpBuffer[ PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH ];
+    uint8_t * pSrtpPacket = NULL;
+    size_t srtpPacketLength = 0;
+    uint32_t payloadType;
+    uint16_t * pRtpSeq = NULL;
+    uint16_t * pOsn = NULL;
+
+    if( ( pSession == NULL ) || ( pTransceiver == NULL ) )
+    {
+        LogError( ( "Invalid input, pSession: %p, pTransceiver: %p", pSession, pTransceiver ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        pRtpSeq = &rtpSeq;
+        if( pTransceiver->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
+        {
+            pSrtpSender = &pSession->videoSrtpSender;
+            payloadType = pSession->rtpConfig.videoCodecPayload;
+            if( ( pSession->rtpConfig.videoCodecRtxPayload != 0 ) &&
+                ( pSession->rtpConfig.videoCodecRtxPayload != pSession->rtpConfig.videoCodecPayload ) )
             {
-                continue;
+                bufferAfterEncrypt = 0;
+                payloadType = pSession->rtpConfig.videoCodecRtxPayload;
+                pRtpSeq = &pSession->rtpConfig.videoRtxSequenceNumber;
             }
-
-            pSession = &pCtx->peerConnectionSessions[i];
-            memset( &packetRtp, 0, sizeof( packetRtp ) );
-            if( isLastPacket )
+        }
+        else
+        {
+            pSrtpSender = &pSession->audioSrtpSender;
+            payloadType = pSession->rtpConfig.audioCodecPayload;
+            if( ( pSession->rtpConfig.audioCodecRtxPayload != 0 ) &&
+                ( pSession->rtpConfig.audioCodecRtxPayload != pSession->rtpConfig.audioCodecPayload ) )
             {
-                /* This is the last packet, set the marker. */
-                packetRtp.header.flags |= RTP_HEADER_FLAG_MARKER;
+                bufferAfterEncrypt = 0;
+                payloadType = pSession->rtpConfig.audioCodecRtxPayload;
+                pRtpSeq = &pSession->rtpConfig.audioRtxSequenceNumber;
             }
+        }
 
-            if( pTransceiver->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
+        /* Lock sender. */
+        if( xSemaphoreTake( pSrtpSender->senderMutex, portMAX_DELAY ) == pdTRUE )
+        {
+            isLocked = 1;
+        }
+        else
+        {
+            LogError( ( "Fail to take sender mutex" ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_TAKE_SENDER_MUTEX;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        ret = PeerConnectionRollingBuffer_SearchRtpSequenceBuffer( &pSrtpSender->txRollingBuffer,
+                                                                   rtpSeq,
+                                                                   &pRollingBufferPacket );
+        if( ( ret != PEER_CONNECTION_RESULT_OK ) || ( pRollingBufferPacket == NULL ) )
+        {
+            LogWarn( ( "Fail to find target buffer, seq: %u", rtpSeq ) );
+        }
+        else
+        {
+            LogDebug( ( "Found target buffer, pRollingBufferPacket: %p, packetBufferLength: %u, pPacketBuffer: %p",
+                        pRollingBufferPacket,
+                        pRollingBufferPacket->packetBufferLength,
+                        pRollingBufferPacket->pPacketBuffer ) );
+            LogDebug( ( "Found target buffer, sequence in buffer: %u, target sequence: %u",
+                        pRollingBufferPacket->rtpPacket.header.sequenceNumber, rtpSeq ) );
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        if( bufferAfterEncrypt == 0 )
+        {
+            /* Don't reset the header as re-using the setting from write frame.
+             * Update sequence, SSRC, payload type and OSN for RTX packet. */
+            pRollingBufferPacket->rtpPacket.header.sequenceNumber = ( *pRtpSeq )++;
+            pRollingBufferPacket->rtpPacket.header.ssrc = ssrc;
+            pRollingBufferPacket->rtpPacket.header.payloadType = payloadType;
+
+            /* Follow RTX format to add OSN(original RTP sequence number) at the very beginning of payload.
+             * Note that we reserve PEER_CONNECTION_SRTP_RTX_WRITE_RESERVED_BYTES at the beginning of buffer at write frame. */
+            pOsn = ( uint16_t * ) pRollingBufferPacket->pPacketBuffer;
+            *pOsn = htons( rtpSeq );
+            pRollingBufferPacket->packetBufferLength += 2;
+            pRollingBufferPacket->rtpPacket.payloadLength = pRollingBufferPacket->packetBufferLength;
+            pRollingBufferPacket->rtpPacket.pPayload = pRollingBufferPacket->pPacketBuffer;
+
+            pSrtpPacket = srtpBuffer;
+            srtpPacketLength = PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH;
+            /* ConstructSrtpPacket() serializes RTP packet and encrypt it. */
+            ret = ConstructSrtpPacket( pSession,
+                                       &pRollingBufferPacket->rtpPacket,
+                                       pSrtpPacket,
+                                       &srtpPacketLength );
+        }
+        else
+        {
+            pSrtpPacket = pRollingBufferPacket->pPacketBuffer;
+            srtpPacketLength = pRollingBufferPacket->packetBufferLength;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        resultIceController = IceController_SendToRemotePeer( &pSession->iceControllerContext,
+                                                              pSrtpPacket,
+                                                              srtpPacketLength );
+        if( resultIceController != ICE_CONTROLLER_RESULT_OK )
+        {
+            LogWarn( ( "Fail to re-send RTP packet, ret: %d, seq: %u, SSRC: 0x%lx", resultIceController, rtpSeq, ssrc ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_RESEND_RTP_PACKET;
+        }
+        else
+        {
+            LogDebug( ( "Re-send RTP successfully, RTP seq: %u, SSRC: 0x%lx", rtpSeq, ssrc ) );
+        }
+    }
+
+    if( isLocked )
+    {
+        xSemaphoreGive( pSrtpSender->senderMutex );
+    }
+
+    return ret;
+}
+
+static PeerConnectionResult_t OnRtcpNackEvent( PeerConnectionSession_t * pSession,
+                                               RtcpPacket_t * pRtcpPacket )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    RtcpResult_t resultRtcp;
+    RtcpNackPacket_t nackPacket;
+    const Transceiver_t * pTransceiver = NULL;
+    uint16_t seqNumList[ PEER_CONNECTION_SRTCP_NACK_MAX_SEQ_NUM ];
+    int i;
+
+    if( ( pSession == NULL ) || ( pRtcpPacket == NULL ) )
+    {
+        LogError( ( "Invalid input, pSession: %p, pRtcpPacket: %p", pSession, pRtcpPacket ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        memset( &nackPacket, 0, sizeof( RtcpNackPacket_t ) );
+        memset( &seqNumList, 0, sizeof( seqNumList ) );
+        nackPacket.pSeqNumList = seqNumList;
+        nackPacket.seqNumListLength = PEER_CONNECTION_SRTCP_NACK_MAX_SEQ_NUM;
+        resultRtcp = Rtcp_ParseNackPacket( &pSession->pCtx->rtcpContext,
+                                           pRtcpPacket,
+                                           &nackPacket );
+        if( resultRtcp != RTCP_RESULT_OK )
+        {
+            LogError( ( "Fail to parse RTCP NACK packet, result: %d", resultRtcp ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_RTCP_PARSE_NACK;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        ret = PeerConnection_MatchTransceiverBySsrc( pSession->pCtx,
+                                                     nackPacket.mediaSourceSsrc,
+                                                     &pTransceiver );
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        for( i = 0; i < nackPacket.seqNumListLength; i++ )
+        {
+            /* Retransmit matching sequence number one by one. */
+            ret = ResendSrtpPacket( pSession, pTransceiver, nackPacket.pSeqNumList[i], nackPacket.senderSsrc );
+            if( ret != PEER_CONNECTION_RESULT_OK )
             {
-                packetRtp.header.payloadType = pSession->rtpConfig.videoCodecPayload;
-                packetRtp.header.sequenceNumber = pSession->rtpConfig.videoSequenceNumber++;
-                packetRtp.header.ssrc = pTransceiver->ssrc;
-            }
-            else
-            {
-                packetRtp.header.payloadType = pSession->rtpConfig.audioCodecPayload;
-                packetRtp.header.sequenceNumber = pSession->rtpConfig.audioSequenceNumber++;
-            }
-            packetRtp.header.csrcCount = 0;
-            packetRtp.header.pCsrc = NULL;
-            packetRtp.header.timestamp = rtpTimestamp;
-
-#define TWCC_PAYLOAD( extId, sequenceNum ) ( ( ( ( extId ) & 0xfu ) << 28u ) | ( 1u << 24u ) | ( ( uint32_t ) ( sequenceNum ) << 8u ) )
-            static uint16_t twsn = 0;
-            uint32_t extensionPayload;
-            packetRtp.header.flags |= RTP_HEADER_FLAG_EXTENSION;
-            packetRtp.header.extension.extensionProfile = 0xBEDE;
-            packetRtp.header.extension.extensionPayloadLength = 1;
-            extensionPayload = TWCC_PAYLOAD( 4, twsn );
-            packetRtp.header.extension.pExtensionPayload = &extensionPayload;
-            twsn++;
-
-            packetRtp.payloadLength = bufferLength;
-            packetRtp.pPayload = pBuffer;
-            rtpBufferLength = PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH;
-            // LogDebug( ( "Serializing RTP packet, packetRtp.header.flags: 0x%lx, packetRtp.header.csrcCount: %u, packetRtp.header.payloadType: %u, packetRtp.header.sequenceNumber: %u, packetRtp.header.timestamp: %lu, packetRtp.header.ssrc: %lu",
-            //             packetRtp.header.flags,
-            //             packetRtp.header.csrcCount,
-            //             packetRtp.header.payloadType,
-            //             packetRtp.header.sequenceNumber,
-            //             packetRtp.header.timestamp,
-            //             packetRtp.header.ssrc ) );
-            // LogDebug( ( "Serializing RTP packet, packetRtp.header.extension.extensionProfile: %u, packetRtp.header.extension.extensionPayloadLength: %u, packetRtp.header.extension.pExtensionPayload: 0x%lx, packetRtp.payloadLength: %u",
-            //             packetRtp.header.extension.extensionProfile,
-            //             packetRtp.header.extension.extensionPayloadLength,
-            //             *packetRtp.header.extension.pExtensionPayload,
-            //             packetRtp.payloadLength ) );
-
-            resultRtp = Rtp_Serialize( &pCtx->rtpContext,
-                                       &packetRtp,
-                                       rtpBuffer,
-                                       &rtpBufferLength );
-            if( resultRtp != RTP_RESULT_OK )
-            {
-                LogError( ( "Fail to serialize RTP packet, result: %d", resultRtp ) );
-                ret = PEER_CONNECTION_RESULT_FAIL_RTP_SERIALIZE;
                 break;
-            }
-
-            /* Encrypt it by SRTP. */
-            srtpBufferLength = PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH;
-            errorStatus = srtp_protect( pSession->srtpTransmitSession, rtpBuffer, rtpBufferLength, rtpBuffer, &srtpBufferLength, 0 );
-            if( errorStatus != srtp_err_status_ok )
-            {
-                LogError( ( "Fail to encrypt Tx SRTP packet, errorStatus: %d", errorStatus ) );
-                ret = PEER_CONNECTION_RESULT_FAIL_ENCRYPT_SRTP_RTP_PACKET;
-                break;
-            }
-
-            // LogDebug( ( "After SRTP encryption, the packet size: %u, RTP seq: %u", srtpBufferLength, packetRtp.header.sequenceNumber ) );
-            /* Write the constructed RTP packets through network. */
-            resultIceController = IceController_SendToRemotePeer( &pSession->iceControllerContext,
-                                                                  rtpBuffer,
-                                                                  srtpBufferLength );
-            if( resultIceController != ICE_CONTROLLER_RESULT_OK )
-            {
-                LogWarn( ( "Fail to send RTP packet, ret: %d", resultIceController ) );
-                ret = PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_RTP_PACKET;
-                break;
-            }
-
-            /* Store the frame into rolling buffer. */
-            if( ret == PEER_CONNECTION_RESULT_OK )
-            {
-                /* TODO */
             }
         }
     }
@@ -155,6 +311,9 @@ PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSessi
     void (* srtp_policy_setter)( srtp_crypto_policy_t * ) = NULL;
     void (* srtcp_policy_setter)( srtp_crypto_policy_t * ) = NULL;
     srtp_err_status_t errorStatus;
+    PeerConnectionSrtpSender_t * pSrtpSender = NULL;
+    int i;
+    size_t maxSizePerPacket = PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH;
 
     if( pSession == NULL )
     {
@@ -217,10 +376,60 @@ PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSessi
         }
     }
 
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        /* Initialize Rolling buffers */
+        for( i = 0; i < pSession->pCtx->transceiverCount; i++ )
+        {
+            if( pSession->pCtx->pTransceivers[i]->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
+            {
+                pSrtpSender = &pSession->videoSrtpSender;
+                if( ( pSession->rtpConfig.videoCodecRtxPayload != 0 ) &&
+                    ( pSession->rtpConfig.videoCodecRtxPayload != pSession->rtpConfig.videoCodecPayload ) )
+                {
+                    /* If we're using different payload type in re-transmission, we create the rolling buffer just for RTP payload. */
+                    maxSizePerPacket = PEER_CONNECTION_SRTP_RTP_PAYLOAD_MAX_LENGTH;
+                }
+                ret = PeerConnectionRollingBuffer_Create( &pSession->videoSrtpSender.txRollingBuffer,
+                                                          pSession->pCtx->pTransceivers[i]->rollingbufferBitRate, // bps
+                                                          pSession->pCtx->pTransceivers[i]->rollingbufferDurationSec, // duration in seconds
+                                                          maxSizePerPacket );
+            }
+            else
+            {
+                pSrtpSender = &pSession->audioSrtpSender;
+                if( ( pSession->rtpConfig.audioCodecRtxPayload != 0 ) &&
+                    ( pSession->rtpConfig.audioCodecRtxPayload != pSession->rtpConfig.audioCodecPayload ) )
+                {
+                    /* If we're using different payload type in re-transmission, we create the rolling buffer just for RTP payload. */
+                    maxSizePerPacket = PEER_CONNECTION_SRTP_RTP_PAYLOAD_MAX_LENGTH;
+                }
+                ret = PeerConnectionRollingBuffer_Create( &pSession->audioSrtpSender.txRollingBuffer,
+                                                          pSession->pCtx->pTransceivers[i]->rollingbufferBitRate, // bps
+                                                          pSession->pCtx->pTransceivers[i]->rollingbufferDurationSec, // duration in seconds
+                                                          maxSizePerPacket );
+            }
+
+            if( ret != PEER_CONNECTION_RESULT_OK )
+            {
+                break;
+            }
+
+            /* Mutex can only be created in executing scheduler. */
+            pSrtpSender->senderMutex = xSemaphoreCreateMutex();
+            if( pSrtpSender->senderMutex == NULL )
+            {
+                LogError( ( "Fail to create mutex for SRTP sender." ) );
+                ret = PEER_CONNECTION_RESULT_FAIL_CREATE_SENDER_MUTEX;
+                break;
+            }
+        }
+    }
+
     return ret;
 }
 
-PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionContext_t * pCtx,
+PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionSession_t * pSession,
                                                           Transceiver_t * pTransceiver,
                                                           const PeerConnectionFrame_t * pFrame )
 {
@@ -228,16 +437,28 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionContext_
     H264PacketizerContext_t h264PacketizerContext;
     H264Result_t resultH264;
     H264Packet_t packetH264;
-    uint8_t buffer[ PEER_CONNECTION_SRTP_RTP_PAYLOAD_MAX_LENGTH ];
+    uint8_t rtpBuffer[ PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH ];
+    PeerConnectionRollingBufferPacket_t * pRollingBufferPacket = NULL;
+    uint8_t * pSrtpPacket = NULL;
+    size_t srtpPacketLength = 0;
     Nalu_t nalusArray[ PEER_CONNECTION_SRTP_H264_MAX_NALUS_IN_A_FRAME ];
     Frame_t h264Frame;
+    PeerConnectionSrtpSender_t * pSrtpSender = NULL;
+    uint8_t isLocked = 0;
+    uint8_t bufferAfterEncrypt = 1;
+    IceControllerResult_t resultIceController;
+    uint16_t * pRtpSeq = NULL;
+    uint32_t payloadType;
+    uint32_t * pSsrc = NULL;
+    /* For TWCC ID extension info. */
+    uint32_t extensionPayload;
 
-    if( ( pCtx == NULL ) ||
+    if( ( pSession == NULL ) ||
         ( pTransceiver == NULL ) ||
         ( pFrame == NULL ) )
     {
-        LogError( ( "Invalid input, pCtx: %p, pTransceiver: %p, pFrame: %p",
-                    pCtx, pTransceiver, pFrame ) );
+        LogError( ( "Invalid input, pSession: %p, pTransceiver: %p, pFrame: %p",
+                    pSession, pTransceiver, pFrame ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
 
@@ -266,30 +487,162 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionContext_
         }
     }
 
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        pSsrc = &pTransceiver->ssrc;
+        if( pTransceiver->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
+        {
+            pSrtpSender = &pSession->videoSrtpSender;
+            pRtpSeq = &pSession->rtpConfig.videoSequenceNumber;
+            payloadType = pSession->rtpConfig.videoCodecPayload;
+            if( ( pSession->rtpConfig.videoCodecRtxPayload != 0 ) &&
+                ( pSession->rtpConfig.videoCodecRtxPayload != pSession->rtpConfig.videoCodecPayload ) )
+            {
+                bufferAfterEncrypt = 0;
+            }
+        }
+        else
+        {
+            pSrtpSender = &pSession->audioSrtpSender;
+            pRtpSeq = &pSession->rtpConfig.audioSequenceNumber;
+            payloadType = pSession->rtpConfig.audioCodecPayload;
+            if( ( pSession->rtpConfig.audioCodecRtxPayload != 0 ) &&
+                ( pSession->rtpConfig.audioCodecRtxPayload != pSession->rtpConfig.audioCodecPayload ) )
+            {
+                bufferAfterEncrypt = 0;
+            }
+        }
+
+        if( xSemaphoreTake( pSrtpSender->senderMutex, portMAX_DELAY ) == pdTRUE )
+        {
+            isLocked = 1;
+        }
+        else
+        {
+            LogError( ( "Fail to take sender mutex" ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_TAKE_SENDER_MUTEX;
+        }
+    }
+
     while( ret == PEER_CONNECTION_RESULT_OK )
     {
-        packetH264.pPacketData = buffer;
-        packetH264.packetDataLength = PEER_CONNECTION_SRTP_RTP_PAYLOAD_MAX_LENGTH;
+        /* Get buffer from sender for later use.
+         * PeerConnectionRollingBuffer_GetRtpSequenceBuffer() returns the buffer with its size.
+         * If the bufferAfterEncrypt = 0, we store only RTP payload to the buffer.
+         * If the bufferAfterEncrypt = 1, we store the encrypted SRTP packet to the buffer. */
+        pRollingBufferPacket = NULL;
+        ret = PeerConnectionRollingBuffer_GetRtpSequenceBuffer( &pSrtpSender->txRollingBuffer,
+                                                                *pRtpSeq,
+                                                                &pRollingBufferPacket );
+        if( ret != PEER_CONNECTION_RESULT_OK )
+        {
+            LogWarn( ( "Fail to get RTP buffer for seq: %u", *pRtpSeq ) );
+            break;
+        }
+
+        /* Get each NALU payload then serialize SRTP packet. */
+        if( bufferAfterEncrypt == 0 )
+        {
+            packetH264.pPacketData = pRollingBufferPacket->pPacketBuffer + PEER_CONNECTION_SRTP_RTX_WRITE_RESERVED_BYTES;
+            packetH264.packetDataLength = pRollingBufferPacket->packetBufferLength - PEER_CONNECTION_SRTP_RTX_WRITE_RESERVED_BYTES;
+
+            /* Using local buffer for SRTP packet, use the entire packet length. */
+            pSrtpPacket = rtpBuffer;
+            srtpPacketLength = PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH;
+        }
+        else
+        {
+            /* Using local buffer for RTP payload only, set RTP payload length. */
+            packetH264.pPacketData = rtpBuffer;
+            packetH264.packetDataLength = PEER_CONNECTION_SRTP_RTP_PAYLOAD_MAX_LENGTH;
+
+            pSrtpPacket = pRollingBufferPacket->pPacketBuffer;
+            srtpPacketLength = pRollingBufferPacket->packetBufferLength;
+        }
+
         resultH264 = H264Packetizer_GetPacket( &h264PacketizerContext,
                                                &packetH264 );
         if( resultH264 == H264_RESULT_NO_MORE_PACKETS )
         {
+            PeerConnectionRollingBuffer_DiscardRtpSequenceBuffer( &pSrtpSender->txRollingBuffer,
+                                                                  pRollingBufferPacket );
+            /* Eraly break because no packet available. */
             break;
         }
         else if( resultH264 == H264_RESULT_OK )
         {
-            ret = ConstructRtpAndSendSessions( pCtx,
-                                               pTransceiver,
-                                               buffer,
-                                               packetH264.packetDataLength,
-                                               h264PacketizerContext.naluCount == 0 ? 1U : 0U,
-                                               PEER_CONNECTION_SRTP_CONVERT_TIME_US_TO_RTP_TIMESTAMP( PEER_CONNECTION_SRTP_VIDEO_CLOCKRATE, pFrame->presentationUs ) );
+            /* Prepare RTP packet for each payload buffer. */
+            memset( &pRollingBufferPacket->rtpPacket, 0, sizeof( RtpPacket_t ) );
+            pRollingBufferPacket->rtpPacket.header.payloadType = payloadType;
+            pRollingBufferPacket->rtpPacket.header.sequenceNumber = *pRtpSeq;
+            pRollingBufferPacket->rtpPacket.header.ssrc = *pSsrc;
+            if( h264PacketizerContext.naluCount == 0 )
+            {
+                /* This is the last packet, set the marker. */
+                pRollingBufferPacket->rtpPacket.header.flags |= RTP_HEADER_FLAG_MARKER;
+            }
+
+            pRollingBufferPacket->rtpPacket.header.csrcCount = 0;
+            pRollingBufferPacket->rtpPacket.header.pCsrc = NULL;
+            pRollingBufferPacket->rtpPacket.header.timestamp = PEER_CONNECTION_SRTP_CONVERT_TIME_US_TO_RTP_TIMESTAMP( PEER_CONNECTION_SRTP_VIDEO_CLOCKRATE, pFrame->presentationUs );
+
+            if( pSession->rtpConfig.twccId > 0 )
+            {
+                pRollingBufferPacket->rtpPacket.header.flags |= RTP_HEADER_FLAG_EXTENSION;
+                pRollingBufferPacket->rtpPacket.header.extension.extensionProfile = PEER_CONNECTION_SRTP_TWCC_EXT_PROFILE;
+                pRollingBufferPacket->rtpPacket.header.extension.extensionPayloadLength = 1;
+                extensionPayload = PEER_CONNECTION_SRTP_GET_TWCC_PAYLOAD( pSession->rtpConfig.twccId, pSession->rtpConfig.twccSequence );
+                pRollingBufferPacket->rtpPacket.header.extension.pExtensionPayload = &extensionPayload;
+                pSession->rtpConfig.twccSequence++;
+            }
+
+            pRollingBufferPacket->rtpPacket.payloadLength = packetH264.packetDataLength;
+            pRollingBufferPacket->rtpPacket.pPayload = packetH264.pPacketData;
+
+            /* ConstructSrtpPacket() serializes RTP packet and encrypt it. */
+            ret = ConstructSrtpPacket( pSession,
+                                       &pRollingBufferPacket->rtpPacket,
+                                       pSrtpPacket,
+                                       &srtpPacketLength );
         }
         else
         {
             LogError( ( "Fail to get H264 packet, result: %d", resultH264 ) );
             ret = PEER_CONNECTION_RESULT_FAIL_PACKETIZER_GET_PACKET;
         }
+
+        if( ret == PEER_CONNECTION_RESULT_OK )
+        {
+            /* Udpate the packet into rolling buffer. */
+            ret = PeerConnectionRollingBuffer_SetPacket( &pSrtpSender->txRollingBuffer,
+                                                         ( *pRtpSeq )++,
+                                                         pRollingBufferPacket );
+        }
+
+        /* Write the constructed RTP packets through network. */
+        if( ret == PEER_CONNECTION_RESULT_OK )
+        {
+            resultIceController = IceController_SendToRemotePeer( &pSession->iceControllerContext,
+                                                                  pSrtpPacket,
+                                                                  srtpPacketLength );
+            if( resultIceController != ICE_CONTROLLER_RESULT_OK )
+            {
+                LogWarn( ( "Fail to send RTP packet, ret: %d", resultIceController ) );
+                ret = PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_RTP_PACKET;
+            }
+        }
+
+        if( ( ret != PEER_CONNECTION_RESULT_OK ) && ( pRollingBufferPacket != NULL ) )
+        {
+            /* If any failure, release the allocated RTP buffer. */
+            PeerConnectionRollingBuffer_DiscardRtpSequenceBuffer( &pSrtpSender->txRollingBuffer,
+                                                                  pRollingBufferPacket );
+        }
+    }
+
+    if( isLocked )
+    {
+        xSemaphoreGive( pSrtpSender->senderMutex );
     }
 
     return ret;
@@ -325,6 +678,102 @@ PeerConnectionResult_t PeerConnectionSrtp_HandleSrtpPacket( PeerConnectionSessio
         else
         {
             LogVerbose( ( "Decrypt SRTP packet successfully, decrypted length: %u", rtpBufferLength ) );
+        }
+    }
+
+    return ret;
+}
+
+PeerConnectionResult_t PeerConnectionSrtp_HandleSrtcpPacket( PeerConnectionSession_t * pSession,
+                                                             uint8_t * pBuffer,
+                                                             size_t bufferLength )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    srtp_err_status_t errorStatus;
+    static uint8_t rtcpBuffer[ PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH ];
+    size_t rtcpBufferLength = PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH;
+    RtcpResult_t resultRtcp;
+    RtcpPacket_t rtcpPacket;
+
+    if( ( pSession == NULL ) || ( pBuffer == NULL ) )
+    {
+        LogError( ( "Invalid input, pSession: %p, pBuffer: %p", pSession, pBuffer ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        errorStatus = srtp_unprotect_rtcp( pSession->srtpReceiveSession,
+                                           pBuffer,
+                                           bufferLength,
+                                           rtcpBuffer,
+                                           &rtcpBufferLength );
+        if( errorStatus != srtp_err_status_ok )
+        {
+            LogError( ( "Fail to decrypt Rx SRTP packet, errorStatus: %d", errorStatus ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_DECRYPT_SRTP_RTP_PACKET;
+        }
+        else
+        {
+            LogVerbose( ( "Decrypt SRTCP packet successfully, decrypted length: %u", rtpBufferLength ) );
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        resultRtcp = Rtcp_DeserializePacket( &pSession->pCtx->rtcpContext,
+                                             rtcpBuffer,
+                                             rtcpBufferLength,
+                                             &rtcpPacket );
+        if( resultRtcp != RTCP_RESULT_OK )
+        {
+            LogError( ( "Fail to deserialize RTCP packet, result: %d", resultRtcp ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_RTCP_DESERIALIZE;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        switch( rtcpPacket.header.packetType )
+        {
+            case RTCP_PACKET_FIR:
+                // CHK_STATUS(onRtcpFIRPacket(&rtcpPacket, pKvsPeerConnection));
+                break;
+            case RTCP_PACKET_TRANSPORT_FEEDBACK_NACK:
+                ret = OnRtcpNackEvent( pSession, &rtcpPacket );
+                break;
+            case RTCP_PACKET_TRANSPORT_FEEDBACK_TWCC:
+                // if (rtcpPacket.header.receptionReportCount == RTCP_FEEDBACK_MESSAGE_TYPE_NACK) {
+                //     CHK_STATUS(resendPacketOnNack(&rtcpPacket, pKvsPeerConnection));
+                // } else if (rtcpPacket.header.receptionReportCount == RTCP_FEEDBACK_MESSAGE_TYPE_APPLICATION_LAYER_FEEDBACK) {
+                //     CHK_STATUS(onRtcpTwccPacket(&rtcpPacket, pKvsPeerConnection));
+                // } else {
+                //     DLOGW("unhandled RTCP_PACKET_TYPE_GENERIC_RTP_FEEDBACK %d", rtcpPacket.header.receptionReportCount);
+                // }
+                break;
+            case RTCP_PACKET_PAYLOAD_FEEDBACK_PLI:
+            case RTCP_PACKET_PAYLOAD_FEEDBACK_SLI:
+            case RTCP_PACKET_PAYLOAD_FEEDBACK_REMB:
+                // if (rtcpPacket.header.receptionReportCount == RTCP_FEEDBACK_MESSAGE_TYPE_APPLICATION_LAYER_FEEDBACK &&
+                //     isRembPacket(rtcpPacket.payload, rtcpPacket.payloadLength) == STATUS_SUCCESS) {
+                //     CHK_STATUS(onRtcpRembPacket(&rtcpPacket, pKvsPeerConnection));
+                // } else if (rtcpPacket.header.receptionReportCount == RTCP_PSFB_PLI) {
+                //     CHK_STATUS(onRtcpPLIPacket(&rtcpPacket, pKvsPeerConnection));
+                // } else if (rtcpPacket.header.receptionReportCount == RTCP_PSFB_SLI) {
+                //     CHK_STATUS(onRtcpSLIPacket(&rtcpPacket, pKvsPeerConnection));
+                // } else {
+                //     DLOGW("unhandled packet type RTCP_PACKET_TYPE_PAYLOAD_SPECIFIC_FEEDBACK %d", rtcpPacket.header.receptionReportCount);
+                // }
+                break;
+            case RTCP_PACKET_SENDER_REPORT:
+                // CHK_STATUS(onRtcpSenderReport(&rtcpPacket, pKvsPeerConnection));
+                break;
+            case RTCP_PACKET_RECEIVER_REPORT:
+                // CHK_STATUS(onRtcpReceiverReport(&rtcpPacket, pKvsPeerConnection));
+                break;
+            default:
+                LogWarn( ( "unhandled packet type %d", rtcpPacket.header.packetType ) );
+                break;
         }
     }
 

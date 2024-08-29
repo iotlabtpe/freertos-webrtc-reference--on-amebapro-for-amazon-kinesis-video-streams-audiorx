@@ -225,10 +225,10 @@ IceControllerResult_t IceController_AddRemoteCandidate( IceControllerContext_t *
         else
         {
             LogVerbose( ( "Received remote candidate with IP/port: %s/%d",
-                        IceControllerNet_LogIpAddressInfo( pRemoteCandidate->pEndpoint,
-                                                           ipBuffer,
-                                                           sizeof( ipBuffer ) ),
-                        pRemoteCandidate->pEndpoint->transportAddress.port ) );
+                          IceControllerNet_LogIpAddressInfo( pRemoteCandidate->pEndpoint,
+                                                             ipBuffer,
+                                                             sizeof( ipBuffer ) ),
+                          pRemoteCandidate->pEndpoint->transportAddress.port ) );
         }
     }
 
@@ -321,14 +321,14 @@ IceControllerResult_t IceController_SendConnectivityCheck( IceControllerContext_
             }
 
             LogVerbose( ( "Sending connecitivity check from IP/port: %s/%d to %s/%d",
-                        IceControllerNet_LogIpAddressInfo( &pCtx->iceContext.pCandidatePairs[i].pLocalCandidate->endpoint,
-                                                           ipFromBuffer,
-                                                           sizeof( ipFromBuffer ) ),
-                        pCtx->iceContext.pCandidatePairs[i].pLocalCandidate->endpoint.transportAddress.port,
-                        IceControllerNet_LogIpAddressInfo( &pCtx->iceContext.pCandidatePairs[i].pRemoteCandidate->endpoint,
-                                                           ipToBuffer,
-                                                           sizeof( ipToBuffer ) ),
-                        pCtx->iceContext.pCandidatePairs[i].pRemoteCandidate->endpoint.transportAddress.port ) );
+                          IceControllerNet_LogIpAddressInfo( &pCtx->iceContext.pCandidatePairs[i].pLocalCandidate->endpoint,
+                                                             ipFromBuffer,
+                                                             sizeof( ipFromBuffer ) ),
+                          pCtx->iceContext.pCandidatePairs[i].pLocalCandidate->endpoint.transportAddress.port,
+                          IceControllerNet_LogIpAddressInfo( &pCtx->iceContext.pCandidatePairs[i].pRemoteCandidate->endpoint,
+                                                             ipToBuffer,
+                                                             sizeof( ipToBuffer ) ),
+                          pCtx->iceContext.pCandidatePairs[i].pRemoteCandidate->endpoint.transportAddress.port ) );
             IceControllerNet_LogStunPacket( stunBuffer,
                                             stunBufferLength );
 
@@ -346,111 +346,6 @@ IceControllerResult_t IceController_SendConnectivityCheck( IceControllerContext_
 
     return ret;
 }
-
-struct xSOCKET
-{
-    int xFd;
-};
-
-// static void DtlsHandshake( IceControllerContext_t * pCtx,
-//                            IceControllerSocketContext_t * pSocketContext )
-// {
-//     DtlsTransportStatus_t xNetworkStatus = DTLS_TRANSPORT_SUCCESS;
-//     DtlsTestContext_t * pDtlsTestContext = &pSocketContext->pRemoteInfo->dtlsTestContext;
-//     char remoteIpAddr[ INET_ADDRSTRLEN ];
-//     const char * pRemoteIpPos;
-//     // get srtp key from dtls context
-//     DtlsKeyingMaterial dtlsKeyingMaterial;
-
-//     LogInfo( ( "Using remote info: %p for DTLS Handshaking.", pSocketContext->pRemoteInfo ) );
-
-//     /* Set the pParams member of the network context with desired transport. */
-//     pDtlsTestContext->xNetworkContext.pParams = &pDtlsTestContext->xDtlsTransportParams;
-//     /* TODO: Hack here to inject existing FD. */
-//     pDtlsTestContext->xNetworkContext.pParams->udpSocket = ( Socket_t ) pvPortMalloc( sizeof( struct xSOCKET ) );
-//     pDtlsTestContext->xNetworkContext.pParams->udpSocket->xFd = pSocketContext->socketFd;
-
-//     /* Set transport interface. */
-//     pDtlsTestContext->xTransportInterface.pNetworkContext = ( NetworkContext_t * ) &pDtlsTestContext->xNetworkContext;
-//     pDtlsTestContext->xTransportInterface.send = ( TransportSend_t ) DTLS_send;
-//     pDtlsTestContext->xTransportInterface.recv = ( TransportRecv_t ) DTLS_recv;
-
-//     // /* Set the network credentials. */
-//     /* Disable SNI server name indication*/
-//     // https://mbed-tls.readthedocs.io/en/latest/kb/how-to/use-sni/
-//     pDtlsTestContext->xNetworkCredentials.disableSni = pdTRUE;
-
-//     pRemoteIpPos = inet_ntop( AF_INET,
-//                               pSocketContext->pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.address,
-//                               remoteIpAddr,
-//                               INET_ADDRSTRLEN );
-//     LogInfo( ( "Start DTLS handshaking with %s:%d", pRemoteIpPos ? pRemoteIpPos : "UNKNOWN", pSocketContext->pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.port ) );
-
-//     /* Attempt to create a DTLS connection. */
-//     // Generate answer cert // DER format
-
-//     if( NULL == pSocketContext->pRemoteInfo->answerCert.raw.p )
-//     {
-//         LogError( ( "Fail to get answer cert: NULL == pSocketContext->pRemoteInfo->answerCert.raw.p" ) );
-//     }
-//     else
-//     {
-//         LogDebug( ( "setting pDtlsTestContext->xNetworkCredentials.pClientCert" ) );
-//         pDtlsTestContext->xNetworkCredentials.pClientCert = pSocketContext->pRemoteInfo->answerCert.raw.p;
-//         pDtlsTestContext->xNetworkCredentials.clientCertSize = pSocketContext->pRemoteInfo->answerCert.raw.len;
-//     }
-
-//     pDtlsTestContext->xNetworkCredentials.privateKeySize = PRIVATE_KEY_PCS_PEM_SIZE;
-
-
-//     if( NULL == pSocketContext->pRemoteInfo->private_key_pcs_pem )
-//     {
-//         LogError( ( "Fail to get private_key: NULL == pSocketContext->pRemoteInfo->private_key_pcs_pem" ) );
-//     }
-//     else
-//     {
-//         LogDebug( ( "setting pDtlsTestContext->xNetworkCredentials.pPrivateKey" ) );
-//         pDtlsTestContext->xNetworkCredentials.pPrivateKey = ( uint8_t * ) pSocketContext->pRemoteInfo->private_key_pcs_pem;
-//     }
-
-//     xNetworkStatus = DTLS_Connect( &pDtlsTestContext->xNetworkContext,
-//                                    &pDtlsTestContext->xNetworkCredentials,
-//                                    pRemoteIpPos,
-//                                    pSocketContext->pRemoteInfo->pNominationPair->pRemoteCandidate->endpoint.transportAddress.port );
-
-//     if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
-//     {
-//         LogError( ( "Fail to connect with server with return % d ", xNetworkStatus ) );
-//     }
-
-//     // verify remote fingerprint (if remote cert fingerprint is the expected one)
-//     xNetworkStatus = dtlsSessionVerifyRemoteCertificateFingerprint( &pDtlsTestContext->xNetworkContext.pParams->dtlsSslContext,
-//                                                                     pSocketContext->pRemoteInfo->remoteCertFingerprint,
-//                                                                     pSocketContext->pRemoteInfo->remoteCertFingerprintLength );
-
-//     if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
-//     {
-//         LogError( ( "Fail to dtlsSessionVerifyRemoteCertificateFingerprint with return %d ", xNetworkStatus ) );
-//     }
-
-//     memset( &dtlsKeyingMaterial,
-//             0,
-//             sizeof( DtlsKeyingMaterial ) );
-
-//     xNetworkStatus = dtlsSessionPopulateKeyingMaterial( &pDtlsTestContext->xNetworkContext.pParams->dtlsSslContext,
-//                                                         &pDtlsTestContext->xNetworkCredentials.dtlsKeyingMaterial );
-
-//     if( xNetworkStatus != DTLS_TRANSPORT_SUCCESS )
-//     {
-//         LogError( ( "Fail to dtlsSessionPopulateKeyingMaterial with return %d ", xNetworkStatus ) );
-//     }
-//     else
-//     {
-//         LogDebug( ( "dtlsSessionPopulateKeyingMaterial with clientWriteKey: %s ", pDtlsTestContext->xNetworkCredentials.dtlsKeyingMaterial.clientWriteKey ) );
-//         LogDebug( ( "dtlsSessionPopulateKeyingMaterial with serverWriteKey: %s ", pDtlsTestContext->xNetworkCredentials.dtlsKeyingMaterial.serverWriteKey ) );
-//         LogDebug( ( "dtlsSessionPopulateKeyingMaterial with key_length: %i ", pDtlsTestContext->xNetworkCredentials.dtlsKeyingMaterial.key_length ) );
-//     }
-// }
 
 static IceControllerResult_t parseIceUri( IceControllerIceServer_t * pIceServer,
                                           char * pUri,
