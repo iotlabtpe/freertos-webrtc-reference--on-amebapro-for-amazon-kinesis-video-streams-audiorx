@@ -609,7 +609,6 @@ static int32_t HandleRtpRtcpPackets( void * pCustomContext,
         else
         {
             /* RTP packet */
-            LogInfo( ( "Receiving RTP packets with length %u", bufferLength ) );
             resultPeerConnection = PeerConnectionSrtp_HandleSrtpPacket( pSession, pBuffer, bufferLength );
             if( resultPeerConnection != PEER_CONNECTION_RESULT_OK )
             {
