@@ -177,6 +177,19 @@ static PeerConnectionResult_t ResendSrtpPacket( PeerConnectionSession_t * pSessi
         ret = PeerConnectionRollingBuffer_SearchRtpSequenceBuffer( &pSrtpSender->txRollingBuffer,
                                                                    rtpSeq,
                                                                    &pRollingBufferPacket );
+        if( ( ret != PEER_CONNECTION_RESULT_OK ) || ( pRollingBufferPacket == NULL ) )
+        {
+            LogWarn( ( "Fail to find target buffer, seq: %u", rtpSeq ) );
+        }
+        else
+        {
+            LogDebug( ( "Found target buffer, pRollingBufferPacket: %p, packetBufferLength: %u, pPacketBuffer: %p",
+                        pRollingBufferPacket,
+                        pRollingBufferPacket->packetBufferLength,
+                        pRollingBufferPacket->pPacketBuffer ) );
+            LogDebug( ( "Found target buffer, sequence in buffer: %u, target sequence: %u",
+                        pRollingBufferPacket->rtpPacket.header.sequenceNumber, rtpSeq ) );
+        }
     }
 
     if( ret == PEER_CONNECTION_RESULT_OK )
