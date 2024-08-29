@@ -316,7 +316,7 @@ IceControllerResult_t IceControllerNet_SendPacket( IceControllerSocketContext_t 
             }
             else
             {
-                LogWarn( ( "Send error, errno: %s", strerror( errno ) ) );
+                LogWarn( ( "Failed to send to socket fd: %d error, errno(%d): %s", pSocketContext->socketFd, errno, strerror( errno ) ) );
                 ret = ICE_CONTROLLER_RESULT_FAIL_SOCKET_SENDTO;
                 break;
             }

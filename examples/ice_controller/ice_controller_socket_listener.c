@@ -198,13 +198,13 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
                 }
                 LogDebug( ( "Released all other socket contexts" ) );
             }
-            else if( ret != ICE_CONTROLLER_RESULT_OK )
+            else if( ( ret == ICE_CONTROLLER_RESULT_FOUND_CONNECTION ) || ( ret == ICE_CONTROLLER_RESULT_OK ) )
             {
-                LogError( ( "Fail to handle this RX packet, ret: %d, readBytes: %d", ret, readBytes ) );
+                /* Handle STUN packet successfully, keep processing. */
             }
             else
             {
-                /* Handle STUN packet successfully, keep processing. */
+                LogError( ( "Fail to handle this RX packet, ret: %d, readBytes: %d", ret, readBytes ) );
             }
         }
     }

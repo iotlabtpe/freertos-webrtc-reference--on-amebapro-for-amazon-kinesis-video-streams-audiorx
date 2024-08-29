@@ -206,8 +206,7 @@ static PeerConnectionResult_t ResendSrtpPacket( PeerConnectionSession_t * pSessi
              * Note that we reserve PEER_CONNECTION_SRTP_RTX_WRITE_RESERVED_BYTES at the beginning of buffer at write frame. */
             pOsn = ( uint16_t * ) pRollingBufferPacket->pPacketBuffer;
             *pOsn = htons( rtpSeq );
-            pRollingBufferPacket->packetBufferLength += 2;
-            pRollingBufferPacket->rtpPacket.payloadLength = pRollingBufferPacket->packetBufferLength;
+            pRollingBufferPacket->rtpPacket.payloadLength = pRollingBufferPacket->packetBufferLength + 2;
             pRollingBufferPacket->rtpPacket.pPayload = pRollingBufferPacket->pPacketBuffer;
 
             pSrtpPacket = srtpBuffer;
@@ -613,6 +612,16 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionSession_
 
         if( ret == PEER_CONNECTION_RESULT_OK )
         {
+            /* Update the rolling buffer length before storing. */
+            if( bufferAfterEncrypt == 0 )
+            {
+                pRollingBufferPacket->packetBufferLength = packetH264.packetDataLength;
+            }
+            else
+            {
+                pRollingBufferPacket->packetBufferLength = srtpPacketLength;
+            }
+
             /* Udpate the packet into rolling buffer. */
             ret = PeerConnectionRollingBuffer_SetPacket( &pSrtpSender->txRollingBuffer,
                                                          ( *pRtpSeq )++,
@@ -710,12 +719,12 @@ PeerConnectionResult_t PeerConnectionSrtp_HandleSrtcpPacket( PeerConnectionSessi
                                            &rtcpBufferLength );
         if( errorStatus != srtp_err_status_ok )
         {
-            LogError( ( "Fail to decrypt Rx SRTP packet, errorStatus: %d", errorStatus ) );
+            LogError( ( "Fail to decrypt Rx SRTCP packet, errorStatus: %d", errorStatus ) );
             ret = PEER_CONNECTION_RESULT_FAIL_DECRYPT_SRTP_RTP_PACKET;
         }
         else
         {
-            LogVerbose( ( "Decrypt SRTCP packet successfully, decrypted length: %u", rtpBufferLength ) );
+            LogVerbose( ( "Decrypt SRTCP packet successfully, decrypted length: %u", rtcpBufferLength ) );
         }
     }
 
@@ -734,6 +743,7 @@ PeerConnectionResult_t PeerConnectionSrtp_HandleSrtcpPacket( PeerConnectionSessi
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
+        LogDebug( ( "Received RTCP packet with type: %d", rtcpPacket.header.packetType ) );
         switch( rtcpPacket.header.packetType )
         {
             case RTCP_PACKET_FIR:
