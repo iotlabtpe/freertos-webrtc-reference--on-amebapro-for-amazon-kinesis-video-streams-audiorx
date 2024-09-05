@@ -1090,6 +1090,9 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
         pSession->rtpConfig.audioRtxSequenceNumber = 0U;
         pSession->rtpConfig.twccId = pRemoteInfo->twccId;
 
+        pSession->rtpConfig.remoteVideoSsrc = pRemoteInfo->remoteVideoSsrc;
+        pSession->rtpConfig.remoteAudioSsrc = pRemoteInfo->remoteAudioSsrc;
+
         pSession->state = PEER_CONNECTION_SESSION_STATE_START;
     }
 

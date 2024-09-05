@@ -29,6 +29,8 @@ extern "C" {
 #define PEER_CONNECTION_PASSWORD_LENGTH ( 24 )
 #define PEER_CONNECTION_CNAME_LENGTH ( 16 )
 #define PEER_CONNECTION_CERTIFICATE_FINGERPRINT_LENGTH ( CERTIFICATE_FINGERPRINT_LENGTH )
+#define PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM ( 1000 )
+#define PEER_CONNECTION_FRAME_BUFFER_SIZE ( 4096 )
 
 #define PEER_CONNECTION_FRAME_CURRENT_VERSION ( 0 )
 
@@ -60,6 +62,8 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_FAIL_DECRYPT_SRTP_RTP_PACKET,
     PEER_CONNECTION_RESULT_FAIL_RTP_INIT,
     PEER_CONNECTION_RESULT_FAIL_RTP_SERIALIZE,
+    PEER_CONNECTION_RESULT_FAIL_RTP_DESERIALIZE,
+    PEER_CONNECTION_RESULT_FAIL_RTP_RX_NO_MATCHING_SSRC,
     PEER_CONNECTION_RESULT_FAIL_RTCP_INIT,
     PEER_CONNECTION_RESULT_FAIL_RTCP_DESERIALIZE,
     PEER_CONNECTION_RESULT_FAIL_RTCP_PARSE_NACK,
@@ -74,9 +78,15 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_FAIL_PACKETIZER_INIT,
     PEER_CONNECTION_RESULT_FAIL_PACKETIZER_ADD_FRAME,
     PEER_CONNECTION_RESULT_FAIL_PACKETIZER_GET_PACKET,
+    PEER_CONNECTION_RESULT_FAIL_DEPACKETIZER_INIT,
+    PEER_CONNECTION_RESULT_FAIL_DEPACKETIZER_GET_PROPERTIES,
+    PEER_CONNECTION_RESULT_FAIL_DEPACKETIZER_ADD_PACKET,
+    PEER_CONNECTION_RESULT_FAIL_DEPACKETIZER_GET_FRAME,
+    PEER_CONNECTION_RESULT_FAIL_JITTER_BUFFER_SEQ_NOT_FOUND,
     PEER_CONNECTION_RESULT_UNKNOWN_SRTP_PROFILE,
     PEER_CONNECTION_RESULT_UNKNOWN_TX_CODEC,
     PEER_CONNECTION_RESULT_UNKNOWN_SSRC,
+    PEER_CONNECTION_RESULT_PACKET_OUTDATED,
 } PeerConnectionResult_t;
 
 typedef struct PeerConnectionFrame
@@ -87,8 +97,24 @@ typedef struct PeerConnectionFrame
     uint64_t presentationUs;
 } PeerConnectionFrame_t;
 
+typedef struct PeerConnectionJitterBufferPacket PeerConnectionJitterBufferPacket_t;
+typedef struct PeerConnectionJitterBuffer PeerConnectionJitterBuffer_t;
+
 typedef PeerConnectionResult_t (* OnFrameReadyCallback_t)( void * pCustomContext,
                                                            PeerConnectionFrame_t * pFrame );
+typedef PeerConnectionResult_t (* OnJitterBufferFrameReadyCallback_t)( void * pCustomContext,
+                                                                       uint16_t startSequence,
+                                                                       uint16_t endSequence );
+typedef PeerConnectionResult_t (* OnJitterBufferFrameDropCallback_t)( void * pCustomContext,
+                                                                      uint16_t startSequence,
+                                                                      uint16_t endSequence );
+typedef PeerConnectionResult_t (* GetPacketPropertyFunc_t)( PeerConnectionJitterBufferPacket_t * pPacket,
+                                                            uint8_t * pIsStartPacket );
+typedef PeerConnectionResult_t (* FillFrameFunc_t)( PeerConnectionJitterBuffer_t * pJitterBuffer,
+                                                    uint16_t rtpSeqStart,
+                                                    uint16_t rtpSeqEnd,
+                                                    uint8_t * pOutBuffer,
+                                                    size_t * pOutBufferLength );
 
 typedef struct PeerConnectionRollingBufferPacket
 {
@@ -103,6 +129,40 @@ typedef struct PeerConnectionRollingBuffer
     size_t maxSizePerPacket;
     size_t capacity; /* Buffer duration * highest expected bitrate (in bps) / 8 / maxPacketSize. */
 } PeerConnectionRollingBuffer_t;
+
+typedef struct PeerConnectionJitterBufferPacket
+{
+    uint8_t isPushed;
+    uint16_t sequenceNumber;
+    uint32_t rtpTimestamp;
+    TickType_t receiveTick;
+    uint8_t * pPacketBuffer;
+    size_t packetBufferLength;
+} PeerConnectionJitterBufferPacket_t;
+
+typedef struct PeerConnectionJitterBuffer
+{
+    uint8_t isStart; /* The jitter buffer starts to receive packet or not. */
+    size_t capacity; /* The total number of packets that packet queue can store. */
+    uint32_t clockRate; /* The clock rate based on the codec. For example: the clock rate is 90000 if the chosen RTP is H264/90000. */
+    uint32_t codec; /* The codec. For example: the codec is set to H264 if the chosen RTP is H264/90000. */
+    uint32_t tolerenceRtpTimeStamp; /* The buffer time in RTP time stamp format. */
+    uint32_t lastPopRtpTimestamp; /* The timestamp in last pop RTP packet. */
+    TickType_t lastPopTick; /* The receive time ticks in last pop RTP packet. */
+    uint16_t lastPopSequenceNumber; /* The RTP sequence number in last pop RTP packet. */
+    uint16_t oldestReceivedSequenceNumber; /* The oldest RTP sequence number that received in the packet queue. */
+    uint16_t newestReceivedSequenceNumber; /* The newest RTP sequence number that received in the packet queue. */
+    uint32_t newestReceivedTimestamp; /* The newest timestamp in packet queue. */
+    PeerConnectionJitterBufferPacket_t rtpPackets[ PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM ]; /* The buffer for packet queue. */
+
+    /* Callback functions & custom contexts. */
+    OnJitterBufferFrameReadyCallback_t onFrameReadyCallbackFunc;
+    void * pOnFrameReadyCallbackContext;
+    OnJitterBufferFrameDropCallback_t onFrameDropCallbackFunc;
+    void * pOnFrameDropCallbackContext;
+    GetPacketPropertyFunc_t getPacketPropertyFunc;
+    FillFrameFunc_t fillFrameFunc;
+} PeerConnectionJitterBuffer_t;
 
 typedef struct PeerConnectionRemoteInfo
 {
@@ -123,6 +183,8 @@ typedef struct PeerConnectionRemoteInfo
     uint32_t videoCodecRtxPayload;
     uint32_t audioCodecRtxPayload;
     uint16_t twccId;
+    uint32_t remoteVideoSsrc;
+    uint32_t remoteAudioSsrc;
 } PeerConnectionRemoteInfo_t;
 
 typedef struct PeerConnectionUserInfo
@@ -176,6 +238,9 @@ typedef struct PeerConnectionRtpConfig
 
     uint16_t twccId;
     uint16_t twccSequence;
+
+    uint32_t remoteVideoSsrc;
+    uint32_t remoteAudioSsrc;
 } PeerConnectionRtpConfig_t;
 
 typedef struct PeerConnectionSrtpSender
@@ -190,7 +255,8 @@ typedef struct PeerConnectionSrtpSender
 typedef struct PeerConnectionSrtpReceiver
 {
     /* RTP Rx jitter buffer. */
-    PeerConnectionRollingBuffer_t rxJitterBuffer;
+    PeerConnectionJitterBuffer_t rxJitterBuffer;
+    uint8_t frameBuffer[ PEER_CONNECTION_FRAME_BUFFER_SIZE ];
 
     OnFrameReadyCallback_t onFrameReadyCallbackFunc;
     void * pOnFrameReadyCallbackCustomContext;

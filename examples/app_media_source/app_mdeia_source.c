@@ -208,6 +208,7 @@ static int32_t InitializeVideoSource( AppMediaSourceContext_t * pVideoSource )
         pVideoSource->transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID );
         pVideoSource->transceiver.onPcEventCallbackFunc = HandlePcEventCallback;
         pVideoSource->transceiver.pOnPcEventCustomContext = pVideoSource;
+        pVideoSource->transceiver.ssrc = ( uint32_t ) rand();
     }
 
     return ret;
