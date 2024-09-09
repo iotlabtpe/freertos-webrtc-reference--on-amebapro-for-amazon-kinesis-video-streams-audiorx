@@ -35,6 +35,7 @@
 
 #define PEER_CONNECTION_SRTP_US_IN_A_SECOND ( 1000000 )
 #define PEER_CONNECTION_SRTP_CONVERT_TIME_US_TO_RTP_TIMESTAMP( clockRate, presentationUs ) ( uint32_t )( ( ( ( presentationUs ) * ( clockRate ) ) / PEER_CONNECTION_SRTP_US_IN_A_SECOND ) & 0xFFFFFFFF )
+#define PEER_CONNECTION_SRTP_CONVERT_RTP_TIMESTAMP_TO_TIME_US( clockRate, rtpTimestamp ) ( ( uint64_t )( rtpTimestamp ) * PEER_CONNECTION_SRTP_US_IN_A_SECOND / ( clockRate ) )
 
 #define PEER_CONNECTION_SRTP_JITTER_BUFFER_TOLERENCE_TIME_SECOND ( 2 )
 
@@ -58,9 +59,11 @@ static PeerConnectionResult_t OnJitterBufferFrameReady( void * pCustomContext,
                                                         uint16_t startSequence,
                                                         uint16_t endSequence )
 {
-    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK, retFillFrame;
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK, retFillFrame = PEER_CONNECTION_RESULT_OK;
     PeerConnectionSrtpReceiver_t * pSrtpReceiver = NULL;
     size_t frameBufferLength = PEER_CONNECTION_FRAME_BUFFER_SIZE;
+    PeerConnectionFrame_t frame;
+    uint32_t rtpTimestamp;
 
     if( pCustomContext == NULL )
     {
@@ -78,10 +81,24 @@ static PeerConnectionResult_t OnJitterBufferFrameReady( void * pCustomContext,
                                                              startSequence,
                                                              endSequence,
                                                              pSrtpReceiver->frameBuffer,
-                                                             &frameBufferLength );
+                                                             &frameBufferLength,
+                                                             &rtpTimestamp );
         LogInfo( ( "Fill frame with result: %d, length: %u",
                    retFillFrame,
                    frameBufferLength ) );
+    }
+
+    if( retFillFrame == PEER_CONNECTION_RESULT_OK )
+    {
+        if( pSrtpReceiver->onFrameReadyCallbackFunc )
+        {
+            memset( &frame, 0, sizeof( PeerConnectionFrame_t ) );
+            frame.version = PEER_CONNECTION_FRAME_CURRENT_VERSION;
+            frame.presentationUs = PEER_CONNECTION_SRTP_CONVERT_RTP_TIMESTAMP_TO_TIME_US( pSrtpReceiver->rxJitterBuffer.clockRate, rtpTimestamp );
+            frame.pData = pSrtpReceiver->frameBuffer;
+            frame.dataLength = frameBufferLength;
+            pSrtpReceiver->onFrameReadyCallbackFunc( pSrtpReceiver->pOnFrameReadyCallbackCustomContext, &frame );
+        }
     }
 
     return ret;

@@ -282,7 +282,7 @@ static int32_t OnIceEventLocalCandidateReady( PeerConnectionSession_t * pSession
     {
         /* Format this into candidate string. */
         pBuffer = ( char * ) malloc( PEER_CONNECTION_ICE_CANDIDATE_JSON_MAX_LENGTH );
-        LogDebug( ( "Allocating buffer at %p", pBuffer ) );
+        LogVerbose( ( "Allocating buffer at %p", pBuffer ) );
         memset( pBuffer, 0, PEER_CONNECTION_ICE_CANDIDATE_JSON_MAX_LENGTH );
 
         written = snprintf( pBuffer, PEER_CONNECTION_ICE_CANDIDATE_JSON_MAX_LENGTH, PEER_CONNECTION_ICE_CANDIDATE_JSON_TEMPLATE,
@@ -1065,6 +1065,16 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
         {
             LogError( ( "Fail to initialize RTCP context, result: %d", resultRtcp ) );
             ret = PEER_CONNECTION_RESULT_FAIL_RTCP_INIT;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        if( pRemoteInfo->pRemoteCandidate )
+        {
+            ret = PeerConnection_AddRemoteCandidate( pCtx,
+                                                     pRemoteInfo->pRemoteClientId, pRemoteInfo->remoteClientIdLength,
+                                                     pRemoteInfo->pRemoteCandidate, pRemoteInfo->remoteCandidateLength );
         }
     }
 

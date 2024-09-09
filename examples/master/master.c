@@ -236,6 +236,8 @@ static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCt
         remoteInfo.twccId = pSessionInformation->sdpDescription.quickAccess.twccExtId;
         remoteInfo.videoCodecRtxPayload = pSessionInformation->sdpDescription.quickAccess.videoCodecRtxPayload;
         remoteInfo.audioCodecRtxPayload = pSessionInformation->sdpDescription.quickAccess.audioCodecRtxPayload;
+        remoteInfo.pRemoteCandidate = pSessionInformation->sdpDescription.quickAccess.pRemoteCandidate;
+        remoteInfo.remoteCandidateLength = pSessionInformation->sdpDescription.quickAccess.remoteCandidateLength;
 
         if( pSessionInformation->sdpDescription.quickAccess.isVideoCodecPayloadSet )
         {
@@ -443,6 +445,18 @@ static int initializePeerConnection( DemoContext_t * pDemoContext )
     return ret;
 }
 
+static PeerConnectionResult_t HandleRxVideoFrame( void * pCustomContext,
+                                                PeerConnectionFrame_t * pFrame )
+{
+    ( void ) pCustomContext;
+    if( pFrame != NULL )
+    {
+        LogInfo( ( "Received video frame with length: %u", pFrame->dataLength ) );
+    }
+
+    return PEER_CONNECTION_RESULT_OK;
+}
+
 static uint8_t CreatePeerConnectionSession( PeerConnectionContext_t * pPeerConnectionContext,
                                             const char * pRemoteClientId,
                                             size_t remoteClientIdLength,
@@ -463,7 +477,21 @@ static uint8_t CreatePeerConnectionSession( PeerConnectionContext_t * pPeerConne
         peerConnectionResult = PeerConnection_CreateSession( pPeerConnectionContext, pRemoteClientId, remoteClientIdLength, ppLocalFingerprint, pLocalFingerprint );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
-            LogWarn( ( "PeerConnection_CreateSession fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
+            LogWarn( ( "PeerConnection_CreateSession fail, result: %d", peerConnectionResult ) );
+            skipProcess = 1;
+        }
+    }
+
+    if( !skipProcess )
+    {
+        peerConnectionResult = PeerConnection_SetVideoOnFrame( pPeerConnectionContext,
+                                                               pRemoteClientId,
+                                                               remoteClientIdLength,
+                                                               HandleRxVideoFrame,
+                                                               &demoContext );
+        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+        {
+            LogWarn( ( "PeerConnection_SetVideoOnFrame fail, result: %d.", peerConnectionResult ) );
             skipProcess = 1;
         }
     }

@@ -769,14 +769,25 @@ IceControllerResult_t IceController_DeserializeIceCandidate( const char * pDecod
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
-        /* parse json message and get the candidate string. */
+        /* parse json message and get the candidate string. Note that it's possible the remote candidate is from media description in SDP offer/answer.
+         * In this case, it's not in JSON format. */
         ret = parseIceCandidate( pDecodeMessage,
                                  decodeMessageLength,
                                  &pCandidateString,
                                  &candidateStringLength );
+        if( ret == ICE_CONTROLLER_RESULT_INVALID_JSON )
+        {
+            pCurr = pDecodeMessage;
+            pTail = pDecodeMessage + decodeMessageLength;
 
-        pCurr = pCandidateString;
-        pTail = pCandidateString + candidateStringLength;
+            /* Reset it to OK to continue parsing. */
+            ret = ICE_CONTROLLER_RESULT_OK;
+        }
+        else
+        {
+            pCurr = pCandidateString;
+            pTail = pCandidateString + candidateStringLength;
+        }
     }
 
     /* deserialize candidate string into structure. */

@@ -78,7 +78,8 @@ static PeerConnectionResult_t FillFrameH264( PeerConnectionJitterBuffer_t * pJit
                                              uint16_t rtpSeqStart,
                                              uint16_t rtpSeqEnd,
                                              uint8_t * pOutBuffer,
-                                             size_t * pOutBufferLength )
+                                             size_t * pOutBufferLength,
+                                             uint32_t * pRtpTimestamp )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     uint16_t i, index;
@@ -88,12 +89,14 @@ static PeerConnectionResult_t FillFrameH264( PeerConnectionJitterBuffer_t * pJit
     H264Packet_t h264Packets[ PEER_CONNECTION_JITTER_BUFFER_MAX_PACKETS_NUM_IN_A_FRAME ];
     H264Packet_t h264Packet;
     Frame_t frame;
+    uint32_t rtpTimestamp;
 
     if( ( pJitterBuffer == NULL ) ||
         ( pOutBuffer == NULL ) ||
-        ( pOutBufferLength == NULL ) )
+        ( pOutBufferLength == NULL ) ||
+        ( pRtpTimestamp == NULL ) )
     {
-        LogError( ( "Invalid input, pJitterBuffer: %p, pOutBuffer: %p, pOutBufferLength: %p", pJitterBuffer, pOutBuffer, pOutBufferLength ) );
+        LogError( ( "Invalid input, pJitterBuffer: %p, pOutBuffer: %p, pOutBufferLength: %p, pRtpTimestamp: %p", pJitterBuffer, pOutBuffer, pOutBufferLength, pRtpTimestamp ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
 
@@ -117,6 +120,7 @@ static PeerConnectionResult_t FillFrameH264( PeerConnectionJitterBuffer_t * pJit
             pPacket = &pJitterBuffer->rtpPackets[ index ];
             h264Packet.pPacketData = pPacket->pPacketBuffer;
             h264Packet.packetDataLength = pPacket->packetBufferLength;
+            rtpTimestamp = pPacket->rtpTimestamp;
 
             resultH264 = H264Depacketizer_AddPacket( &h264DepacketizerContext,
                                                      &h264Packet );
@@ -146,6 +150,7 @@ static PeerConnectionResult_t FillFrameH264( PeerConnectionJitterBuffer_t * pJit
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
         *pOutBufferLength = frame.frameDataLength;
+        *pRtpTimestamp = rtpTimestamp;
     }
 
     return ret;
@@ -440,7 +445,6 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_Create( PeerConnectionJitterBu
         /* Pick get property function based on codec. */
         if( TRANSCEIVER_IS_CODEC_ENABLED( codec, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) )
         {
-            LogInfo( ( "Setting codec to H264, codec: 0x%lx.", codec ) );
             pJitterBuffer->getPacketPropertyFunc = GetH264PacketProperty;
             pJitterBuffer->fillFrameFunc = FillFrameH264;
         }
@@ -490,6 +494,11 @@ void PeerConnectionJitterBuffer_Free( PeerConnectionJitterBuffer_t * pJitterBuff
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
         ( void ) ParseFramesInJitterBuffer( pJitterBuffer, pdTRUE );
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        DiscardPackets( pJitterBuffer, 0, PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM - 1, 0U );
     }
 }
 
@@ -622,15 +631,17 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_FillFrame( PeerConnectionJitte
                                                              uint16_t rtpSeqStart,
                                                              uint16_t rtpSeqEnd,
                                                              uint8_t * pOutBuffer,
-                                                             size_t * pOutBufferLength )
+                                                             size_t * pOutBufferLength,
+                                                             uint32_t * pRtpTimestamp )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
 
     if( ( pJitterBuffer == NULL ) ||
         ( pOutBuffer == NULL ) ||
-        ( pOutBufferLength == NULL ) )
+        ( pOutBufferLength == NULL ) ||
+        ( pRtpTimestamp == NULL ) )
     {
-        LogError( ( "Invalid input, pJitterBuffer: %p, pOutBuffer: %p, pOutBufferLength: %p", pJitterBuffer, pOutBuffer, pOutBufferLength ) );
+        LogError( ( "Invalid input, pJitterBuffer: %p, pOutBuffer: %p, pOutBufferLength: %p, pRtpTimestamp: %p", pJitterBuffer, pOutBuffer, pOutBufferLength, pRtpTimestamp ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
 
@@ -642,7 +653,8 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_FillFrame( PeerConnectionJitte
                                                 rtpSeqStart,
                                                 rtpSeqEnd,
                                                 pOutBuffer,
-                                                pOutBufferLength );
+                                                pOutBufferLength,
+                                                pRtpTimestamp );
         }
         else
         {

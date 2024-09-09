@@ -42,7 +42,8 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_FillFrame( PeerConnectionJitte
                                                              uint16_t rtpSeqStart,
                                                              uint16_t rtpSeqEnd,
                                                              uint8_t * pOutBuffer,
-                                                             size_t * pOutBufferLength );
+                                                             size_t * pOutBufferLength,
+                                                             uint32_t * pRtpTimestamp );
 
 #ifdef __cplusplus
 }

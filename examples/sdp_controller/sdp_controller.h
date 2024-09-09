@@ -155,6 +155,8 @@ typedef struct SdpControllerQuickAccess
     uint32_t audioCodecRtxPayload;
     uint32_t videoSsrc;
     uint32_t audioSsrc;
+    const char * pRemoteCandidate;
+    size_t remoteCandidateLength;
 } SdpControllerQuickAccess_t;
 
 typedef struct SdpControllerSdpOffer

@@ -804,8 +804,8 @@ static SignalingControllerResult_t handleEvent( SignalingControllerContext_t * p
 
             if( ret == SIGNALING_CONTROLLER_RESULT_OK )
             {
-                LogDebug( ( "Constructed WSS message length: %u, message: \n%.*s", pCtx->constructedSignalingBufferLength,
-                            ( int ) pCtx->constructedSignalingBufferLength, pCtx->constructedSignalingBuffer ) );
+                LogVerbose( ( "Constructed WSS message length: %u, message: \n%.*s", pCtx->constructedSignalingBufferLength,
+                              ( int ) pCtx->constructedSignalingBufferLength, pCtx->constructedSignalingBuffer ) );
 
                 /* Finally, sent it to websocket layer. */
                 websocketRet = Websocket_Send( pCtx->constructedSignalingBuffer, pCtx->constructedSignalingBufferLength );

@@ -30,7 +30,7 @@ extern "C" {
 #define PEER_CONNECTION_CNAME_LENGTH ( 16 )
 #define PEER_CONNECTION_CERTIFICATE_FINGERPRINT_LENGTH ( CERTIFICATE_FINGERPRINT_LENGTH )
 #define PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM ( 1000 )
-#define PEER_CONNECTION_FRAME_BUFFER_SIZE ( 4096 )
+#define PEER_CONNECTION_FRAME_BUFFER_SIZE ( 8192 )
 
 #define PEER_CONNECTION_FRAME_CURRENT_VERSION ( 0 )
 
@@ -114,7 +114,8 @@ typedef PeerConnectionResult_t (* FillFrameFunc_t)( PeerConnectionJitterBuffer_t
                                                     uint16_t rtpSeqStart,
                                                     uint16_t rtpSeqEnd,
                                                     uint8_t * pOutBuffer,
-                                                    size_t * pOutBufferLength );
+                                                    size_t * pOutBufferLength,
+                                                    uint32_t * pRtpTimestamp );
 
 typedef struct PeerConnectionRollingBufferPacket
 {
@@ -185,6 +186,8 @@ typedef struct PeerConnectionRemoteInfo
     uint16_t twccId;
     uint32_t remoteVideoSsrc;
     uint32_t remoteAudioSsrc;
+    const char * pRemoteCandidate;
+    size_t remoteCandidateLength;
 } PeerConnectionRemoteInfo_t;
 
 typedef struct PeerConnectionUserInfo
