@@ -190,8 +190,12 @@ static IceControllerResult_t parseIceCandidate( const char * pDecodeMessage,
         }
     }
 
-    if( isCandidateFound == 0 )
+    if( ( ret == ICE_CONTROLLER_RESULT_OK ) && ( isCandidateFound == 0 ) )
     {
+        LogError( ( "Fail to find candidate in JSON message(%u): %.*s",
+                    decodeMessageLength,
+                    ( int ) decodeMessageLength,
+                    pDecodeMessage ) );
         ret = ICE_CONTROLLER_RESULT_JSON_CANDIDATE_NOT_FOUND;
     }
 
@@ -764,6 +768,7 @@ IceControllerResult_t IceController_DeserializeIceCandidate( const char * pDecod
 
     if( ( pDecodeMessage == NULL ) || ( pCandidate == NULL ) )
     {
+        LogError( ( "Invalid input, pDecodeMessage: %p, pCandidate: %p", pDecodeMessage, pCandidate ) );
         ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
     }
 

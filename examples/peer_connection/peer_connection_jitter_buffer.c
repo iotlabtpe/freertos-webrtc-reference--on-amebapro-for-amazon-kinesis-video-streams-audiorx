@@ -121,6 +121,7 @@ static PeerConnectionResult_t FillFrameH264( PeerConnectionJitterBuffer_t * pJit
             h264Packet.pPacketData = pPacket->pPacketBuffer;
             h264Packet.packetDataLength = pPacket->packetBufferLength;
             rtpTimestamp = pPacket->rtpTimestamp;
+            LogDebug( ( "Adding packet seq: %u, length: %u, timestamp: %lu", i, h264Packet.packetDataLength, rtpTimestamp ) );
 
             resultH264 = H264Depacketizer_AddPacket( &h264DepacketizerContext,
                                                      &h264Packet );
@@ -213,7 +214,6 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
                         if( ( popingPacketStartIndex != -1 ) &&
                             ( isFrameDataContinuous == 1 ) )
                         {
-                            LogInfo( ( "Callback frame with start seq: %ld and end seq: %ld", popingPacketStartIndex, popingPacketEndIndex ) );
                             /* We now have an full frame ready between start index and end index. */
                             ret = pJitterBuffer->onFrameReadyCallbackFunc( pJitterBuffer->pOnFrameReadyCallbackContext,
                                                                            popingPacketStartIndex,
@@ -237,7 +237,7 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
 
                 if( pJitterBuffer->getPacketPropertyFunc && ( pJitterBuffer->getPacketPropertyFunc( pPacket, &isStart ) == PEER_CONNECTION_RESULT_OK ) )
                 {
-                    if( isStart )
+                    if( ( popingPacketStartIndex == -1 ) && isStart )
                     {
                         popingPacketStartIndex = i;
                     }
@@ -390,7 +390,6 @@ static void DiscardPacket( PeerConnectionJitterBuffer_t * pJitterBuffer,
     ( void ) pJitterBuffer;
     if( pPacket && ( pPacket->pPacketBuffer != NULL ) )
     {
-        LogInfo( ( "Discarding packet with seq: %u", pPacket->sequenceNumber ) );
         vPortFree( pPacket->pPacketBuffer );
         memset( pPacket, 0, sizeof( PeerConnectionJitterBufferPacket_t ) );
     }

@@ -83,9 +83,11 @@ static PeerConnectionResult_t OnJitterBufferFrameReady( void * pCustomContext,
                                                              pSrtpReceiver->frameBuffer,
                                                              &frameBufferLength,
                                                              &rtpTimestamp );
-        LogInfo( ( "Fill frame with result: %d, length: %u",
+        LogInfo( ( "Fill frame with result: %d, length: %u, start seq: %u, end seq: %u",
                    retFillFrame,
-                   frameBufferLength ) );
+                   frameBufferLength,
+                   startSequence,
+                   endSequence ) );
     }
 
     if( retFillFrame == PEER_CONNECTION_RESULT_OK )
@@ -834,10 +836,6 @@ PeerConnectionResult_t PeerConnectionSrtp_HandleSrtpPacket( PeerConnectionSessio
             LogError( ( "Fail to deserialize RTP packet, result: %d", resultRtp ) );
             ret = PEER_CONNECTION_RESULT_FAIL_RTP_SERIALIZE;
         }
-        else
-        {
-            LogInfo( ( "Receiving RTP seq: %u packet for SSRC: %lu, payload length: %u", rtpPacket.header.sequenceNumber, rtpPacket.header.ssrc, rtpPacket.payloadLength ) );
-        }
     }
 
     if( ret == PEER_CONNECTION_RESULT_OK )
@@ -871,11 +869,12 @@ PeerConnectionResult_t PeerConnectionSrtp_HandleSrtpPacket( PeerConnectionSessio
         pJitterBufferPacket->receiveTick = xTaskGetTickCount();
         pJitterBufferPacket->rtpTimestamp = rtpPacket.header.timestamp;
         pJitterBufferPacket->sequenceNumber = rtpPacket.header.sequenceNumber;
-        LogInfo( ( "Dumping RTP payload, 0x%x 0x%x 0x%x 0x%x",
-                   rtpPacket.pPayload[0],
-                   rtpPacket.pPayload[1],
-                   rtpPacket.pPayload[2],
-                   rtpPacket.pPayload[3] ) );
+        // LogInfo( ( "Dumping RTP payload: %u, seq: %u, timestamp: %lu", rtpPacket.payloadLength, rtpPacket.header.sequenceNumber, rtpPacket.header.timestamp ) );
+        // for( int i = 0; i < rtpPacket.payloadLength; i++ )
+        // {
+        //     printf( "%02x ", rtpPacket.pPayload[i] );
+        // }
+        // printf( "\n" );
 
         ret = PeerConnectionJitterBuffer_Push( &pSrtpReceiver->rxJitterBuffer,
                                                pJitterBufferPacket );
@@ -934,7 +933,6 @@ PeerConnectionResult_t PeerConnectionSrtp_HandleSrtcpPacket( PeerConnectionSessi
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        LogDebug( ( "Received RTCP packet with type: %d", rtcpPacket.header.packetType ) );
         switch( rtcpPacket.header.packetType )
         {
             case RTCP_PACKET_FIR:

@@ -1072,6 +1072,10 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
     {
         if( pRemoteInfo->pRemoteCandidate )
         {
+            LogInfo( ( "Add remote candidate in SDP offer/answer(%u): %.*s",
+                       pRemoteInfo->remoteCandidateLength,
+                       ( int ) pRemoteInfo->remoteCandidateLength,
+                       pRemoteInfo->pRemoteCandidate ) );
             ret = PeerConnection_AddRemoteCandidate( pCtx,
                                                      pRemoteInfo->pRemoteClientId, pRemoteInfo->remoteClientIdLength,
                                                      pRemoteInfo->pRemoteCandidate, pRemoteInfo->remoteCandidateLength );
@@ -1195,6 +1199,8 @@ PeerConnectionResult_t PeerConnection_AddRemoteCandidate( PeerConnectionContext_
         ( pRemoteClientId == NULL ) ||
         ( pDecodeMessage == NULL ) )
     {
+        LogError( ( "Invalid input, pCtx: %p, pRemoteClientId: %p, pDecodeMessage: %p",
+                    pCtx, pRemoteClientId, pDecodeMessage ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
 

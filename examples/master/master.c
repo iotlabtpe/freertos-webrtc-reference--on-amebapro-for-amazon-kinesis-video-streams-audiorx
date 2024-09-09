@@ -446,13 +446,31 @@ static int initializePeerConnection( DemoContext_t * pDemoContext )
 }
 
 static PeerConnectionResult_t HandleRxVideoFrame( void * pCustomContext,
-                                                PeerConnectionFrame_t * pFrame )
+                                                  PeerConnectionFrame_t * pFrame )
 {
+    #ifdef ENABLE_STREAMING_LOOPBACK
+    webrtc_frame_t frame;
+
+    if( pFrame != NULL )
+    {
+        LogDebug( ( "Received video frame with length: %u", pFrame->dataLength ) );
+
+        frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
+        frame.pData = pFrame->pData;
+        frame.size = pFrame->dataLength;
+        frame.freeData = 0U;
+        frame.timestampUs = pFrame->presentationUs;
+        ( void ) OnMediaSinkHook( pCustomContext,
+                                  &frame );
+    }
+
+    #else /* ifdef ENABLE_STREAMING_LOOPBACK */
     ( void ) pCustomContext;
     if( pFrame != NULL )
     {
-        LogInfo( ( "Received video frame with length: %u", pFrame->dataLength ) );
+        LogDebug( ( "Received video frame with length: %u", pFrame->dataLength ) );
     }
+    #endif /* ifdef ENABLE_STREAMING_LOOPBACK */
 
     return PEER_CONNECTION_RESULT_OK;
 }

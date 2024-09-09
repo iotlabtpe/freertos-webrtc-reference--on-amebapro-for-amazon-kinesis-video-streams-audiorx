@@ -4,6 +4,8 @@ project(FreeRTOSWebRTCMasterApplication VERSION 0.0.1 LANGUAGES C)
 
 set(REPO_ROOT_DIRECTORY ${repo_root})
 
+option(ENABLE_STREAMING_LOOPBACK "Loopback the received frames to the remote peer" OFF)
+
 # file(
 #   GLOB
 #   WEBRTC_APPLICATION_SIGNALING_CONTROLLER_SOURCE_FILES
@@ -192,3 +194,7 @@ set_source_files_properties(
      PROPERTIES
      COMPILE_FLAGS "-Werror"
 )
+
+if( ENABLE_STREAMING_LOOPBACK )
+     add_definitions(-DENABLE_STREAMING_LOOPBACK)
+endif()

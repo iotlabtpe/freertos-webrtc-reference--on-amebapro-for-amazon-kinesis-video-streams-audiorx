@@ -336,8 +336,11 @@ static SdpControllerResult_t ParseExtraAttributes( SdpControllerSdpDescription_t
                  ( strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_CANDIDATE, pAttribute->pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_CANDIDATE_LENGTH ) == 0 ) )
         {
             /* Got a remote candidate from remote SDP */
-            pOffer->quickAccess.pRemoteCandidate = pAttribute->pAttributeValue;
-            pOffer->quickAccess.remoteCandidateLength = pAttribute->attributeValueLength;
+            if( pOffer->quickAccess.pRemoteCandidate == NULL )
+            {
+                pOffer->quickAccess.pRemoteCandidate = pAttribute->pAttributeValue;
+                pOffer->quickAccess.remoteCandidateLength = pAttribute->attributeValueLength;
+            }
         }
     }
 
