@@ -83,11 +83,11 @@ static PeerConnectionResult_t OnJitterBufferFrameReady( void * pCustomContext,
                                                              pSrtpReceiver->frameBuffer,
                                                              &frameBufferLength,
                                                              &rtpTimestamp );
-        LogInfo( ( "Fill frame with result: %d, length: %u, start seq: %u, end seq: %u",
-                   retFillFrame,
-                   frameBufferLength,
-                   startSequence,
-                   endSequence ) );
+        LogDebug( ( "Fill frame with result: %d, length: %u, start seq: %u, end seq: %u",
+                    retFillFrame,
+                    frameBufferLength,
+                    startSequence,
+                    endSequence ) );
     }
 
     if( retFillFrame == PEER_CONNECTION_RESULT_OK )
