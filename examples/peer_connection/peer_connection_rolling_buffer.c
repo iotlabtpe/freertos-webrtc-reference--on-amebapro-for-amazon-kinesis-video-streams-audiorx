@@ -42,10 +42,10 @@ PeerConnectionResult_t PeerConnectionRollingBuffer_Create( PeerConnectionRolling
         }
         else
         {
-            LogDebug( ( "Allocated RTP packet info array with total size %u, capacity: %u, sizeof( RtpPacketInfo_t ): %u",
-                        pRollingBuffer->capacity * sizeof( RtpPacketInfo_t ),
-                        pRollingBuffer->capacity,
-                        sizeof( RtpPacketInfo_t ) ) );
+            LogInfo( ( "Allocated RTP packet info array with total size %u, capacity: %u, sizeof( RtpPacketInfo_t ): %u",
+                       pRollingBuffer->capacity * sizeof( RtpPacketInfo_t ),
+                       pRollingBuffer->capacity,
+                       sizeof( RtpPacketInfo_t ) ) );
         }
     }
 
@@ -229,7 +229,7 @@ PeerConnectionResult_t PeerConnectionRollingBuffer_SetPacket( PeerConnectionRoll
     {
         if( deletedRtpPacket.pSerializedRtpPacket )
         {
-            vPortFree( deletedRtpPacket.pSerializedRtpPacket );
+            PeerConnectionRollingBuffer_DiscardRtpSequenceBuffer( pRollingBuffer, ( PeerConnectionRollingBufferPacket_t * ) deletedRtpPacket.pSerializedRtpPacket );
         }
     }
 

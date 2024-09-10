@@ -121,7 +121,13 @@ int kvs_webrtc_control( void * p,
     switch( cmd )
     {
         case CMD_KVS_WEBRTC_SET_APPLY:
+            /* If loopback is enabled, we don't need the camera to provide frames.
+             * Instead, we loopback the received frames. */
+        #ifdef ENABLE_STREAMING_LOOPBACK
+            pCtx->mediaStart = 0;
+        #else
             pCtx->mediaStart = 1;
+        #endif
             break;
         case CMD_KVS_WEBRTC_STOP:
             pCtx->mediaStart = 0;

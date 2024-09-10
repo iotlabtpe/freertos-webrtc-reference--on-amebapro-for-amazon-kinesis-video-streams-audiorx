@@ -190,8 +190,12 @@ static IceControllerResult_t parseIceCandidate( const char * pDecodeMessage,
         }
     }
 
-    if( isCandidateFound == 0 )
+    if( ( ret == ICE_CONTROLLER_RESULT_OK ) && ( isCandidateFound == 0 ) )
     {
+        LogError( ( "Fail to find candidate in JSON message(%u): %.*s",
+                    decodeMessageLength,
+                    ( int ) decodeMessageLength,
+                    pDecodeMessage ) );
         ret = ICE_CONTROLLER_RESULT_JSON_CANDIDATE_NOT_FOUND;
     }
 
@@ -658,6 +662,11 @@ IceControllerResult_t IceController_Destroy( IceControllerContext_t * pCtx )
         }
     }
 
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        vSemaphoreDelete( pCtx->socketMutex );
+    }
+
     return ret;
 }
 
@@ -759,19 +768,31 @@ IceControllerResult_t IceController_DeserializeIceCandidate( const char * pDecod
 
     if( ( pDecodeMessage == NULL ) || ( pCandidate == NULL ) )
     {
+        LogError( ( "Invalid input, pDecodeMessage: %p, pCandidate: %p", pDecodeMessage, pCandidate ) );
         ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
     }
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
-        /* parse json message and get the candidate string. */
+        /* parse json message and get the candidate string. Note that it's possible the remote candidate is from media description in SDP offer/answer.
+         * In this case, it's not in JSON format. */
         ret = parseIceCandidate( pDecodeMessage,
                                  decodeMessageLength,
                                  &pCandidateString,
                                  &candidateStringLength );
+        if( ret == ICE_CONTROLLER_RESULT_INVALID_JSON )
+        {
+            pCurr = pDecodeMessage;
+            pTail = pDecodeMessage + decodeMessageLength;
 
-        pCurr = pCandidateString;
-        pTail = pCandidateString + candidateStringLength;
+            /* Reset it to OK to continue parsing. */
+            ret = ICE_CONTROLLER_RESULT_OK;
+        }
+        else
+        {
+            pCurr = pCandidateString;
+            pTail = pCandidateString + candidateStringLength;
+        }
     }
 
     /* deserialize candidate string into structure. */

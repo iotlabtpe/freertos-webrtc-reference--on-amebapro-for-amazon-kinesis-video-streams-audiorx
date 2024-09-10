@@ -96,7 +96,7 @@ static void AudioTx_Task( void * pParameter )
         if( retMessageQueue == MESSAGE_QUEUE_RESULT_OK )
         {
             /* Received a media frame. */
-            LogDebug( ( "Audio Tx frame(%ld), track kind: %d, timestampUs: %llu", frame.size, frame.trackKind, frame.timestampUs ) );
+            LogVerbose( ( "Audio Tx frame(%ld), track kind: %d, timestampUs: %llu", frame.size, frame.trackKind, frame.timestampUs ) );
 
             if( frame.freeData )
             {
@@ -186,16 +186,6 @@ static int32_t InitializeVideoSource( AppMediaSourceContext_t * pVideoSource )
 
     if( ret == 0 )
     {
-        /* Create task for video Tx. */
-        if( xTaskCreate( VideoTx_Task, ( ( const char * )"VideoTask" ), 2048, pVideoSource, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
-        {
-            LogError( ( "xTaskCreate(VideoTask) failed" ) );
-            ret = -1;
-        }
-    }
-
-    if( ret == 0 )
-    {
         /* Initialize video transceiver. */
         pVideoSource->transceiver.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
         pVideoSource->transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
@@ -208,6 +198,16 @@ static int32_t InitializeVideoSource( AppMediaSourceContext_t * pVideoSource )
         pVideoSource->transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID );
         pVideoSource->transceiver.onPcEventCallbackFunc = HandlePcEventCallback;
         pVideoSource->transceiver.pOnPcEventCustomContext = pVideoSource;
+    }
+
+    if( ret == 0 )
+    {
+        /* Create task for video Tx. */
+        if( xTaskCreate( VideoTx_Task, ( ( const char * )"VideoTask" ), 2048, pVideoSource, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
+        {
+            LogError( ( "xTaskCreate(VideoTask) failed" ) );
+            ret = -1;
+        }
     }
 
     return ret;
@@ -239,20 +239,11 @@ static int32_t InitializeAudioSource( AppMediaSourceContext_t * pAudioSource )
 
     if( ret == 0 )
     {
-        /* Create task for audio Tx. */
-        if( xTaskCreate( AudioTx_Task, ( ( const char * )"AudioTask" ), 2048, pAudioSource, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
-        {
-            LogError( ( "xTaskCreate(AudioTask) failed" ) );
-            ret = -1;
-        }
-    }
-
-    if( ret == 0 )
-    {
         /* Initialize audio transceiver. */
         pAudioSource->transceiver.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
         pAudioSource->transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
         TRANSCEIVER_ENABLE_CODEC( pAudioSource->transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT );
+        TRANSCEIVER_ENABLE_CODEC( pAudioSource->transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT );
         pAudioSource->transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
         pAudioSource->transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_AUDIO_BIT_RATE;
         strncpy( pAudioSource->transceiver.streamId, DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID, sizeof( pAudioSource->transceiver.streamId ) );
@@ -261,7 +252,16 @@ static int32_t InitializeAudioSource( AppMediaSourceContext_t * pAudioSource )
         pAudioSource->transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID );
         pAudioSource->transceiver.onPcEventCallbackFunc = HandlePcEventCallback;
         pAudioSource->transceiver.pOnPcEventCustomContext = pAudioSource;
-        pAudioSource->transceiver.ssrc = ( uint32_t ) rand();
+    }
+
+    if( ret == 0 )
+    {
+        /* Create task for audio Tx. */
+        if( xTaskCreate( AudioTx_Task, ( ( const char * )"AudioTask" ), 2048, pAudioSource, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
+        {
+            LogError( ( "xTaskCreate(AudioTask) failed" ) );
+            ret = -1;
+        }
     }
 
     return ret;

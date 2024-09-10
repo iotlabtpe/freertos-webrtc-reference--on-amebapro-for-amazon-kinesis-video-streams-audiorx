@@ -7,6 +7,7 @@
 #include "signaling_controller.h"
 #include "rtp_api.h"
 #include "rtcp_api.h"
+#include "peer_connection_rolling_buffer.h"
 
 #include "lwip/sockets.h"
 
@@ -281,7 +282,7 @@ static int32_t OnIceEventLocalCandidateReady( PeerConnectionSession_t * pSession
     {
         /* Format this into candidate string. */
         pBuffer = ( char * ) malloc( PEER_CONNECTION_ICE_CANDIDATE_JSON_MAX_LENGTH );
-        LogDebug( ( "Allocating buffer at %p", pBuffer ) );
+        LogVerbose( ( "Allocating buffer at %p", pBuffer ) );
         memset( pBuffer, 0, PEER_CONNECTION_ICE_CANDIDATE_JSON_MAX_LENGTH );
 
         written = snprintf( pBuffer, PEER_CONNECTION_ICE_CANDIDATE_JSON_MAX_LENGTH, PEER_CONNECTION_ICE_CANDIDATE_JSON_TEMPLATE,
@@ -598,7 +599,6 @@ static int32_t HandleRtpRtcpPackets( void * pCustomContext,
         if( ( bufferLength >= 2 ) && ( pBuffer[1] >= 192 ) && ( pBuffer[1] <= 223 ) )
         {
             /* RTCP packet */
-            LogInfo( ( "Receiving RTCP packets with length %u", bufferLength ) );
             resultPeerConnection = PeerConnectionSrtp_HandleSrtcpPacket( pSession, pBuffer, bufferLength );
             if( resultPeerConnection != PEER_CONNECTION_RESULT_OK )
             {
@@ -937,8 +937,12 @@ PeerConnectionResult_t PeerConnection_Destroy( PeerConnectionContext_t * pCtx )
     {
         for( i = 0; i < AWS_MAX_VIEWER_NUM; i++ )
         {
-            /* Deinitialize Ice Controller. */
-            ret = DestroyIceController( &pCtx->peerConnectionSessions[i] );
+            /* Free the sender for this session. */
+            ( void ) DestroyIceController( &pCtx->peerConnectionSessions[i] );
+            vSemaphoreDelete( pCtx->peerConnectionSessions[i].videoSrtpSender.senderMutex );
+            vSemaphoreDelete( pCtx->peerConnectionSessions[i].audioSrtpSender.senderMutex );
+            ( void ) PeerConnectionRollingBuffer_Free( &pCtx->peerConnectionSessions[i].videoSrtpSender.txRollingBuffer );
+            ( void ) PeerConnectionRollingBuffer_Free( &pCtx->peerConnectionSessions[i].audioSrtpSender.txRollingBuffer );
         }
     }
 
@@ -1066,6 +1070,20 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
+        if( pRemoteInfo->pRemoteCandidate )
+        {
+            LogInfo( ( "Add remote candidate in SDP offer/answer(%u): %.*s",
+                       pRemoteInfo->remoteCandidateLength,
+                       ( int ) pRemoteInfo->remoteCandidateLength,
+                       pRemoteInfo->pRemoteCandidate ) );
+            ret = PeerConnection_AddRemoteCandidate( pCtx,
+                                                     pRemoteInfo->pRemoteClientId, pRemoteInfo->remoteClientIdLength,
+                                                     pRemoteInfo->pRemoteCandidate, pRemoteInfo->remoteCandidateLength );
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
         if( pRemoteInfo->isVideoCodecPayloadSet )
         {
             pSession->rtpConfig.isVideoCodecPayloadSet = 1;
@@ -1086,7 +1104,81 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
         pSession->rtpConfig.audioRtxSequenceNumber = 0U;
         pSession->rtpConfig.twccId = pRemoteInfo->twccId;
 
+        pSession->rtpConfig.remoteVideoSsrc = pRemoteInfo->remoteVideoSsrc;
+        pSession->rtpConfig.remoteAudioSsrc = pRemoteInfo->remoteAudioSsrc;
+
         pSession->state = PEER_CONNECTION_SESSION_STATE_START;
+    }
+
+    return ret;
+}
+
+PeerConnectionResult_t PeerConnection_SetVideoOnFrame( PeerConnectionContext_t * pCtx,
+                                                       const char * pRemoteClientId,
+                                                       size_t remoteClientIdLength,
+                                                       OnFrameReadyCallback_t onFrameReadyCallbackFunc,
+                                                       void * pOnFrameReadyCallbackCustomContext )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    PeerConnectionSession_t * pSession = NULL;
+
+    if( ( pCtx == NULL ) ||
+        ( pRemoteClientId == NULL ) )
+    {
+        LogError( ( "Invalid input, pCtx: %p, pRemoteClientId: %p", pCtx, pRemoteClientId ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        pSession = GetExistingSession( pCtx, pRemoteClientId, remoteClientIdLength );
+        if( pSession == NULL )
+        {
+            /* No existing session found. */
+            LogWarn( ( "No existing session found to close for remote client(%d): %.*s", remoteClientIdLength, ( int ) remoteClientIdLength, pRemoteClientId ) );
+            ret = PEER_CONNECTION_RESULT_NO_AVAILABLE_SESSION;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        pSession->videoSrtpReceiver.onFrameReadyCallbackFunc = onFrameReadyCallbackFunc;
+        pSession->videoSrtpReceiver.pOnFrameReadyCallbackCustomContext = pOnFrameReadyCallbackCustomContext;
+    }
+
+    return ret;
+}
+PeerConnectionResult_t PeerConnection_SetAudioOnFrame( PeerConnectionContext_t * pCtx,
+                                                       const char * pRemoteClientId,
+                                                       size_t remoteClientIdLength,
+                                                       OnFrameReadyCallback_t onFrameReadyCallbackFunc,
+                                                       void * pOnFrameReadyCallbackCustomContext )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    PeerConnectionSession_t * pSession = NULL;
+
+    if( ( pCtx == NULL ) ||
+        ( pRemoteClientId == NULL ) )
+    {
+        LogError( ( "Invalid input, pCtx: %p, pRemoteClientId: %p", pCtx, pRemoteClientId ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        pSession = GetExistingSession( pCtx, pRemoteClientId, remoteClientIdLength );
+        if( pSession == NULL )
+        {
+            /* No existing session found. */
+            LogWarn( ( "No existing session found to close for remote client(%d): %.*s", remoteClientIdLength, ( int ) remoteClientIdLength, pRemoteClientId ) );
+            ret = PEER_CONNECTION_RESULT_NO_AVAILABLE_SESSION;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        pSession->audioSrtpReceiver.onFrameReadyCallbackFunc = onFrameReadyCallbackFunc;
+        pSession->audioSrtpReceiver.pOnFrameReadyCallbackCustomContext = pOnFrameReadyCallbackCustomContext;
     }
 
     return ret;
@@ -1107,6 +1199,8 @@ PeerConnectionResult_t PeerConnection_AddRemoteCandidate( PeerConnectionContext_
         ( pRemoteClientId == NULL ) ||
         ( pDecodeMessage == NULL ) )
     {
+        LogError( ( "Invalid input, pCtx: %p, pRemoteClientId: %p, pDecodeMessage: %p",
+                    pCtx, pRemoteClientId, pDecodeMessage ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
 

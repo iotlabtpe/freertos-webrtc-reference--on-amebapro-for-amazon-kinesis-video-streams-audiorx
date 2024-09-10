@@ -16,7 +16,7 @@
 #define ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_BINDING_INDICATION "BINDING_INDICATION"
 
 #define ICE_CONTROLLER_RESEND_DELAY_MS ( 50 )
-#define ICE_CONTROLLER_RESEND_TIMEOUT_MS ( 2000 )
+#define ICE_CONTROLLER_RESEND_TIMEOUT_MS ( 1000 )
 
 static void getLocalIPAdresses( IceEndpoint_t * pLocalIceEndpoints,
                                 size_t * pLocalIceEndpointsNum )
@@ -302,7 +302,7 @@ IceControllerResult_t IceControllerNet_SendPacket( IceControllerSocketContext_t 
             {
                 /* Just retry for these kinds of errno. */
             }
-            else if( ( errno == ENOMEM ) || ( errno == ENOSPC ) )
+            else if( ( errno == ENOMEM ) || ( errno == ENOSPC ) || ( errno == ENOBUFS ) )
             {
                 vTaskDelay( pdMS_TO_TICKS( ICE_CONTROLLER_RESEND_DELAY_MS ) );
                 totalDelayMs += ICE_CONTROLLER_RESEND_DELAY_MS;
@@ -316,7 +316,7 @@ IceControllerResult_t IceControllerNet_SendPacket( IceControllerSocketContext_t 
             }
             else
             {
-                LogWarn( ( "Send error, errno: %s", strerror( errno ) ) );
+                LogWarn( ( "Failed to send to socket fd: %d error, errno(%d): %s", pSocketContext->socketFd, errno, strerror( errno ) ) );
                 ret = ICE_CONTROLLER_RESULT_FAIL_SOCKET_SENDTO;
                 break;
             }
@@ -530,7 +530,7 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
                         LogDebug( ( "Sent STUN bind response back to remote" ) );
                         if( iceHandleStunResult == ICE_HANDLE_STUN_PACKET_RESULT_SEND_RESPONSE_FOR_NOMINATION )
                         {
-                            LogInfo( ( "Sent nominating STUN bind response" ) );
+                            LogDebug( ( "Sent nominating STUN bind response" ) );
                             LogVerbose( ( "Candidiate pair is nominated, local IP/port: %s/%u, remote IP/port: %s/%u",
                                           IceControllerNet_LogIpAddressInfo( &pCandidatePair->pLocalCandidate->endpoint, ipBuffer, sizeof( ipBuffer ) ), pCandidatePair->pLocalCandidate->endpoint.transportAddress.port,
                                           IceControllerNet_LogIpAddressInfo( &pCandidatePair->pRemoteCandidate->endpoint, ipBuffer2, sizeof( ipBuffer2 ) ), pCandidatePair->pRemoteCandidate->endpoint.transportAddress.port ) );

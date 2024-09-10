@@ -16,6 +16,7 @@
 #include "demo_config.h"
 #include "demo_data_types.h"
 #include "networking_utils.h"
+#include "string_utils.h"
 
 #define DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH ( 8 ) // the length of "sha-256 "
 #define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect
@@ -143,6 +144,76 @@ static uint8_t respondWithSdpAnswer( const char * pRemoteClientId,
     return skipProcess;
 }
 
+static void SetReceiverSsrc( DemoSessionInformation_t * pSessionInformation,
+                             PeerConnectionRemoteInfo_t * pRemoteInfo )
+{
+    int i, j;
+    uint8_t isVideoDescription = 0U;
+    uint8_t isAudioDescription = 0U;
+    SdpControllerMediaDescription_t * pMediaDescription;
+    StringUtilsResult_t stringResult;
+    uint32_t * pMediaSsrc;
+
+    for( i = 0; i < pSessionInformation->sdpDescription.mediaCount; i++ )
+    {
+        if( pSessionInformation->sdpDescription.mediaDescriptions[i].mediaNameLength < 5 )
+        {
+            if( pSessionInformation->sdpDescription.mediaDescriptions[i].mediaNameLength > 0 )
+            {
+                LogWarn( ( "The media name is not known source, media name: %.*s",
+                           pSessionInformation->sdpDescription.mediaDescriptions[i].mediaNameLength,
+                           pSessionInformation->sdpDescription.mediaDescriptions[i].pMediaName ) );
+            }
+            else
+            {
+                LogWarn( ( "No media name in this media description" ) );
+            }
+            continue;
+        }
+        isVideoDescription = strncmp( pSessionInformation->sdpDescription.mediaDescriptions[i].pMediaName, "video", 5 ) == 0 ? 1U : 0U;
+        isAudioDescription = strncmp( pSessionInformation->sdpDescription.mediaDescriptions[i].pMediaName, "audio", 5 ) == 0 ? 1U : 0U;
+        if( ( isVideoDescription == 0U ) && ( isAudioDescription == 0U ) )
+        {
+            LogWarn( ( "Non video/audio media description." ) );
+            continue;
+        }
+        else if( isVideoDescription != 0U )
+        {
+            pMediaSsrc = &pRemoteInfo->remoteVideoSsrc;
+        }
+        else
+        {
+            pMediaSsrc = &pRemoteInfo->remoteAudioSsrc;
+        }
+
+        pMediaDescription = &pSessionInformation->sdpDescription.mediaDescriptions[i];
+        for( j = 0; j < pMediaDescription->mediaAttributesCount; j++ )
+        {
+            if( ( pMediaDescription->attributes[j].attributeNameLength == strlen( "ssrc" ) ) &&
+                ( strncmp( pMediaDescription->attributes[j].pAttributeName, "ssrc", strlen( "ssrc" ) ) == 0 ) )
+            {
+                LogInfo( ( "Found SSRC attribute: %.*s",
+                           ( int ) pMediaDescription->attributes[j].attributeValueLength,
+                           pMediaDescription->attributes[j].pAttributeValue ) );
+                stringResult = StringUtils_ConvertStringToUl( pMediaDescription->attributes[j].pAttributeValue,
+                                                              pMediaDescription->attributes[j].attributeValueLength,
+                                                              pMediaSsrc );
+                if( stringResult != STRING_UTILS_RESULT_OK )
+                {
+                    LogError( ( "StringUtils_ConvertStringToUl fail, result %d, converting %.*s to %lu",
+                                stringResult,
+                                ( int ) pMediaDescription->attributes[j].attributeValueLength, pMediaDescription->attributes[j].pAttributeValue,
+                                *pMediaSsrc ) );
+                    continue;
+                }
+
+                /* Use first SSRC as media source SSRC. */
+                break;
+            }
+        }
+    }
+}
+
 static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCtx,
                                      DemoSessionInformation_t * pSessionInformation,
                                      const char * pRemoteClientId,
@@ -165,6 +236,8 @@ static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCt
         remoteInfo.twccId = pSessionInformation->sdpDescription.quickAccess.twccExtId;
         remoteInfo.videoCodecRtxPayload = pSessionInformation->sdpDescription.quickAccess.videoCodecRtxPayload;
         remoteInfo.audioCodecRtxPayload = pSessionInformation->sdpDescription.quickAccess.audioCodecRtxPayload;
+        remoteInfo.pRemoteCandidate = pSessionInformation->sdpDescription.quickAccess.pRemoteCandidate;
+        remoteInfo.remoteCandidateLength = pSessionInformation->sdpDescription.quickAccess.remoteCandidateLength;
 
         if( pSessionInformation->sdpDescription.quickAccess.isVideoCodecPayloadSet )
         {
@@ -185,6 +258,8 @@ static uint8_t setRemoteDescription( PeerConnectionContext_t * pPeerConnectionCt
         {
             remoteInfo.isAudioCodecPayloadSet = 0;
         }
+
+        SetReceiverSsrc( pSessionInformation, &remoteInfo );
 
         peerConnectionResult = PeerConnection_SetRemoteDescription( pPeerConnectionCtx, &remoteInfo );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
@@ -370,6 +445,36 @@ static int initializePeerConnection( DemoContext_t * pDemoContext )
     return ret;
 }
 
+static PeerConnectionResult_t HandleRxVideoFrame( void * pCustomContext,
+                                                  PeerConnectionFrame_t * pFrame )
+{
+    #ifdef ENABLE_STREAMING_LOOPBACK
+    webrtc_frame_t frame;
+
+    if( pFrame != NULL )
+    {
+        LogDebug( ( "Received video frame with length: %u", pFrame->dataLength ) );
+
+        frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
+        frame.pData = pFrame->pData;
+        frame.size = pFrame->dataLength;
+        frame.freeData = 0U;
+        frame.timestampUs = pFrame->presentationUs;
+        ( void ) OnMediaSinkHook( pCustomContext,
+                                  &frame );
+    }
+
+    #else /* ifdef ENABLE_STREAMING_LOOPBACK */
+    ( void ) pCustomContext;
+    if( pFrame != NULL )
+    {
+        LogDebug( ( "Received video frame with length: %u", pFrame->dataLength ) );
+    }
+    #endif /* ifdef ENABLE_STREAMING_LOOPBACK */
+
+    return PEER_CONNECTION_RESULT_OK;
+}
+
 static uint8_t CreatePeerConnectionSession( PeerConnectionContext_t * pPeerConnectionContext,
                                             const char * pRemoteClientId,
                                             size_t remoteClientIdLength,
@@ -390,7 +495,21 @@ static uint8_t CreatePeerConnectionSession( PeerConnectionContext_t * pPeerConne
         peerConnectionResult = PeerConnection_CreateSession( pPeerConnectionContext, pRemoteClientId, remoteClientIdLength, ppLocalFingerprint, pLocalFingerprint );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
-            LogWarn( ( "PeerConnection_CreateSession fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
+            LogWarn( ( "PeerConnection_CreateSession fail, result: %d", peerConnectionResult ) );
+            skipProcess = 1;
+        }
+    }
+
+    if( !skipProcess )
+    {
+        peerConnectionResult = PeerConnection_SetVideoOnFrame( pPeerConnectionContext,
+                                                               pRemoteClientId,
+                                                               remoteClientIdLength,
+                                                               HandleRxVideoFrame,
+                                                               &demoContext );
+        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+        {
+            LogWarn( ( "PeerConnection_SetVideoOnFrame fail, result: %d.", peerConnectionResult ) );
             skipProcess = 1;
         }
     }

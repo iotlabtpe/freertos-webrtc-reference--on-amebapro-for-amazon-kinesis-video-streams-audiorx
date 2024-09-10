@@ -86,6 +86,8 @@
 #define SDP_CONTROLLER_MEDIA_ATTRIBUTE_VALUE_TWCC_EXT_URL_LENGTH ( 73 )
 #define SDP_CONTROLLER_MEDIA_ATTRIBUTE_VALUE_RTCP_FB_TRANSPORT_CC "transport-cc"
 #define SDP_CONTROLLER_MEDIA_ATTRIBUTE_VALUE_RTCP_FB_TRANSPORT_CC_LENGTH ( 12 )
+#define SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_CANDIDATE "candidate"
+#define SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_CANDIDATE_LENGTH ( 9 )
 
 #define SDP_CONTROLLER_MEDIA_ATTRIBUTE_VALUE_FMTP_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f"
 #define SDP_CONTROLLER_MEDIA_ATTRIBUTE_VALUE_FMTP_OPUS "minptime=10;useinbandfec=1"
@@ -328,6 +330,16 @@ static SdpControllerResult_t ParseExtraAttributes( SdpControllerSdpDescription_t
                 {
                     LogDebug( ( "Found TWCC, ID: %lu", pOffer->quickAccess.twccExtId ) );
                 }
+            }
+        }
+        else if( ( pAttribute->attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_CANDIDATE_LENGTH ) &&
+                 ( strncmp( SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_CANDIDATE, pAttribute->pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_CANDIDATE_LENGTH ) == 0 ) )
+        {
+            /* Got a remote candidate from remote SDP */
+            if( pOffer->quickAccess.pRemoteCandidate == NULL )
+            {
+                pOffer->quickAccess.pRemoteCandidate = pAttribute->pAttributeValue;
+                pOffer->quickAccess.remoteCandidateLength = pAttribute->attributeValueLength;
             }
         }
     }
