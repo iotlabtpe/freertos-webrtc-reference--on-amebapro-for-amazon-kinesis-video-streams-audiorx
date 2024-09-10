@@ -1402,7 +1402,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
 
         if( xHttpStatus != HTTPSuccess )
         {
-            LogError( ( "Failed to send HTTP POST request to %.*s for obtaining temporary credentials: Error=%s.",
+            LogError( ( "Failed to send Websocket connect request to %.*s for obtaining temporary credentials: Error=%s.",
                         ( int ) hostLength, pHost,
                         HTTPClient_strerror( xHttpStatus ) ) );
             ret = NETWORKING_WSLAY_RESULT_FAIL_HTTP_SEND;

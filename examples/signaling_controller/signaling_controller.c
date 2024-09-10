@@ -20,6 +20,7 @@
 
 #define MAX_QUEUE_MSG_NUM ( 10 )
 #define WEBSOCKET_ENDPOINT_PORT ( 443U )
+#define HTTPS_PERFORM_RETRY_TIMES ( 5U )
 
 static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerContext_t * pCtx,
                                                            SignalingIceServer_t * pIceServerList,
@@ -145,11 +146,21 @@ static SignalingControllerResult_t SignalingController_HttpPerform( SignalingCon
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     HttpResult_t retHttp;
+    int i;
 
-    retHttp = Http_Send( pRequest, timeoutMs, pResponse );
+    for( i = 0; i < HTTPS_PERFORM_RETRY_TIMES; i++ )
+    {
+        retHttp = Http_Send( pRequest, timeoutMs, pResponse );
+
+        if( retHttp == HTTP_RESULT_OK )
+        {
+            break;
+        }
+    }
 
     if( retHttp != HTTP_RESULT_OK )
     {
+        LogError( ( "Http_Send fails with return 0x%x", retHttp ) );
         ret = SIGNALING_CONTROLLER_RESULT_HTTP_PERFORM_REQUEST_FAIL;
     }
 
@@ -160,11 +171,23 @@ static SignalingControllerResult_t SignalingController_WebsocketConnect( Websock
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     WebsocketResult_t retWebsocket;
+    int i;
 
-    retWebsocket = Websocket_Connect( pServerInfo );
+    for( i = 0; i < HTTPS_PERFORM_RETRY_TIMES; i++ )
+    {
+        retWebsocket = Websocket_Connect( pServerInfo );
+
+        if( retWebsocket == WEBSOCKET_RESULT_OK )
+        {
+            break;
+        }
+    }
+
 
     if( retWebsocket != WEBSOCKET_RESULT_OK )
     {
+        LogError( ( "Fail to connect url: %.*s:%u, return=0x%x",
+                    ( int ) pServerInfo->urlLength, pServerInfo->pUrl, pServerInfo->port, retWebsocket ) );
         ret = SIGNALING_CONTROLLER_RESULT_WSS_CONNECT_FAIL;
     }
 
@@ -207,8 +230,17 @@ static SignalingControllerResult_t SignalingController_HttpPerform( SignalingCon
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     HttpResult_t retHttp;
+    int i;
 
-    retHttp = Http_Send( pRequest, timeoutMs, pResponse );
+    for( i = 0; i < HTTPS_PERFORM_RETRY_TIMES; i++ )
+    {
+        retHttp = Http_Send( pRequest, timeoutMs, pResponse );
+
+        if( retHttp == HTTP_RESULT_OK )
+        {
+            break;
+        }
+    }
 
     if( retHttp != HTTP_RESULT_OK )
     {
@@ -254,8 +286,17 @@ static SignalingControllerResult_t SignalingController_WebsocketConnect( Websock
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     WebsocketResult_t retWebsocket;
+    int i;
 
-    retWebsocket = Websocket_Connect( pServerInfo );
+    for( i = 0; i < HTTPS_PERFORM_RETRY_TIMES; i++ )
+    {
+        retWebsocket = Websocket_Connect( pServerInfo );
+
+        if( retWebsocket == WEBSOCKET_RESULT_OK )
+        {
+            break;
+        }
+    }
 
     if( retWebsocket != WEBSOCKET_RESULT_OK )
     {
