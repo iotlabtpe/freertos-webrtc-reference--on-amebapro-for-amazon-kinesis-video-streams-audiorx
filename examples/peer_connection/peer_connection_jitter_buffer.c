@@ -295,7 +295,7 @@ static PeerConnectionResult_t ShouldAcceptPacket( PeerConnectionJitterBuffer_t *
                 ( pPacket->sequenceNumber > lastestTolerenceRtpSeq ) )
             {
                 ret = PEER_CONNECTION_RESULT_PACKET_OUTDATED;
-                LogInfo( ( "Dropping packet with seq: %u because of out of tolerence time range, earliest: %u, lastest: %u",
+                LogInfo( ( "Dropping packet with seq: %u because of out of tolerence seq range, earliest: %u, lastest: %u",
                            pPacket->sequenceNumber,
                            earliestTolerenceRtpSeq,
                            lastestTolerenceRtpSeq ) );
@@ -308,7 +308,7 @@ static PeerConnectionResult_t ShouldAcceptPacket( PeerConnectionJitterBuffer_t *
                 ( pPacket->sequenceNumber > lastestTolerenceRtpSeq ) )
             {
                 ret = PEER_CONNECTION_RESULT_PACKET_OUTDATED;
-                LogInfo( ( "Dropping packet with seq: %u because of out of tolerence time range, earliest: %u, lastest: %u",
+                LogInfo( ( "Dropping packet with seq: %u because of out of tolerence seq range, earliest seq: %u, lastest seq: %u",
                            pPacket->sequenceNumber,
                            earliestTolerenceRtpSeq,
                            lastestTolerenceRtpSeq ) );

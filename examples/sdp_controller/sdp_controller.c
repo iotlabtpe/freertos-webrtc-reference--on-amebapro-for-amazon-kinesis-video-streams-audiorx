@@ -122,7 +122,8 @@
 #define SDP_CONTROLLER_H264_PROFILE_42E01F 0x42e01f
 #define SDP_CONTROLLER_H264_FMTP_SUBPROFILE_MASK 0xFFFF00
 #define SDP_CONTROLLER_H264_FMTP_PROFILE_LEVEL_MASK 0x0000FF
-#define SDP_CONTROLLER_H264_FMTP_HIGHEST_SCORE ( 3 )
+#define SDP_CONTROLLER_H264_FMTP_MINIMUM_SCORE ( 10 )
+#define SDP_CONTROLLER_H264_FMTP_HIGHEST_SCORE ( 12 )
 
 #define SDP_CONTROLLER_CODEC_H264_VALUE "H264/90000"
 #define SDP_CONTROLLER_CODEC_H264_VALUE_LENGTH ( 10 )
@@ -2084,7 +2085,8 @@ static uint32_t CalculateH264ScoreByFmtp( SdpControllerAttributes_t * pTargetFmt
         if( StringUtils_StrStr( pTargetFmtpAttribute->pAttributeValue, pTargetFmtpAttribute->attributeValueLength,
                                 SDP_CONTROLLER_H264_PACKETIZATION_MODE, SDP_CONTROLLER_H264_PACKETIZATION_MODE_LENGTH ) )
         {
-            score++;
+            /* Packetization mode is mandatory. */
+            score += SDP_CONTROLLER_H264_FMTP_MINIMUM_SCORE;
         }
 
         if( StringUtils_StrStr( pTargetFmtpAttribute->pAttributeValue, pTargetFmtpAttribute->attributeValueLength,
@@ -2162,7 +2164,7 @@ static uint32_t CollectAttributesCodecBitMap( SdpControllerAttributes_t * pAttri
                 {
                     pH264FmtpAttribute = FindH264FmtpAttribute( pAttributes, attributeCount, &pAttributes[i] );
                     h264Score = CalculateH264ScoreByFmtp( pH264FmtpAttribute );
-                    if( highestH264Score < h264Score )
+                    if( ( h264Score >= SDP_CONTROLLER_H264_FMTP_MINIMUM_SCORE ) && ( highestH264Score < h264Score ) )
                     {
                         stringResult = StringUtils_ConvertStringToUl( pAttributes[i].pAttributeValue, pAttributes[i].attributeValueLength - SDP_CONTROLLER_CODEC_H264_VALUE_LENGTH, &pCodecPayloads[ TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ] );
                         if( stringResult != STRING_UTILS_RESULT_OK )
