@@ -5,6 +5,7 @@
 #include "http.h"
 #include "websocket.h"
 #include "base64.h"
+#include "metric.h"
 
 #if ( defined( SIGNALING_CONTROLLER_USING_LIBWEBSOCKETS ) && SIGNALING_CONTROLLER_USING_LIBWEBSOCKETS )
     #include "libwebsockets.h"
@@ -312,7 +313,6 @@ static SignalingControllerResult_t SignalingController_WebsocketConnect( Websock
 static void printMetrics( SignalingControllerContext_t * pCtx )
 {
     uint8_t i, j;
-    long long duration_ms;
 
     /* channel info */
     LogInfo( ( "======================================== Channel Info ========================================" ) );
@@ -339,21 +339,6 @@ static void printMetrics( SignalingControllerContext_t * pCtx )
             LogInfo( ( "        URI: %s", pCtx->iceServerConfigs[i].uris[j] ) );
         }
     }
-
-    /* Print each step duration */
-    LogInfo( ( "======================================== Duration ========================================" ) );
-    duration_ms = ( pCtx->metrics.describeSignalingChannelEndTime.tv_sec - pCtx->metrics.describeSignalingChannelStartTime.tv_sec ) * 1000LL +
-                  ( pCtx->metrics.describeSignalingChannelEndTime.tv_usec - pCtx->metrics.describeSignalingChannelStartTime.tv_usec ) / 1000LL;
-    LogInfo( ( "Duration of Describe Signaling Channel: %lld ms", duration_ms ) );
-    duration_ms = ( pCtx->metrics.getSignalingEndpointsEndTime.tv_sec - pCtx->metrics.getSignalingEndpointsStartTime.tv_sec ) * 1000LL +
-                  ( pCtx->metrics.getSignalingEndpointsEndTime.tv_usec - pCtx->metrics.getSignalingEndpointsStartTime.tv_usec ) / 1000LL;
-    LogInfo( ( "Duration of Get Signaling Endpoints: %lld ms", duration_ms ) );
-    duration_ms = ( pCtx->metrics.getIceServerListEndTime.tv_sec - pCtx->metrics.getIceServerListStartTime.tv_sec ) * 1000LL +
-                  ( pCtx->metrics.getIceServerListEndTime.tv_usec - pCtx->metrics.getIceServerListStartTime.tv_usec ) / 1000LL;
-    LogInfo( ( "Duration of Get Ice Server List: %lld ms", duration_ms ) );
-    duration_ms = ( pCtx->metrics.connectWssServerEndTime.tv_sec - pCtx->metrics.connectWssServerStartTime.tv_sec ) * 1000LL +
-                  ( pCtx->metrics.connectWssServerEndTime.tv_usec - pCtx->metrics.connectWssServerStartTime.tv_usec ) / 1000LL;
-    LogInfo( ( "Duration of Connect Websocket Server: %lld ms", duration_ms ) );
 }
 
 static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerContext_t * pCtx,
@@ -983,33 +968,33 @@ SignalingControllerResult_t SignalingController_ConnectServers( SignalingControl
     /* Execute describe channel if no channel ARN. */
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        gettimeofday( &pCtx->metrics.describeSignalingChannelStartTime, NULL );
+        Metric_StartEvent( METRIC_EVENT_SIGNALING_DESCRIBE_CHANNEL );
         ret = describeSignalingChannel( pCtx );
-        gettimeofday( &pCtx->metrics.describeSignalingChannelEndTime, NULL );
+        Metric_EndEvent( METRIC_EVENT_SIGNALING_DESCRIBE_CHANNEL );
     }
 
     /* Query signaling channel endpoints with channel ARN. */
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        gettimeofday( &pCtx->metrics.getSignalingEndpointsStartTime, NULL );
+        Metric_StartEvent( METRIC_EVENT_SIGNALING_GET_ENDPOINTS );
         ret = getSignalingChannelEndpoints( pCtx );
-        gettimeofday( &pCtx->metrics.getSignalingEndpointsEndTime, NULL );
+        Metric_EndEvent( METRIC_EVENT_SIGNALING_GET_ENDPOINTS );
     }
 
     /* Query ICE server list with HTTPS endpoint. */
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        gettimeofday( &pCtx->metrics.getIceServerListStartTime, NULL );
+        Metric_StartEvent( METRIC_EVENT_SIGNALING_GET_ICE_SERVER_LIST );
         ret = getIceServerList( pCtx );
-        gettimeofday( &pCtx->metrics.getIceServerListEndTime, NULL );
+        Metric_EndEvent( METRIC_EVENT_SIGNALING_GET_ICE_SERVER_LIST );
     }
 
     /* Connect websocket secure endpoint. */
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        gettimeofday( &pCtx->metrics.connectWssServerStartTime, NULL );
+        Metric_StartEvent( METRIC_EVENT_SIGNALING_CONNECT_WSS_SERVER );
         ret = connectWssEndpoint( pCtx );
-        gettimeofday( &pCtx->metrics.connectWssServerEndTime, NULL );
+        Metric_EndEvent( METRIC_EVENT_SIGNALING_CONNECT_WSS_SERVER );
     }
 
     /* Print metric. */

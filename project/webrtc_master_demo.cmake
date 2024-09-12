@@ -6,63 +6,6 @@ set(REPO_ROOT_DIRECTORY ${repo_root})
 
 option(ENABLE_STREAMING_LOOPBACK "Loopback the received frames to the remote peer" OFF)
 
-# file(
-#   GLOB
-#   WEBRTC_APPLICATION_SIGNALING_CONTROLLER_SOURCE_FILES
-#   "${REPO_ROOT_DIRECTORY}/examples/signaling_controller/*.c" )
-
-# set( WEBRTC_APPLICATION_SIGNALING_CONTROLLER_INCLUDE_DIRS
-#      "${REPO_ROOT_DIRECTORY}/examples/signaling_controller/" )
-
-# file(
-#   GLOB
-#   WEBRTC_APPLICATION_NETWORKING_LIBWEBSOCKETS_SOURCE_FILES
-#   "${REPO_ROOT_DIRECTORY}/examples/networking/networkingLibwebsockets/*.c" )
-
-# set( WEBRTC_APPLICATION_NETWORKING_LIBWEBSOCKETS_INCLUDE_DIRS
-#      "${REPO_ROOT_DIRECTORY}/examples/networking/"
-#      "${REPO_ROOT_DIRECTORY}/examples/networking/networkingLibwebsockets/" )
-
-# file(
-#   GLOB
-#   WEBRTC_APPLICATION_UTILS_SOURCE_FILES
-#   "${REPO_ROOT_DIRECTORY}/examples/base64/*.c"
-#   "${REPO_ROOT_DIRECTORY}/examples/logging/*.c"
-#   "${REPO_ROOT_DIRECTORY}/examples/message_queue/linux/*.c"
-#   "${REPO_ROOT_DIRECTORY}/examples/timer_controller/*.c"
-#   "${REPO_ROOT_DIRECTORY}/examples/string_utils/*.c" )
-
-# set( WEBRTC_APPLICATION_UTILS_INCLUDE_DIRS
-#      "${REPO_ROOT_DIRECTORY}/examples/base64/"
-#      "${REPO_ROOT_DIRECTORY}/examples/logging/"
-#      "${REPO_ROOT_DIRECTORY}/examples/message_queue/linux/"
-#      "${REPO_ROOT_DIRECTORY}/examples/timer_controller/"
-#      "${REPO_ROOT_DIRECTORY}/examples/string_utils" )
-
-# file(
-#   GLOB
-#   WEBRTC_APPLICATION_SDP_CONTROLLER_SOURCE_FILES
-#   "${REPO_ROOT_DIRECTORY}/examples/sdp_controller/*.c" )
-
-# set( WEBRTC_APPLICATION_SDP_CONTROLLER_INCLUDE_DIRS
-#      "${REPO_ROOT_DIRECTORY}/examples/sdp_controller/" )
-
-# file(
-#   GLOB
-#   WEBRTC_APPLICATION_ICE_CONTROLLER_SOURCE_FILES
-#   "${REPO_ROOT_DIRECTORY}/examples/ice_controller/*.c" )
-
-# set( WEBRTC_APPLICATION_ICE_CONTROLLER_INCLUDE_DIRS
-#     "examples/ice_controller/" )
-
-# file(
-#   GLOB
-#   WEBRTC_APPLICATION_MASTER_SOURCE_FILES
-#   "${REPO_ROOT_DIRECTORY}/examples/master/*.c" )
-
-# set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
-#      "${REPO_ROOT_DIRECTORY}/examples/master/" )
-
 include( ${REPO_ROOT_DIRECTORY}/patch/apply_patches.cmake )
 
 file(
@@ -84,7 +27,8 @@ file(
   "${REPO_ROOT_DIRECTORY}/examples/ice_controller/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/timer_controller/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/app_media_source/*.c"
-  "${REPO_ROOT_DIRECTORY}/examples/app_media_source/port/ameba_pro2/*.c" )
+  "${REPO_ROOT_DIRECTORY}/examples/app_media_source/port/ameba_pro2/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/metric/*.c" )
 
 set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/master/"
@@ -106,7 +50,8 @@ set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/ice_controller"
      "${REPO_ROOT_DIRECTORY}/examples/timer_controller"
      "${REPO_ROOT_DIRECTORY}/examples/app_media_source"
-     "${REPO_ROOT_DIRECTORY}/examples/app_media_source/port/ameba_pro2" )
+     "${REPO_ROOT_DIRECTORY}/examples/app_media_source/port/ameba_pro2"
+     "${REPO_ROOT_DIRECTORY}/examples/metric" )
 
 # Include dependencies
 # Include coreHTTP

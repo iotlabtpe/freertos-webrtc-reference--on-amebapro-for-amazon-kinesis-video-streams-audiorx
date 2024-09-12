@@ -4,6 +4,7 @@
 #include "peer_connection_srtp.h"
 #include "peer_connection_rolling_buffer.h"
 #include "peer_connection_jitter_buffer.h"
+#include "metric.h"
 
 /* API includes. */
 #include "rtp_api.h"
@@ -776,6 +777,11 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionSession_
                 LogWarn( ( "Fail to send RTP packet, ret: %d", resultIceController ) );
                 ret = PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_RTP_PACKET;
             }
+        }
+
+        if( ret == PEER_CONNECTION_RESULT_OK )
+        {
+            Metric_EndEvent( METRIC_EVENT_SENDING_FIRST_FRAME );
         }
     }
 

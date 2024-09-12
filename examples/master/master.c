@@ -17,6 +17,7 @@
 #include "demo_data_types.h"
 #include "networking_utils.h"
 #include "string_utils.h"
+#include "metric.h"
 
 #define DEFAULT_CERT_FINGERPRINT_PREFIX_LENGTH ( 8 ) // the length of "sha-256 "
 #define wifi_wait_time_ms 5000 //Here we wait 5 second to wiat the fast connect
@@ -316,6 +317,12 @@ static int initializeApplication( DemoContext_t * pDemoContext )
     {
         /* Initialize Peer Connection. */
         ret = initializePeerConnection( pDemoContext );
+    }
+
+    if( ret == 0 )
+    {
+        /* Initialize Metric. */
+        Metric_Init();
     }
 
     return ret;

@@ -290,6 +290,11 @@ static int32_t OnFrameReadyToSend( void * pCtx,
         {
             dropFrameSize = sizeof( webrtc_frame_t );
             ( void ) MessageQueue_Recv( &pMediaSource->dataQueue, &dropFrame, &dropFrameSize );
+
+            if( dropFrame.freeData )
+            {
+                vPortFree( dropFrame.pData );
+            }
         }
     }
 

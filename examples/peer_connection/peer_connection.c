@@ -8,6 +8,7 @@
 #include "rtp_api.h"
 #include "rtcp_api.h"
 #include "peer_connection_rolling_buffer.h"
+#include "metric.h"
 
 #include "lwip/sockets.h"
 
@@ -377,7 +378,9 @@ static int32_t OnIceEventPeerToPeerConnectionFound( PeerConnectionSession_t * pS
         pSession->state = PEER_CONNECTION_SESSION_STATE_P2P_CONNECTION_FOUND;
 
         /* Execute DTLS handshaking. */
+        Metric_StartEvent( METRIC_EVENT_PC_DTLS_HANDSHAKING );
         ret = ExecuteDtlsHandshake( pSession, socketFd, pRemoteCandidate );
+        Metric_EndEvent( METRIC_EVENT_PC_DTLS_HANDSHAKING );
     }
 
     if( ret == 0 )
@@ -1108,6 +1111,8 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContex
         pSession->rtpConfig.remoteAudioSsrc = pRemoteInfo->remoteAudioSsrc;
 
         pSession->state = PEER_CONNECTION_SESSION_STATE_START;
+
+        Metric_StartEvent( METRIC_EVENT_SENDING_FIRST_FRAME );
     }
 
     return ret;

@@ -30,7 +30,6 @@ void IceControllerNet_FreeSocketContext( IceControllerContext_t * pCtx,
                                          IceControllerSocketContext_t * pSocketContext );
 void IceControllerNet_LogStunPacket( uint8_t * pStunPacket,
                                      size_t stunPacketSize );
-void IceController_PrintMetrics( IceControllerContext_t * pCtx );
 
 IceControllerResult_t IceControllerSocketListener_Init( IceControllerContext_t * pCtx,
                                                         OnRecvRtpRtcpPacketCallback_t onRecvRtpRtcpPacketCallbackFunc,

@@ -8,6 +8,7 @@
 #include "ice_controller_private.h"
 #include "ice_api.h"
 #include "signaling_controller.h"
+#include "metric.h"
 
 #define ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_UNKNOWN "UNKNOWN"
 #define ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_BINDING_REQUEST "BINDING_REQUEST"
@@ -502,7 +503,7 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
                 pCtx->metrics.pendingSrflxCandidateNum--;
                 if( pCtx->metrics.pendingSrflxCandidateNum == 0 )
                 {
-                    gettimeofday( &pCtx->metrics.allSrflxCandidateReadyTime, NULL );
+                    Metric_EndEvent( METRIC_EVENT_ICE_GATHER_SRFLX_CANDIDATES );
                 }
                 break;
             case ICE_HANDLE_STUN_PACKET_RESULT_SEND_TRIGGERED_CHECK:
@@ -534,11 +535,10 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
                             LogVerbose( ( "Candidiate pair is nominated, local IP/port: %s/%u, remote IP/port: %s/%u",
                                           IceControllerNet_LogIpAddressInfo( &pCandidatePair->pLocalCandidate->endpoint, ipBuffer, sizeof( ipBuffer ) ), pCandidatePair->pLocalCandidate->endpoint.transportAddress.port,
                                           IceControllerNet_LogIpAddressInfo( &pCandidatePair->pRemoteCandidate->endpoint, ipBuffer2, sizeof( ipBuffer2 ) ), pCandidatePair->pRemoteCandidate->endpoint.transportAddress.port ) );
-                            gettimeofday( &pCtx->metrics.sentNominationResponseTime, NULL );
                             if( TIMER_CONTROLLER_RESULT_SET == TimerController_IsTimerSet( &pCtx->connectivityCheckTimer ) )
                             {
                                 TimerController_ResetTimer( &pCtx->connectivityCheckTimer );
-                                IceController_PrintMetrics( pCtx );
+                                Metric_EndEvent( METRIC_EVENT_ICE_FIND_P2P_CONNECTION );
                             }
 
                             /* Update socket context. */

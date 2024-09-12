@@ -101,6 +101,11 @@ int kvs_webrtc_handle( void * p,
                 frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
                 ( void ) gOnVideoFrameReadyToSendFunc( gpOnVideoFrameReadyToSendCustomContext, &frame );
             }
+            else
+            {
+                LogError( ( "No available ready to send callback function pointer." ) );
+                vPortFree( frame.pData );
+            }
         }
         else
         {

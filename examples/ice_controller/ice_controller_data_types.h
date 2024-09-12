@@ -175,11 +175,6 @@ typedef enum IceControllerSocketContextState
 
 typedef struct IceControllerMetrics
 {
-    struct timeval gatheringCandidateStartTime;
-    struct timeval gatheringCandidateEndTime;
-    struct timeval allSrflxCandidateReadyTime;
-    struct timeval firstConnectivityRequestTime;
-    struct timeval sentNominationResponseTime;
     uint32_t pendingSrflxCandidateNum;
     uint32_t isFirstConnectivityRequest;
 } IceControllerMetrics_t;
