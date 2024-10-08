@@ -21,7 +21,9 @@ git submodule update --init --recursive
    ```sh
    cd libraries/ambpro2_sdk/tools
    cat asdk-10.3.0-linux-newlib-build-3633-x86_64.tar.bz2.* | tar jxvf -
-   export PATH=libraries/ambpro2_sdk/tools/asdk-10.3.0/linux/newlib/bin:$PATH
+   pwd
+   <!-- Copy this absolute path  -->
+   export PATH=($COPIED_PATH)/asdk-10.3.0/linux/newlib/bin:$PATH
    ```
 1. Connect the board to the PC using the CH340 micro USB port (marked as "Serial
    Output" in the above image).
@@ -52,6 +54,7 @@ git submodule update --init --recursive
    cd libraries/ambpro2_sdk/tools/
    unzip Pro2_PG_tool _v1.3.0.zip
    ```
+   **Note: If you're using MAC, please find repo owner to get Pro2_PG_tool+_v1.4.3_B.zip.**
 1. Copy the contents of `libraries/ambpro2_sdk/tools/Pro2_PG_tool _v1.3.0` to
    a directory in the Windows file system.
 
@@ -60,7 +63,7 @@ git submodule update --init --recursive
 1. Copy the generated binary `project/realtek_amebapro2_webrtc_application/GCC-RELEASE/build/flash_ntz.bin`
    to the directory in the Windows file system which contains the flash tool
    from the [Copy Flash Tool](#copy-flash-tool-needed-only-one-time) section.
-1. Open a windows terminal (such as PowerShell) and enter the directory in the
+1. Open a terminal (such as PowerShell) and enter the directory in the
    Windows file system which contains the flash tool from the
    [Copy Flash Tool](#copy-flash-tool-needed-only-one-time) section.
 1. Enter the board into program mode:
@@ -68,13 +71,22 @@ git submodule update --init --recursive
    * Press the Program button while keeping the Reset button pressed.
    * Release the Reset button.
    * Release the Program button.
-1. Run the following command in the Windows Terminal (such as PowerShell) to
+1. Run the following command in the terminal (such as PowerShell) to
    flash the binary:
-   ```sh
-    uartfwburn.exe -p COMxx -f flash_ntz.bin -b 2000000 -U
-   ```
-   Replace COMxx with the actual COM port that you can find in the Device
-   Manager.
+   * Windows:
+      ```sh
+      .\uartfwburn.exe -p COMxx -f flash_ntz.bin -b 2000000 -U
+      ```
+      Replace COMxx with the actual COM port that you can find in the Device Manager.
+   * Mac: 
+      ```sh
+      chmod +x uartfwburn.arm.darwin 
+      sudo ./uartfwburn.arm.darwin -p /dev/cu.usbserial-**** -f ./flash_ntz.bin -b 2000000 -U
+      ```
+      Replace /dev/cu.usbserial-**** with the actual COM port that you can find by running: 
+      ```sh
+      ls /dev/cu.*
+      ```
 
 ## Run
 ### Set up WiFi [Needed only one time]
