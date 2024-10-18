@@ -53,9 +53,23 @@ MessageQueueResult_t MessageQueue_Send( MessageQueueHandler_t * pMessageQueueHan
     MessageQueueResult_t ret = MESSAGE_QUEUE_RESULT_OK;
     BaseType_t retSend;
 
-    if( ( pMessageQueueHandler == NULL ) || ( pMessage == NULL ) || ( messageLength != pMessageQueueHandler->messageMaxLength ) )
+    if( ( pMessageQueueHandler == NULL ) || ( pMessage == NULL ) )
     {
+        LogError( ( "Invalid input, pMessageQueueHandler: %p, pMessage: %p",
+                    pMessageQueueHandler,
+                    pMessage ) );
         ret = MESSAGE_QUEUE_RESULT_BAD_PARAMETER;
+    }
+    else if( messageLength != pMessageQueueHandler->messageMaxLength )
+    {
+        LogError( ( "Invalid input, the input message length: %u is not messageMaxLength: %u, ",
+                    messageLength,
+                    pMessageQueueHandler->messageMaxLength ) );
+        ret = MESSAGE_QUEUE_RESULT_BAD_PARAMETER;
+    }
+    else
+    {
+        /* Empty else marker. */
     }
 
     if( ret == MESSAGE_QUEUE_RESULT_OK )

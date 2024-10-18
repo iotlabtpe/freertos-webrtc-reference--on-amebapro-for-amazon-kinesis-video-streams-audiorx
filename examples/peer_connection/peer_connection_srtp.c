@@ -347,7 +347,7 @@ static PeerConnectionResult_t OnRtcpNackEvent( PeerConnectionSession_t * pSessio
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        ret = PeerConnection_MatchTransceiverBySsrc( pSession->pCtx,
+        ret = PeerConnection_MatchTransceiverBySsrc( pSession,
                                                      nackPacket.mediaSourceSsrc,
                                                      &pTransceiver );
     }
@@ -444,11 +444,11 @@ PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSessi
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
         /* Initialize Rolling buffers. */
-        for( i = 0; i < pSession->pCtx->transceiverCount; i++ )
+        for( i = 0; i < pSession->transceiverCount; i++ )
         {
-            if( ( pSession->pCtx->pTransceivers[i]->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO ) &&
-                ( ( pSession->pCtx->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_SENDRECV ) ||
-                  ( pSession->pCtx->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_SENDONLY ) ) )
+            if( ( pSession->pTransceivers[i]->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO ) &&
+                ( ( pSession->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_SENDRECV ) ||
+                  ( pSession->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_SENDONLY ) ) )
             {
                 pSrtpSender = &pSession->videoSrtpSender;
                 if( ( pSession->rtpConfig.videoCodecRtxPayload != 0 ) &&
@@ -458,13 +458,13 @@ PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSessi
                     maxSizePerPacket = PEER_CONNECTION_SRTP_RTP_PAYLOAD_MAX_LENGTH;
                 }
                 ret = PeerConnectionRollingBuffer_Create( &pSession->videoSrtpSender.txRollingBuffer,
-                                                          pSession->pCtx->pTransceivers[i]->rollingbufferBitRate, // bps
-                                                          pSession->pCtx->pTransceivers[i]->rollingbufferDurationSec, // duration in seconds
+                                                          pSession->pTransceivers[i]->rollingbufferBitRate, // bps
+                                                          pSession->pTransceivers[i]->rollingbufferDurationSec, // duration in seconds
                                                           maxSizePerPacket );
             }
-            else if( ( pSession->pCtx->pTransceivers[i]->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO ) &&
-                     ( ( pSession->pCtx->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_SENDRECV ) ||
-                       ( pSession->pCtx->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_SENDONLY ) ) )
+            else if( ( pSession->pTransceivers[i]->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO ) &&
+                     ( ( pSession->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_SENDRECV ) ||
+                       ( pSession->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_SENDONLY ) ) )
             {
                 pSrtpSender = &pSession->audioSrtpSender;
                 if( ( pSession->rtpConfig.audioCodecRtxPayload != 0 ) &&
@@ -474,15 +474,15 @@ PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSessi
                     maxSizePerPacket = PEER_CONNECTION_SRTP_RTP_PAYLOAD_MAX_LENGTH;
                 }
                 ret = PeerConnectionRollingBuffer_Create( &pSession->audioSrtpSender.txRollingBuffer,
-                                                          pSession->pCtx->pTransceivers[i]->rollingbufferBitRate, // bps
-                                                          pSession->pCtx->pTransceivers[i]->rollingbufferDurationSec, // duration in seconds
+                                                          pSession->pTransceivers[i]->rollingbufferBitRate, // bps
+                                                          pSession->pTransceivers[i]->rollingbufferDurationSec, // duration in seconds
                                                           maxSizePerPacket );
             }
             else
             {
                 LogInfo( ( "No send needed for this transceiver, kind: %d, direction: %d",
-                           pSession->pCtx->pTransceivers[i]->trackKind,
-                           pSession->pCtx->pTransceivers[i]->direction ) );
+                           pSession->pTransceivers[i]->trackKind,
+                           pSession->pTransceivers[i]->direction ) );
             }
 
             if( ret != PEER_CONNECTION_RESULT_OK )
@@ -504,11 +504,11 @@ PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSessi
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
         /* Initialize Jitter buffers. */
-        for( i = 0; i < pSession->pCtx->transceiverCount; i++ )
+        for( i = 0; i < pSession->transceiverCount; i++ )
         {
-            if( ( pSession->pCtx->pTransceivers[i]->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO ) &&
-                ( ( pSession->pCtx->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_SENDRECV ) ||
-                  ( pSession->pCtx->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_RECVONLY ) ) )
+            if( ( pSession->pTransceivers[i]->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO ) &&
+                ( ( pSession->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_SENDRECV ) ||
+                  ( pSession->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_RECVONLY ) ) )
             {
                 LogInfo( ( "Setting video receiver." ) );
                 pSrtpReceiver = &pSession->videoSrtpReceiver;
@@ -518,12 +518,12 @@ PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSessi
                                                          OnJitterBufferFrameDrop,
                                                          pSrtpReceiver,
                                                          PEER_CONNECTION_SRTP_JITTER_BUFFER_TOLERENCE_TIME_SECOND,   // buffer time in seconds
-                                                         pSession->pCtx->pTransceivers[i]->codecBitMap,
+                                                         pSession->pTransceivers[i]->codecBitMap,
                                                          PEER_CONNECTION_SRTP_VIDEO_CLOCKRATE );
             }
-            else if( ( pSession->pCtx->pTransceivers[i]->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO ) &&
-                     ( ( pSession->pCtx->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_SENDRECV ) ||
-                       ( pSession->pCtx->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_RECVONLY ) ) )
+            else if( ( pSession->pTransceivers[i]->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO ) &&
+                     ( ( pSession->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_SENDRECV ) ||
+                       ( pSession->pTransceivers[i]->direction == TRANSCEIVER_TRACK_DIRECTION_RECVONLY ) ) )
             {
                 LogInfo( ( "Setting audio receiver." ) );
                 pSrtpReceiver = &pSession->audioSrtpReceiver;
@@ -539,14 +539,14 @@ PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSessi
                                                          OnJitterBufferFrameDrop,
                                                          pSrtpReceiver,
                                                          PEER_CONNECTION_SRTP_JITTER_BUFFER_TOLERENCE_TIME_SECOND,   // buffer time in seconds
-                                                         pSession->pCtx->pTransceivers[i]->codecBitMap,
+                                                         pSession->pTransceivers[i]->codecBitMap,
                                                          PEER_CONNECTION_SRTP_PCM_CLOCKRATE );
             }
             else
             {
                 LogInfo( ( "No recv needed for this transceiver, kind: %d, direction: %d",
-                           pSession->pCtx->pTransceivers[i]->trackKind,
-                           pSession->pCtx->pTransceivers[i]->direction ) );
+                           pSession->pTransceivers[i]->trackKind,
+                           pSession->pTransceivers[i]->direction ) );
             }
 
             if( ret != PEER_CONNECTION_RESULT_OK )
@@ -840,7 +840,7 @@ PeerConnectionResult_t PeerConnectionSrtp_HandleSrtpPacket( PeerConnectionSessio
         if( resultRtp != RTP_RESULT_OK )
         {
             LogError( ( "Fail to deserialize RTP packet, result: %d", resultRtp ) );
-            ret = PEER_CONNECTION_RESULT_FAIL_RTP_SERIALIZE;
+            ret = PEER_CONNECTION_RESULT_FAIL_RTP_DESERIALIZE;
         }
     }
 

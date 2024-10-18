@@ -6,6 +6,7 @@
 #include "websocket.h"
 #include "base64.h"
 #include "metric.h"
+#include "core_json.h"
 
 #if ( defined( SIGNALING_CONTROLLER_USING_LIBWEBSOCKETS ) && SIGNALING_CONTROLLER_USING_LIBWEBSOCKETS )
     #include "libwebsockets.h"
@@ -22,6 +23,12 @@
 #define MAX_QUEUE_MSG_NUM ( 10 )
 #define WEBSOCKET_ENDPOINT_PORT ( 443U )
 #define HTTPS_PERFORM_RETRY_TIMES ( 5U )
+
+#define SIGNALING_CONTROLLER_SDP_EVENT_MESSAGE_TYPE_KEY "type"
+#define SIGNALING_CONTROLLER_SDP_EVENT_MESSAGE_TYPE_VALUE_OFFER "offer"
+#define SIGNALING_CONTROLLER_SDP_EVENT_MESSAGE_TYPE_VALUE_ANSWER "answer"
+#define SIGNALING_CONTROLLER_SDP_EVENT_MESSAGE_CONTENT_KEY "sdp"
+#define SIGNALING_CONTROLLER_SDP_EVENT_MESSAGE_NEWLINE_ENDING "\\n"
 
 static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerContext_t * pCtx,
                                                            SignalingIceServer_t * pIceServerList,
@@ -795,6 +802,10 @@ static SignalingControllerResult_t handleEvent( SignalingControllerContext_t * p
             pEventContentSend = &pEventMsg->eventContent;
             callbackEventStatus = SIGNALING_CONTROLLER_EVENT_STATUS_SENT_FAIL;
 
+            LogDebug( ( "Sending WSS message(%u): %.*s",
+                        pEventContentSend->decodeMessageLength,
+                        ( int ) pEventContentSend->decodeMessageLength, pEventContentSend->pDecodeMessage ) );
+
             /* Then fill the event information, like correlation ID, recipient client ID and base64 encoded message.
              * Note that the message now is not based encoded yet. */
             pCtx->base64BufferLength = SIGNALING_CONTROLLER_MAX_CONTENT_LENGTH;
@@ -1088,6 +1099,237 @@ SignalingControllerResult_t SignalingController_QueryIceServerConfigs( Signaling
         /* TODO: check if ICE server configs expire. */
         *ppIceServerConfigs = pCtx->iceServerConfigs;
         *pIceServerConfigsCount = pCtx->iceServerConfigsCount;
+    }
+
+    return ret;
+}
+
+SignalingControllerResult_t SignalingController_GetSdpContentFromEventMsg( const char * pEventMessage,
+                                                                           size_t eventMessageLength,
+                                                                           uint8_t isSdpOffer,
+                                                                           const char ** ppSdpMessage,
+                                                                           size_t * pSdpMessageLength )
+{
+    SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
+    JSONStatus_t jsonResult;
+    size_t start = 0, next = 0;
+    JSONPair_t pair = { 0 };
+    uint8_t isContentFound = 0;
+    const char * pTargetTypeValue = isSdpOffer == 1 ? SIGNALING_CONTROLLER_SDP_EVENT_MESSAGE_TYPE_VALUE_OFFER : SIGNALING_CONTROLLER_SDP_EVENT_MESSAGE_TYPE_VALUE_ANSWER;
+
+    if( ( pEventMessage == NULL ) ||
+        ( ppSdpMessage == NULL ) ||
+        ( pSdpMessageLength == NULL ) )
+    {
+        LogError( ( "Invalid input, pEventMessage: %p, ppSdpMessage: %p, pSdpMessageLength: %p", pEventMessage, ppSdpMessage, pSdpMessageLength ) );
+        ret = SIGNALING_CONTROLLER_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
+    {
+        jsonResult = JSON_Validate( pEventMessage, eventMessageLength );
+
+        if( jsonResult != JSONSuccess )
+        {
+            LogWarn( ( "Input message is not valid JSON message, result: %d, message(%d): %.*s",
+                       jsonResult,
+                       eventMessageLength,
+                       ( int ) eventMessageLength,
+                       pEventMessage ) );
+            ret = SIGNALING_CONTROLLER_RESULT_INVALID_JSON;
+        }
+    }
+
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
+    {
+        /* Check if it's SDP offer. */
+        jsonResult = JSON_Iterate( pEventMessage, eventMessageLength, &start, &next, &pair );
+
+        while( jsonResult == JSONSuccess )
+        {
+            if( ( strncmp( pair.key, SIGNALING_CONTROLLER_SDP_EVENT_MESSAGE_TYPE_KEY, pair.keyLength ) == 0 ) &&
+                ( strncmp( pair.value, pTargetTypeValue, pair.valueLength ) != 0 ) )
+            {
+                /* It's not expected SDP offer message. */
+                LogWarn( ( "Message type \"%.*s\" is not SDP target type \"%s\"",
+                           ( int ) pair.valueLength, pair.value,
+                           pTargetTypeValue ) );
+                ret = SIGNALING_CONTROLLER_RESULT_SDP_NOT_TARGET_TYPE;
+                break;
+            }
+            else if( strncmp( pair.key, SIGNALING_CONTROLLER_SDP_EVENT_MESSAGE_CONTENT_KEY, pair.keyLength ) == 0 )
+            {
+                *ppSdpMessage = pair.value;
+                *pSdpMessageLength = pair.valueLength;
+                isContentFound = 1;
+                break;
+            }
+            else
+            {
+                /* Skip unknown attributes. */
+            }
+
+            jsonResult = JSON_Iterate( pEventMessage, eventMessageLength, &start, &next, &pair );
+        }
+    }
+
+    if( ( ret == SIGNALING_CONTROLLER_RESULT_OK ) && !isContentFound )
+    {
+        LogWarn( ( "No target content found in event message, result: %d, SDP target type \"%s\", message(%d): %.*s",
+                   jsonResult,
+                   pTargetTypeValue,
+                   eventMessageLength,
+                   ( int ) eventMessageLength,
+                   pEventMessage ) );
+        ret = SIGNALING_CONTROLLER_RESULT_SDP_NOT_TARGET_TYPE;
+    }
+
+    return ret;
+}
+
+SignalingControllerResult_t SignalingController_DeserializeSdpContentNewline( const char * pSdpMessage,
+                                                                              size_t sdpMessageLength,
+                                                                              char * pFormalSdpMessage,
+                                                                              size_t * pFormalSdpMessageLength )
+{
+    SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
+    const char * pCurSdp = pSdpMessage, * pNext = NULL;
+    char * pCurOutput = NULL;
+    size_t lineLength = 0, outputLength = 0;
+
+    if( ( pSdpMessage == NULL ) ||
+        ( pFormalSdpMessage == NULL ) ||
+        ( pFormalSdpMessageLength == NULL ) )
+    {
+        LogError( ( "Invalid input, pSdpMessage: %p, pFormalSdpMessage: %p, pFormalSdpMessageLength: %p", pSdpMessage, pFormalSdpMessage, pFormalSdpMessageLength ) );
+        ret = SIGNALING_CONTROLLER_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
+    {
+        pCurOutput = pFormalSdpMessage;
+
+        while( ( pNext = strstr( pCurSdp, SIGNALING_CONTROLLER_SDP_EVENT_MESSAGE_NEWLINE_ENDING ) ) != NULL )
+        {
+            lineLength = pNext - pCurSdp;
+
+            if( ( lineLength >= 2 ) &&
+                ( pCurSdp[ lineLength - 2 ] == '\\' ) && ( pCurSdp[ lineLength - 1 ] == 'r' ) )
+            {
+                lineLength -= 2;
+            }
+
+            if( *pFormalSdpMessageLength < outputLength + lineLength + 2 )
+            {
+                LogWarn( ( "Buffer space is not enough to store formal SDP message, buffer size: %u, SDP message(%u): %.*s",
+                           *pFormalSdpMessageLength,
+                           sdpMessageLength,
+                           ( int ) sdpMessageLength,
+                           pSdpMessage ) );
+                ret = SIGNALING_CONTROLLER_RESULT_SDP_BUFFER_TOO_SMALL;
+                break;
+            }
+
+            memcpy( pCurOutput, pCurSdp, lineLength );
+            pCurOutput += lineLength;
+            *pCurOutput++ = '\r';
+            *pCurOutput++ = '\n';
+            outputLength += lineLength + 2;
+
+            pCurSdp = pNext + 2;
+        }
+    }
+
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
+    {
+        *pFormalSdpMessageLength = outputLength;
+    }
+
+    return ret;
+}
+
+SignalingControllerResult_t SignalingController_SerializeSdpContentNewline( const char * pSdpMessage,
+                                                                            size_t sdpMessageLength,
+                                                                            char * pEventSdpMessage,
+                                                                            size_t * pEventSdpMessageLength )
+{
+    SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
+    const char * pCurSdp = pSdpMessage, * pNext, * pTail;
+    char * pCurOutput = pEventSdpMessage;
+    size_t lineLength, outputLength = 0;
+    int writtenLength;
+
+    if( ( pSdpMessage == NULL ) ||
+        ( pEventSdpMessage == NULL ) ||
+        ( pEventSdpMessageLength == NULL ) )
+    {
+        LogError( ( "Invalid input, pSdpMessage: %p, pEventSdpMessage: %p, pEventSdpMessageLength: %p", pSdpMessage, pEventSdpMessage, pEventSdpMessageLength ) );
+        ret = SIGNALING_CONTROLLER_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
+    {
+        pTail = pSdpMessage + sdpMessageLength;
+
+        while( ( pNext = memchr( pCurSdp, '\n', pTail - pCurSdp ) ) != NULL )
+        {
+            lineLength = pNext - pCurSdp;
+
+            if( ( lineLength > 0 ) &&
+                ( pCurSdp[ lineLength - 1 ] == '\r' ) )
+            {
+                lineLength--;
+            }
+            else
+            {
+                /* do nothing, coverity happy. */
+            }
+
+            if( *pEventSdpMessageLength < outputLength + lineLength + 4 )
+            {
+                LogError( ( "The output buffer length(%u) is too small to store serialized %u bytes message.",
+                            *pEventSdpMessageLength,
+                            sdpMessageLength ) );
+                ret = SIGNALING_CONTROLLER_RESULT_SDP_BUFFER_TOO_SMALL;
+                break;
+            }
+
+            writtenLength = snprintf( pCurOutput, *pEventSdpMessageLength - outputLength, "%.*s\\r\\n",
+                                      ( int ) lineLength,
+                                      pCurSdp );
+            if( writtenLength < 0 )
+            {
+                ret = SIGNALING_CONTROLLER_RESULT_SDP_SNPRINTF_FAIL;
+                LogError( ( "snprintf returns fail %d", writtenLength ) );
+                break;
+            }
+            else
+            {
+                outputLength += lineLength + 4;
+                pCurOutput += lineLength + 4;
+            }
+
+            pCurSdp = pNext + 1;
+        }
+    }
+
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
+    {
+        if( pTail > pCurSdp )
+        {
+            /* Copy the ending string. */
+            lineLength = pTail - pCurSdp;
+            memcpy( pCurOutput, pCurSdp, lineLength );
+
+            outputLength += lineLength;
+            pCurOutput += lineLength;
+            pCurSdp += lineLength;
+        }
+    }
+
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
+    {
+        *pEventSdpMessageLength = outputLength;
     }
 
     return ret;

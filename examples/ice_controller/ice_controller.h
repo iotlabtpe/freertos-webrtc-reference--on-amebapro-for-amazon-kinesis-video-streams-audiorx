@@ -11,7 +11,6 @@ extern "C" {
 #include "ice_controller_data_types.h"
 
 IceControllerResult_t IceController_Init( IceControllerContext_t * pCtx,
-                                          SignalingControllerContext_t * pSignalingControllerContext,
                                           OnIceEventCallback_t onIceEventCallbackFunc,
                                           void * pOnIceEventCallbackContext,
                                           OnRecvRtpRtcpPacketCallback_t onRecvRtpRtcpPacketCallbackFunc,
@@ -31,10 +30,6 @@ IceControllerResult_t IceController_Start( IceControllerContext_t * pCtx,
                                            size_t remotePasswordLength,
                                            const char * pCombinedName,
                                            size_t combinedNameLength );
-IceControllerResult_t IceController_SendRemoteCandidateRequest( IceControllerContext_t * pCtx,
-                                                                const char * pRemoteClientId,
-                                                                size_t remoteClientIdLength,
-                                                                IceControllerCandidate_t * pCandidate );
 IceControllerResult_t IceController_ProcessLoop( IceControllerContext_t * pCtx );
 IceControllerResult_t IceController_AddRemoteCandidate( IceControllerContext_t * pCtx,
                                                         IceRemoteCandidateInfo_t * pRemoteCandidate );
@@ -42,6 +37,9 @@ IceControllerResult_t IceController_SendConnectivityCheck( IceControllerContext_
 IceControllerResult_t IceController_SendToRemotePeer( IceControllerContext_t * pCtx,
                                                       const uint8_t * pBuffer,
                                                       size_t bufferLength );
+IceControllerResult_t IceController_AddIceServerConfig( IceControllerContext_t * pCtx,
+                                                        IceControllerIceServer_t * pIceServers,
+                                                        size_t iceServersCount );
 
 #ifdef __cplusplus
 }

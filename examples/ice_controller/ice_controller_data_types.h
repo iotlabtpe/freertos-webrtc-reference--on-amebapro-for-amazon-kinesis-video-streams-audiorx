@@ -11,7 +11,6 @@ extern "C" {
 #include <stdint.h>
 #include "demo_config.h"
 #include "ice_data_types.h"
-#include "signaling_controller_data_types.h"
 #include "timer_controller.h"
 #include "lwip/sockets.h"
 #include "transport_dtls_mbedtls.h"
@@ -19,6 +18,12 @@ extern "C" {
 
 /* FreeRTOS includes. */
 #include "semphr.h"
+
+/**
+ * Set default maximum Ice server count to 7.
+ * Note that the first Ice server is the default STUN server.
+ */
+#define ICE_CONTROLLER_MAX_ICE_SERVER_COUNT ( 7 )
 
 #define ICE_CONTROLLER_IP_ADDR_STRING_BUFFER_LENGTH ( 39 )
 #define ICE_CONTROLLER_STUN_MESSAGE_BUFFER_SIZE ( 1024 )
@@ -49,13 +54,6 @@ extern "C" {
 #else
     #define ICE_CONTROLLER_CONNECTIVITY_TIMER_INTERVAL_MS ( 100 )
 #endif /* LIBRARY_LOG_LEVEL >= LOG_VERBOSE */
-
-#define AWS_DEFAULT_STUN_SERVER_URL_POSTFIX "amazonaws.com"
-#define AWS_DEFAULT_STUN_SERVER_URL_POSTFIX_CN "amazonaws.com.cn"
-#define AWS_DEFAULT_STUN_SERVER_URL "stun.kinesisvideo.%s.%s"
-
-/* This is the URI format for STUN server as reference here. Note that we're using port 443 by default. */
-#define AWS_DEFAULT_STUN_SERVER_URI "stun:stun.kinesisvideo.%s.%s:443"
 
 typedef enum IceControllerCallbackEvent
 {
@@ -103,17 +101,11 @@ typedef enum IceControllerResult
     ICE_CONTROLLER_RESULT_BAD_PARAMETER,
     ICE_CONTROLLER_RESULT_IPV6_NOT_SUPPORT,
     ICE_CONTROLLER_RESULT_IP_BUFFER_TOO_SMALL,
-    ICE_CONTROLLER_RESULT_STUN_URL_BUFFER_TOO_SMALL,
-    ICE_CONTROLLER_RESULT_USERNAME_BUFFER_TOO_SMALL,
-    ICE_CONTROLLER_RESULT_PASSWORD_BUFFER_TOO_SMALL,
-    ICE_CONTROLLER_RESULT_URL_BUFFER_TOO_SMALL,
     ICE_CONTROLLER_RESULT_CANDIDATE_SEND_FAIL,
     ICE_CONTROLLER_RESULT_INVALID_IP_ADDR,
     ICE_CONTROLLER_RESULT_INVALID_JSON,
     ICE_CONTROLLER_RESULT_INVALID_REMOTE_USERNAME,
-    ICE_CONTROLLER_RESULT_INVALID_ICE_SERVER,
-    ICE_CONTROLLER_RESULT_INVALID_ICE_SERVER_PORT,
-    ICE_CONTROLLER_RESULT_INVALID_ICE_SERVER_PROTOCOL,
+    ICE_CONTROLLER_RESULT_INVALID_REMOTE_PASSWORD,
     ICE_CONTROLLER_RESULT_FAIL_CREATE_ICE_AGENT,
     ICE_CONTROLLER_RESULT_FAIL_SOCKET_CREATE,
     ICE_CONTROLLER_RESULT_FAIL_SOCKET_BIND,
@@ -122,16 +114,11 @@ typedef enum IceControllerResult
     ICE_CONTROLLER_RESULT_FAIL_ADD_HOST_CANDIDATE,
     ICE_CONTROLLER_RESULT_FAIL_ADD_REMOTE_CANDIDATE,
     ICE_CONTROLLER_RESULT_FAIL_TIMER_INIT,
-    ICE_CONTROLLER_RESULT_FAIL_QUERY_ICE_SERVER_CONFIGS,
-    ICE_CONTROLLER_RESULT_FAIL_SNPRINTF,
     ICE_CONTROLLER_RESULT_FAIL_DNS_QUERY,
     ICE_CONTROLLER_RESULT_FAIL_SET_CONNECTIVITY_CHECK_TIMER,
     ICE_CONTROLLER_RESULT_FAIL_QUERY_CANDIDATE_PAIR_COUNT,
     ICE_CONTROLLER_RESULT_FAIL_MUTEX_CREATE,
     ICE_CONTROLLER_RESULT_FAIL_MUTEX_TAKE,
-    ICE_CONTROLLER_RESULT_FAIL_CREATE_CERT_AND_KEY,
-    ICE_CONTROLLER_RESULT_FAIL_CREATE_CERT_FINGERPRINT,
-    ICE_CONTROLLER_RESULT_FAIL_WRITE_KEY_PEM,
     ICE_CONTROLLER_RESULT_FAIL_CONNECTION_NOT_READY,
     ICE_CONTROLLER_RESULT_JSON_CANDIDATE_NOT_FOUND,
     ICE_CONTROLLER_RESULT_JSON_CANDIDATE_INVALID_PRIORITY,
@@ -181,8 +168,6 @@ typedef struct IceControllerMetrics
 
 typedef struct IceControllerCandidate
 {
-    char remoteClientId[ SIGNALING_CONTROLLER_REMOTE_ID_MAX_LENGTH ];
-    size_t remoteClientIdLength;
     IceSocketProtocol_t protocol;
     uint32_t priority;
     IceEndpoint_t iceEndpoint;
@@ -229,11 +214,9 @@ typedef struct IceControllerSocketListenerContext
 
 typedef struct IceControllerContext
 {
-    /* The signaling controller context initialized by application. */
-    SignalingControllerContext_t * pSignalingControllerContext;
     IceContext_t iceContext;
 
-    IceControllerIceServer_t iceServers[ SIGNALING_CONTROLLER_ICE_SERVER_MAX_ICE_CONFIG_COUNT + 1 ]; /* Reserve 1 space for default STUN server. */
+    IceControllerIceServer_t iceServers[ ICE_CONTROLLER_MAX_ICE_SERVER_COUNT ]; /* Reserve 1 space for default STUN server. */
     size_t iceServersCount;
 
     IceControllerMetrics_t metrics;

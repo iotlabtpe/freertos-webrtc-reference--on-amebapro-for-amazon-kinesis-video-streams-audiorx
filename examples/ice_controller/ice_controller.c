@@ -9,7 +9,6 @@
 #include "transaction_id_store.h"
 #include "core_json.h"
 #include "string_utils.h"
-#include "signaling_controller.h"
 #include "mbedtls/md.h"
 #include "task.h"
 #include "metric.h"
@@ -25,12 +24,6 @@
 #define ICE_CONTROLLER_CANDIDATE_JSON_KEY "candidate"
 #define MAX_QUEUE_MSG_NUM ( 30 )
 #define REQUEST_QUEUE_POLL_ID ( 0 )
-#define ICE_SERVER_TYPE_STUN "stun:"
-#define ICE_SERVER_TYPE_STUN_LENGTH ( 5 )
-#define ICE_SERVER_TYPE_TURN "turn:"
-#define ICE_SERVER_TYPE_TURN_LENGTH ( 5 )
-#define ICE_SERVER_TYPE_TURNS "turns:"
-#define ICE_SERVER_TYPE_TURNS_LENGTH ( 6 )
 
 static const uint32_t gCrc32Table[256] = {
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
@@ -351,274 +344,6 @@ IceControllerResult_t IceController_SendConnectivityCheck( IceControllerContext_
     return ret;
 }
 
-static IceControllerResult_t parseIceUri( IceControllerIceServer_t * pIceServer,
-                                          char * pUri,
-                                          size_t uriLength )
-{
-    IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
-    StringUtilsResult_t retString;
-    const char * pCurr, * pTail, * pNext;
-    uint32_t port, portStringLength;
-
-    /* Example Ice server URI:
-     *  1. turn:35-94-7-249.t-490d1050.kinesisvideo.us-west-2.amazonaws.com:443?transport=udp
-     *  2. stun:stun.kinesisvideo.us-west-2.amazonaws.com:443 */
-    if( ( uriLength > ICE_SERVER_TYPE_STUN_LENGTH ) && ( strncmp( ICE_SERVER_TYPE_STUN,
-                                                                  pUri,
-                                                                  ICE_SERVER_TYPE_STUN_LENGTH ) == 0 ) )
-    {
-        pIceServer->serverType = ICE_CONTROLLER_ICE_SERVER_TYPE_STUN;
-        pTail = pUri + uriLength;
-        pCurr = pUri + ICE_SERVER_TYPE_STUN_LENGTH;
-    }
-    else if( ( ( uriLength > ICE_SERVER_TYPE_TURNS_LENGTH ) && ( strncmp( ICE_SERVER_TYPE_TURNS,
-                                                                          pUri,
-                                                                          ICE_SERVER_TYPE_TURNS_LENGTH ) == 0 ) ) )
-    {
-        pIceServer->serverType = ICE_CONTROLLER_ICE_SERVER_TYPE_TURN;
-        pTail = pUri + uriLength;
-        pCurr = pUri + ICE_SERVER_TYPE_TURNS_LENGTH;
-    }
-    else if( ( uriLength > ICE_SERVER_TYPE_TURN_LENGTH ) && ( strncmp( ICE_SERVER_TYPE_TURN,
-                                                                       pUri,
-                                                                       ICE_SERVER_TYPE_TURN_LENGTH ) == 0 ) )
-    {
-        pIceServer->serverType = ICE_CONTROLLER_ICE_SERVER_TYPE_TURN;
-        pTail = pUri + uriLength;
-        pCurr = pUri + ICE_SERVER_TYPE_TURN_LENGTH;
-    }
-    else
-    {
-        /* Invalid server URI, drop it. */
-        LogWarn( ( "Unable to parse Ice URI, drop it, URI: %.*s", ( int ) uriLength, pUri ) );
-        ret = ICE_CONTROLLER_RESULT_INVALID_ICE_SERVER;
-    }
-
-    if( ret == ICE_CONTROLLER_RESULT_OK )
-    {
-        pNext = memchr( pCurr,
-                        ':',
-                        pTail - pCurr );
-        if( pNext == NULL )
-        {
-            LogWarn( ( "Unable to find second ':', drop it, URI: %.*s", ( int ) uriLength, pUri ) );
-            ret = ICE_CONTROLLER_RESULT_INVALID_ICE_SERVER;
-        }
-        else
-        {
-            if( pNext - pCurr >= ICE_CONTROLLER_ICE_SERVER_URL_MAX_LENGTH )
-            {
-                LogWarn( ( "URL buffer is not enough to store Ice URL, length: %d", pNext - pCurr ) );
-                ret = ICE_CONTROLLER_RESULT_URL_BUFFER_TOO_SMALL;
-            }
-            else
-            {
-                memcpy( pIceServer->url,
-                        pCurr,
-                        pNext - pCurr );
-                pIceServer->urlLength = pNext - pCurr;
-                /* Note that URL must be NULL terminated for DNS lookup. */
-                pIceServer->url[ pIceServer->urlLength ] = '\0';
-                pCurr = pNext + 1;
-            }
-        }
-    }
-
-    if( ( ret == ICE_CONTROLLER_RESULT_OK ) && ( pCurr <= pTail ) )
-    {
-        pNext = memchr( pCurr,
-                        '?',
-                        pTail - pCurr );
-        if( pNext == NULL )
-        {
-            portStringLength = pTail - pCurr;
-        }
-        else
-        {
-            portStringLength = pNext - pCurr;
-        }
-
-        retString = StringUtils_ConvertStringToUl( pCurr,
-                                                   portStringLength,
-                                                   &port );
-        if( ( retString != STRING_UTILS_RESULT_OK ) || ( port > UINT16_MAX ) )
-        {
-            LogWarn( ( "No valid port number, parsed string: %.*s", ( int ) portStringLength, pCurr ) );
-            ret = ICE_CONTROLLER_RESULT_INVALID_ICE_SERVER_PORT;
-        }
-        else
-        {
-            pIceServer->iceEndpoint.transportAddress.port = ( uint16_t ) port;
-            pCurr += portStringLength;
-        }
-    }
-
-    if( ret == ICE_CONTROLLER_RESULT_OK )
-    {
-        if( ( pIceServer->serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_TURN ) && ( pCurr >= pTail ) )
-        {
-            LogWarn( ( "No valid transport string found" ) );
-            ret = ICE_CONTROLLER_RESULT_INVALID_ICE_SERVER_PROTOCOL;
-        }
-        else if( pIceServer->serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_TURN )
-        {
-            if( strncmp( pCurr,
-                         "transport=udp",
-                         pTail - pCurr ) == 0 )
-            {
-                pIceServer->protocol = ICE_SOCKET_PROTOCOL_UDP;
-            }
-            else if( strncmp( pCurr,
-                              "transport=tcp",
-                              pTail - pCurr ) == 0 )
-            {
-                pIceServer->protocol = ICE_SOCKET_PROTOCOL_TCP;
-            }
-            else
-            {
-                LogWarn( ( "Unknown transport string found, protocol: %.*s", ( int )( pTail - pCurr ), pCurr ) );
-                ret = ICE_CONTROLLER_RESULT_INVALID_ICE_SERVER_PROTOCOL;
-            }
-        }
-        else
-        {
-            /* Do nothing, coverity happy. */
-        }
-    }
-
-    /* Use DNS query to get IP address of it. */
-    if( ret == ICE_CONTROLLER_RESULT_OK )
-    {
-        ret = IceControllerNet_DnsLookUp( pIceServer->url,
-                                          &pIceServer->iceEndpoint.transportAddress );
-    }
-
-    return ret;
-}
-
-static IceControllerResult_t initializeIceServerList( IceControllerContext_t * pCtx,
-                                                      SignalingControllerContext_t * pSignalingControllerContext )
-{
-    IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
-    SignalingControllerResult_t signalingControllerReturn;
-    SignalingControllerIceServerConfig_t * pIceServerConfigs;
-    size_t iceServerConfigsCount;
-    char * pStunUrlPostfix;
-    int written;
-    uint32_t i, j;
-
-    signalingControllerReturn = SignalingController_QueryIceServerConfigs( pSignalingControllerContext,
-                                                                           &pIceServerConfigs,
-                                                                           &iceServerConfigsCount );
-    if( signalingControllerReturn != SIGNALING_CONTROLLER_RESULT_OK )
-    {
-        LogError( ( "Fail to get Ice server configs, result: %d", signalingControllerReturn ) );
-        ret = ICE_CONTROLLER_RESULT_FAIL_QUERY_ICE_SERVER_CONFIGS;
-    }
-
-    if( ret == ICE_CONTROLLER_RESULT_OK )
-    {
-        if( strstr( AWS_REGION,
-                    "cn-" ) )
-        {
-            pStunUrlPostfix = AWS_DEFAULT_STUN_SERVER_URL_POSTFIX_CN;
-        }
-        else
-        {
-            pStunUrlPostfix = AWS_DEFAULT_STUN_SERVER_URL_POSTFIX;
-        }
-
-        /* Get the default STUN server. */
-        written = snprintf( pCtx->iceServers[ 0 ].url,
-                            ICE_CONTROLLER_ICE_SERVER_URL_MAX_LENGTH,
-                            AWS_DEFAULT_STUN_SERVER_URL,
-                            AWS_REGION,
-                            pStunUrlPostfix );
-
-        if( written < 0 )
-        {
-            LogError( ( "snprintf fail, errno: %s", strerror( errno ) ) );
-            ret = ICE_CONTROLLER_RESULT_FAIL_SNPRINTF;
-        }
-        else if( written == ICE_CONTROLLER_ICE_SERVER_URL_MAX_LENGTH )
-        {
-            LogError( ( "buffer has no space for default STUN server" ) );
-            ret = ICE_CONTROLLER_RESULT_STUN_URL_BUFFER_TOO_SMALL;
-        }
-        else
-        {
-            /* STUN server is written correctly. Set UDP as protocol since we always use UDP to query server reflexive address. */
-            pCtx->iceServers[ 0 ].protocol = ICE_SOCKET_PROTOCOL_UDP;
-            pCtx->iceServers[ 0 ].serverType = ICE_CONTROLLER_ICE_SERVER_TYPE_STUN;
-            pCtx->iceServers[ 0 ].userNameLength = 0U;
-            pCtx->iceServers[ 0 ].passwordLength = 0U;
-            pCtx->iceServers[ 0 ].iceEndpoint.isPointToPoint = 0U;
-            pCtx->iceServers[ 0 ].iceEndpoint.transportAddress.port = 443;
-            pCtx->iceServers[ 0 ].url[ written ] = '\0'; /* It must be NULL terminated for DNS query. */
-            pCtx->iceServers[ 0 ].urlLength = written;
-            pCtx->iceServersCount = 1;
-
-            /* We need to translate DNS into IP address manually because we need IP address as input for socket sendto() function. */
-            ret = IceControllerNet_DnsLookUp( pCtx->iceServers[ 0 ].url,
-                                              &pCtx->iceServers[ 0 ].iceEndpoint.transportAddress );
-        }
-    }
-
-    if( ret == ICE_CONTROLLER_RESULT_OK )
-    {
-        /* Parse Ice server confgis into IceControllerIceServer_t structure. */
-        for( i = 0; i < iceServerConfigsCount; i++ )
-        {
-            /* Drop the URI that is not able to be parsed, but continue parsing. */
-            ret = ICE_CONTROLLER_RESULT_OK;
-
-            if( pIceServerConfigs[ i ].userNameLength > ICE_CONTROLLER_ICE_SERVER_USERNAME_MAX_LENGTH )
-            {
-                LogError( ( "The length of Ice server's username is too long to store, length: %u", pIceServerConfigs[ i ].userNameLength ) );
-                ret = ICE_CONTROLLER_RESULT_USERNAME_BUFFER_TOO_SMALL;
-                continue;
-            }
-            else if( pIceServerConfigs[ i ].passwordLength > ICE_CONTROLLER_ICE_SERVER_PASSWORD_MAX_LENGTH )
-            {
-                LogError( ( "The length of Ice server's password is too long to store, length: %u", pIceServerConfigs[ i ].passwordLength ) );
-                ret = ICE_CONTROLLER_RESULT_PASSWORD_BUFFER_TOO_SMALL;
-                continue;
-            }
-            else
-            {
-                /* Do nothing, coverity happy. */
-            }
-
-            for( j = 0; j < pIceServerConfigs[ i ].uriCount; j++ )
-            {
-                /* Parse each URI */
-                ret = parseIceUri( &pCtx->iceServers[ pCtx->iceServersCount ],
-                                   pIceServerConfigs[ i ].uris[ j ],
-                                   pIceServerConfigs[ i ].urisLength[ j ] );
-                if( ret != ICE_CONTROLLER_RESULT_OK )
-                {
-                    continue;
-                }
-
-                memcpy( pCtx->iceServers[ pCtx->iceServersCount ].userName,
-                        pIceServerConfigs[ i ].userName,
-                        pIceServerConfigs[ i ].userNameLength );
-                pCtx->iceServers[ pCtx->iceServersCount ].userNameLength = pIceServerConfigs[ i ].userNameLength;
-                memcpy( pCtx->iceServers[ pCtx->iceServersCount ].password,
-                        pIceServerConfigs[ i ].password,
-                        pIceServerConfigs[ i ].passwordLength );
-                pCtx->iceServers[ pCtx->iceServersCount ].passwordLength = pIceServerConfigs[ i ].passwordLength;
-                pCtx->iceServersCount++;
-            }
-        }
-
-        /* Ignore latest URI parsing error. */
-        ret = ICE_CONTROLLER_RESULT_OK;
-    }
-
-    return ret;
-}
-
 IceControllerResult_t IceController_Destroy( IceControllerContext_t * pCtx )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
@@ -651,7 +376,6 @@ IceControllerResult_t IceController_Destroy( IceControllerContext_t * pCtx )
 }
 
 IceControllerResult_t IceController_Init( IceControllerContext_t * pCtx,
-                                          SignalingControllerContext_t * pSignalingControllerContext,
                                           OnIceEventCallback_t onIceEventCallbackFunc,
                                           void * pOnIceEventCallbackContext,
                                           OnRecvRtpRtcpPacketCallback_t onRecvRtpRtcpPacketCallbackFunc,
@@ -661,7 +385,7 @@ IceControllerResult_t IceController_Init( IceControllerContext_t * pCtx,
     TimerControllerResult_t retTimer;
     int i;
 
-    if( ( pCtx == NULL ) || ( pSignalingControllerContext == NULL ) )
+    if( pCtx == NULL )
     {
         ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
     }
@@ -672,19 +396,11 @@ IceControllerResult_t IceController_Init( IceControllerContext_t * pCtx,
                 0,
                 sizeof( IceControllerContext_t ) );
 
-        pCtx->pSignalingControllerContext = pSignalingControllerContext;
         pCtx->onIceEventCallbackFunc = onIceEventCallbackFunc;
         pCtx->pOnIceEventCustomContext = pOnIceEventCallbackContext;
 
         /* Initialize metrics. */
         pCtx->metrics.isFirstConnectivityRequest = 1;
-    }
-
-    /* Initialize Ice server list. */
-    if( ret == ICE_CONTROLLER_RESULT_OK )
-    {
-        ret = initializeIceServerList( pCtx,
-                                       pSignalingControllerContext );
     }
 
     /* Initialize timer for connectivity check. */
@@ -1048,6 +764,45 @@ IceControllerResult_t IceController_SendToRemotePeer( IceControllerContext_t * p
                                            &pCtx->pNominatedSocketContext->pRemoteCandidate->endpoint,
                                            pBuffer,
                                            bufferLength );
+    }
+
+    return ret;
+}
+
+IceControllerResult_t IceController_AddIceServerConfig( IceControllerContext_t * pCtx,
+                                                        IceControllerIceServer_t * pIceServers,
+                                                        size_t iceServersCount )
+{
+    IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
+    IceControllerResult_t dnsResult;
+    int i;
+
+    if( ( pCtx == NULL ) ||
+        ( pIceServers == NULL ) )
+    {
+        LogError( ( "Invalid input, pCtx: %p, pIceServers: %p", pCtx, pIceServers ) );
+        ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        for( i = 0; i < iceServersCount; i++ )
+        {
+            if( pCtx->iceServersCount >= ICE_CONTROLLER_MAX_ICE_SERVER_COUNT )
+            {
+                LogInfo( ( "No more space to store extra Ice server." ) );
+                break;
+            }
+
+            memcpy( &pCtx->iceServers[ pCtx->iceServersCount ], &pIceServers[i], sizeof( IceControllerIceServer_t ) );
+            dnsResult = IceControllerNet_DnsLookUp( pCtx->iceServers[ pCtx->iceServersCount ].url,
+                                                    &pCtx->iceServers[ pCtx->iceServersCount ].iceEndpoint.transportAddress );
+            if( dnsResult == ICE_CONTROLLER_RESULT_OK )
+            {
+                /* Use the server configuration only if the IP address is successfully resolved. */
+                pCtx->iceServersCount++;
+            }
+        }
     }
 
     return ret;

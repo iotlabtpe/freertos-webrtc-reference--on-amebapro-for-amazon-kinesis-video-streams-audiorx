@@ -11,50 +11,46 @@ extern "C" {
 #include <stdint.h>
 
 #include "peer_connection_data_types.h"
-#include "signaling_controller_data_types.h"
+#include "sdp_controller_data_types.h"
 
-PeerConnectionResult_t PeerConnection_Init( PeerConnectionContext_t * pCtx,
-                                            SignalingControllerContext_t * pSignalingControllerContext );
-PeerConnectionResult_t PeerConnection_Destroy( PeerConnectionContext_t * pCtx );
-PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionContext_t * pCtx,
+PeerConnectionResult_t PeerConnection_Init( PeerConnectionSession_t * pSession,
+                                            PeerConnectionSessionConfiguration_t * pSessionConfig );
+PeerConnectionResult_t PeerConnection_AddTransceiver( PeerConnectionSession_t * pSession,
                                                       Transceiver_t * pTransceiver );
-PeerConnectionResult_t PeerConnection_MatchTransceiverBySsrc( PeerConnectionContext_t * pCtx,
+PeerConnectionResult_t PeerConnection_MatchTransceiverBySsrc( PeerConnectionSession_t * pSession,
                                                               uint32_t ssrc,
                                                               const Transceiver_t ** ppTransceiver );
-PeerConnectionResult_t PeerConnection_SetLocalDescription( PeerConnectionContext_t * pCtx );
-PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionContext_t * pCtx,
-                                                            const PeerConnectionRemoteInfo_t * pRemoteInfo );
-PeerConnectionResult_t PeerConnection_SetVideoOnFrame( PeerConnectionContext_t * pCtx,
-                                                       const char * pRemoteClientId,
-                                                       size_t remoteClientIdLength,
+PeerConnectionResult_t PeerConnection_SetLocalDescription( PeerConnectionSession_t * pSession,
+                                                           const PeerConnectionBufferSessionDescription_t * pBufferSessionDescription );
+PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionSession_t * pSession,
+                                                            const PeerConnectionBufferSessionDescription_t * pBufferSessionDescription );
+PeerConnectionResult_t PeerConnection_SetVideoOnFrame( PeerConnectionSession_t * pSession,
                                                        OnFrameReadyCallback_t onFrameReadyCallbackFunc,
                                                        void * pOnFrameReadyCallbackCustomContext );
-PeerConnectionResult_t PeerConnection_SetAudioOnFrame( PeerConnectionContext_t * pCtx,
-                                                       const char * pRemoteClientId,
-                                                       size_t remoteClientIdLength,
+PeerConnectionResult_t PeerConnection_SetAudioOnFrame( PeerConnectionSession_t * pSession,
                                                        OnFrameReadyCallback_t onFrameReadyCallbackFunc,
                                                        void * pOnFrameReadyCallbackCustomContext );
-PeerConnectionResult_t PeerConnection_AddRemoteCandidate( PeerConnectionContext_t * pCtx,
-                                                          const char * pRemoteClientId,
-                                                          size_t remoteClientIdLength,
+PeerConnectionResult_t PeerConnection_AddRemoteCandidate( PeerConnectionSession_t * pSession,
                                                           const char * pDecodeMessage,
                                                           size_t decodeMessageLength );
-PeerConnectionResult_t PeerConnection_GetTransceivers( PeerConnectionContext_t * pCtx,
-                                                       const Transceiver_t * ppTransceivers[],
-                                                       size_t * pTransceiversCount );
-PeerConnectionResult_t PeerConnection_GetLocalUserInfo( PeerConnectionContext_t * pCtx,
-                                                        PeerConnectionUserInfo_t * pLocalUserInfo );
-PeerConnectionResult_t PeerConnection_CreateSession( PeerConnectionContext_t * pCtx,
-                                                     const char * pRemoteClientId,
-                                                     size_t remoteClientIdLength,
-                                                     const char ** ppLocalFingerprint,
-                                                     size_t * pLocalFingerprint );
-PeerConnectionResult_t PeerConnection_CloseSession( PeerConnectionContext_t * pCtx,
-                                                    const char * pRemoteClientId,
-                                                    size_t remoteClientIdLength );
-PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionContext_t * pCtx,
+PeerConnectionResult_t PeerConnection_CloseSession( PeerConnectionSession_t * pSession );
+PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionSession_t * pSession,
                                                   Transceiver_t * pTransceiver,
                                                   const PeerConnectionFrame_t * pFrame );
+PeerConnectionResult_t PeerConnection_CreateAnswer( PeerConnectionSession_t * pSession,
+                                                    PeerConnectionBufferSessionDescription_t * pOutputBufferSessionDescription,
+                                                    char * pOutputSerializedSdpMessage,
+                                                    size_t * pOutputSerializedSdpMessageLength );
+PeerConnectionResult_t PeerConnection_CreateOffer( PeerConnectionSession_t * pSession,
+                                                   PeerConnectionBufferSessionDescription_t * pOutputBufferSessionDescription,
+                                                   char * pOutputSerializedSdpMessage,
+                                                   size_t * pOutputSerializedSdpMessageLength );
+PeerConnectionResult_t PeerConnection_SetOnLocalCandidateReady( PeerConnectionSession_t * pSession,
+                                                                OnIceCandidateReadyCallback_t onLocalCandidateReadyCallbackFunc,
+                                                                void * pOnLocalCandidateReadyCallbackCustomContext );
+PeerConnectionResult_t PeerConnection_AddIceServerConfig( PeerConnectionSession_t * pSession,
+                                                          IceControllerIceServer_t * pIceServers,
+                                                          size_t iceServersCount );
 
 #ifdef __cplusplus
 }
