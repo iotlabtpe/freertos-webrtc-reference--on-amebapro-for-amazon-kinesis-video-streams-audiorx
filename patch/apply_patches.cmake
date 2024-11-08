@@ -17,6 +17,11 @@ execute_process(
      WORKING_DIRECTORY ${AMB_SDK_DIRECTORY}
 )
 
+execute_process(
+     COMMAND bash -c "git apply --whitespace=nowarn --reject ${REPO_ROOT_DIRECTORY}/patch/fwfs_local_label.patch"
+     WORKING_DIRECTORY ${AMB_SDK_DIRECTORY}
+)
+
 set( WSLAY_DIRECTORY ${REPO_ROOT_DIRECTORY}/libraries/wslay )
 execute_process(
      COMMAND bash -c "git apply --whitespace=nowarn --reject ${REPO_ROOT_DIRECTORY}/patch/wslay_net.patch"
