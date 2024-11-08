@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.6)
 
 project(app_tz)
 
+# root of repository
+set (repo_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 # root of realtek_amebapro2_v0_example
 set (prj_root "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 # root of SDK

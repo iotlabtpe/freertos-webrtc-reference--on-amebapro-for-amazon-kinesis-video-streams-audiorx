@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.6)
 
 project(flash_bin)
 
+if(NOT CMAKE_BUILD_TYPE)
+  message(STATUS "Setting CMAKE_BUILD_TYPE to Release by default")
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
+endif()
+
+# root of repository
+set (repo_root "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
 # root of realtek_amebapro2_v0_example
 set (prj_root "${CMAKE_CURRENT_SOURCE_DIR}/..")
 # root of SDK

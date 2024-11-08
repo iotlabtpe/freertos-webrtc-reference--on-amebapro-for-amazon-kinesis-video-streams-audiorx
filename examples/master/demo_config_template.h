@@ -3,11 +3,11 @@
 
 #define AWS_REGION "us-west-2"
 
-#define AWS_KVS_CHANNEL_NAME ""
+#define AWS_KVS_CHANNEL_NAME "kvs-trial-2"
 
-#define AWS_ACCESS_KEY_ID ""
+#define AWS_ACCESS_KEY_ID "AKIAQEFWATYYJLHLODFS"
 
-#define AWS_SECRET_ACCESS_KEY ""
+#define AWS_SECRET_ACCESS_KEY "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"
 
 #define AWS_KVS_AGENT_NAME "AWS-SDK-KVS"
 
