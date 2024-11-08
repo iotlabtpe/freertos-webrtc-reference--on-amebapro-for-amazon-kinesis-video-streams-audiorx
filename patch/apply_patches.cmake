@@ -12,6 +12,11 @@ execute_process(
      WORKING_DIRECTORY ${AMB_SDK_DIRECTORY}
 )
 
+execute_process(
+     COMMAND bash -c "git apply --whitespace=nowarn --reject ${REPO_ROOT_DIRECTORY}/patch/rtw_opt_skbuf_rtl8735b_enlarge_skb_buffer_number.patch"
+     WORKING_DIRECTORY ${AMB_SDK_DIRECTORY}
+)
+
 set( WSLAY_DIRECTORY ${REPO_ROOT_DIRECTORY}/libraries/wslay )
 execute_process(
      COMMAND bash -c "git apply --whitespace=nowarn --reject ${REPO_ROOT_DIRECTORY}/patch/wslay_net.patch"
