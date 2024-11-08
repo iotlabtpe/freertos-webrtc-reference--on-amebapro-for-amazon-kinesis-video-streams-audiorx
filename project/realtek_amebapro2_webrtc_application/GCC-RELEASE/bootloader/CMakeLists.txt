@@ -7,7 +7,7 @@ set (repo_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 # root of realtek_amebapro2_v0_example
 set (prj_root "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 # root of SDK
-set (sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
+set (sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../../libraries/ambpro2_sdk")
 set(bootloader bootloader)
 
 #set(freertos freertos_v202012.00)
