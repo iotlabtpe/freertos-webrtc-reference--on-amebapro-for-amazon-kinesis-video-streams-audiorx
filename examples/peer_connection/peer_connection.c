@@ -37,6 +37,13 @@ static void PeerConnection_SessionTask( void * pParameter )
 {
     PeerConnectionSession_t * pSession = ( PeerConnectionSession_t * ) pParameter;
 
+    for( ; pSession->state < PEER_CONNECTION_SESSION_STATE_START ; )
+    {
+        vTaskDelay( pdMS_TO_TICKS( 50 ) );
+    }
+
+    LogInfo( ("Start peer connection session task.") );
+
     SessionProcessEndlessLoop( pSession );
 
     for( ;; )
@@ -1008,8 +1015,6 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionSessio
         pSession->rtpConfig.remoteAudioSsrc = pTargetRemoteSdp->sdpDescription.quickAccess.audioSsrc;
 
         pSession->state = PEER_CONNECTION_SESSION_STATE_START;
-
-        Metric_StartEvent( METRIC_EVENT_SENDING_FIRST_FRAME );
     }
 
     return ret;

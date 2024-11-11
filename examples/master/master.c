@@ -1081,6 +1081,7 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEven
     switch( pEvent->messageType )
     {
         case SIGNALING_TYPE_MESSAGE_SDP_OFFER:
+            Metric_StartEvent( METRIC_EVENT_SENDING_FIRST_FRAME );
             HandleSdpOffer( &demoContext, pEvent );
             break;
         case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:

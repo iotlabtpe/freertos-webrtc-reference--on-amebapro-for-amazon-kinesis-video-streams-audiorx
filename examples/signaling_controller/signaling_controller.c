@@ -501,19 +501,6 @@ static SignalingControllerResult_t describeSignalingChannel( SignalingController
         }
     }
 
-// typedef struct SignalingChannelInfo
-// {
-//     SignalingChannelArn_t channelArn;
-//     SignalingChannelName_t channelName;
-//     const char * pChannelStatus;
-//     size_t channelStatusLength;
-//     SignalingTypeChannel_t channelType;
-//     const char * pVersion;
-//     size_t versionLength;
-//     const char * pCreationTime;
-//     size_t creationTimeLength;
-//     uint32_t messageTtlSeconds;
-// } SignalingChannelInfo_t;
     // Parse the response
     if( ( ret == SIGNALING_CONTROLLER_RESULT_OK ) && ( channelInfo.channelArn.pChannelArn != NULL ) )
     {

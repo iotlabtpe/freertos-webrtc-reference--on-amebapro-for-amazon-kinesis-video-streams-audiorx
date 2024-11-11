@@ -131,9 +131,9 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
             demux each packet off of its first byte
             https://tools.ietf.org/html/rfc5764#section-5.1.2
          +----------------+
-         | 127 < B < 192 -+--> forward to RTP
+         | 127 < B < 192 -+--> forward to RTP/RTCP
          |                |
-            packet -->  |  19 < B < 64  -+--> forward to DTLS
+         |  19 < B < 64  -+--> forward to DTLS
          |                |
          |       B < 2   -+--> forward to STUN
          +----------------+

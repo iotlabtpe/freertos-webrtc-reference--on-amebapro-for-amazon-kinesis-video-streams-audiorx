@@ -195,14 +195,15 @@ static void IceControllerNet_AddSrflxCandidate( IceControllerContext_t * pCtx,
 
         if( ret == ICE_CONTROLLER_RESULT_OK )
         {
+            pSocketContext->state = ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CREATE;
+            pSocketContext->candidateType = ICE_CANDIDATE_TYPE_SERVER_REFLEXIVE;
+            pSocketContext->pLocalCandidate = &pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ];
+
             ret = IceControllerNet_SendPacket( pSocketContext, &pCtx->iceServers[ i ].iceEndpoint, stunBuffer, stunBufferLength );
         }
 
         if( ret == ICE_CONTROLLER_RESULT_OK )
         {
-            pSocketContext->state = ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CREATE;
-            pSocketContext->candidateType = ICE_CANDIDATE_TYPE_SERVER_REFLEXIVE;
-            pSocketContext->pLocalCandidate = &pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ];
             pCtx->socketsContextsCount++;
             pCtx->metrics.pendingSrflxCandidateNum++;
         }
@@ -265,66 +266,90 @@ IceControllerResult_t IceControllerNet_SendPacket( IceControllerSocketContext_t 
     struct sockaddr_in6 ipv6Address;
     socklen_t addressLength = 0;
     uint32_t totalDelayMs = 0;
+    char ipBuffer[ INET_ADDRSTRLEN ];
 
     /* Set socket destination address, including IP type (v4/v6), IP address and port. */
-    if( pDestinationIceEndpoint->transportAddress.family == STUN_ADDRESS_IPv4 )
+    if( pSocketContext->pLocalCandidate->endpoint.transportAddress.family != pDestinationIceEndpoint->transportAddress.family )
     {
-        memset( &ipv4Address, 0, sizeof( ipv4Address ) );
-        ipv4Address.sin_family = AF_INET;
-        ipv4Address.sin_port = htons( pDestinationIceEndpoint->transportAddress.port );
-        memcpy( &ipv4Address.sin_addr, pDestinationIceEndpoint->transportAddress.address, STUN_IPV4_ADDRESS_SIZE );
-
-        pDestinationAddress = ( struct sockaddr * ) &ipv4Address;
-        addressLength = sizeof( ipv4Address );
+        LogWarn( ( "The sending IP family: %d is different from receiving IP family: %d",
+                   pSocketContext->pLocalCandidate->endpoint.transportAddress.family,
+                   pDestinationIceEndpoint->transportAddress.family ) );
+        ret = ICE_CONTROLLER_RESULT_FAIL_SOCKET_SENDTO;
     }
-    else
-    {
-        memset( &ipv6Address, 0, sizeof( ipv6Address ) );
-        ipv6Address.sin6_family = AF_INET6;
-        ipv6Address.sin6_port = htons( pDestinationIceEndpoint->transportAddress.port );
-        memcpy( &ipv6Address.sin6_addr, pDestinationIceEndpoint->transportAddress.address, STUN_IPV6_ADDRESS_SIZE );
 
-        pDestinationAddress = ( struct sockaddr * ) &ipv6Address;
-        addressLength = sizeof( ipv6Address );
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        if( pDestinationIceEndpoint->transportAddress.family == STUN_ADDRESS_IPv4 )
+        {
+            memset( &ipv4Address, 0, sizeof( ipv4Address ) );
+            ipv4Address.sin_family = AF_INET;
+            ipv4Address.sin_port = htons( pDestinationIceEndpoint->transportAddress.port );
+            memcpy( &ipv4Address.sin_addr, pDestinationIceEndpoint->transportAddress.address, STUN_IPV4_ADDRESS_SIZE );
+
+            pDestinationAddress = ( struct sockaddr * ) &ipv4Address;
+            addressLength = sizeof( ipv4Address );
+        }
+        else
+        {
+            memset( &ipv6Address, 0, sizeof( ipv6Address ) );
+            ipv6Address.sin6_family = AF_INET6;
+            ipv6Address.sin6_port = htons( pDestinationIceEndpoint->transportAddress.port );
+            memcpy( &ipv6Address.sin6_addr, pDestinationIceEndpoint->transportAddress.address, STUN_IPV6_ADDRESS_SIZE );
+
+            pDestinationAddress = ( struct sockaddr * ) &ipv6Address;
+            addressLength = sizeof( ipv6Address );
+        }
     }
 
     /* Send data */
-    while( sendTotalBytes < length )
+    if( ret == ICE_CONTROLLER_RESULT_OK )
     {
-        sentBytes = sendto( pSocketContext->socketFd,
-                            pBuffer + sendTotalBytes,
-                            length - sendTotalBytes,
-                            0,
-                            pDestinationAddress,
-                            addressLength );
-        if( sentBytes < 0 )
+        while( sendTotalBytes < length )
         {
-            if( ( errno == EAGAIN ) || ( errno == EWOULDBLOCK ) )
+            sentBytes = sendto( pSocketContext->socketFd,
+                                pBuffer + sendTotalBytes,
+                                length - sendTotalBytes,
+                                0,
+                                pDestinationAddress,
+                                addressLength );
+            if( sentBytes < 0 )
             {
-                /* Just retry for these kinds of errno. */
-            }
-            else if( ( errno == ENOMEM ) || ( errno == ENOSPC ) || ( errno == ENOBUFS ) )
-            {
-                vTaskDelay( pdMS_TO_TICKS( ICE_CONTROLLER_RESEND_DELAY_MS ) );
-                totalDelayMs += ICE_CONTROLLER_RESEND_DELAY_MS;
-
-                if( ICE_CONTROLLER_RESEND_TIMEOUT_MS <= totalDelayMs )
+                if( ( errno == EAGAIN ) || ( errno == EWOULDBLOCK ) )
                 {
-                    LogWarn( ( "Fail to send before timeout: %dms", ICE_CONTROLLER_RESEND_TIMEOUT_MS ) );
+                    /* Just retry for these kinds of errno. */
+                }
+                else if( ( errno == ENOMEM ) || ( errno == ENOSPC ) || ( errno == ENOBUFS ) )
+                {
+                    vTaskDelay( pdMS_TO_TICKS( ICE_CONTROLLER_RESEND_DELAY_MS ) );
+                    totalDelayMs += ICE_CONTROLLER_RESEND_DELAY_MS;
+
+                    if( ICE_CONTROLLER_RESEND_TIMEOUT_MS <= totalDelayMs )
+                    {
+                        LogWarn( ( "Fail to send before timeout: %dms", ICE_CONTROLLER_RESEND_TIMEOUT_MS ) );
+                        ret = ICE_CONTROLLER_RESULT_FAIL_SOCKET_SENDTO;
+                        break;
+                    }
+                }
+                else
+                {
+                    LogWarn( ( "Failed to send to socket fd: %d error, errno(%d): %s", pSocketContext->socketFd, errno, strerror( errno ) ) );
+                    LogWarn( ( "Source family: %d, IP:port: %s:%u",
+                               pSocketContext->pLocalCandidate->endpoint.transportAddress.family,
+                               IceControllerNet_LogIpAddressInfo( &pSocketContext->pLocalCandidate->endpoint, ipBuffer, sizeof( ipBuffer ) ),
+                               pSocketContext->pLocalCandidate->endpoint.transportAddress.port ) );
+
+                    LogWarn( ( "Dest family: %d, IP:port: %s:%u",
+                               pDestinationIceEndpoint->transportAddress.family,
+                               IceControllerNet_LogIpAddressInfo( pDestinationIceEndpoint, ipBuffer, sizeof( ipBuffer ) ),
+                               pDestinationIceEndpoint->transportAddress.port ) );
                     ret = ICE_CONTROLLER_RESULT_FAIL_SOCKET_SENDTO;
                     break;
                 }
             }
             else
             {
-                LogWarn( ( "Failed to send to socket fd: %d error, errno(%d): %s", pSocketContext->socketFd, errno, strerror( errno ) ) );
-                ret = ICE_CONTROLLER_RESULT_FAIL_SOCKET_SENDTO;
-                break;
+                sendTotalBytes += sentBytes;
             }
-        }
-        else
-        {
-            sendTotalBytes += sentBytes;
         }
     }
 
@@ -643,7 +668,7 @@ IceControllerResult_t IceControllerNet_DnsLookUp( char * pUrl,
     return ret;
 }
 
-#if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+#if LIBRARY_LOG_LEVEL >= LOG_INFO
 const char * IceControllerNet_LogIpAddressInfo( const IceEndpoint_t * pIceEndpoint,
                                                 char * pIpBuffer,
                                                 size_t ipBufferLength )

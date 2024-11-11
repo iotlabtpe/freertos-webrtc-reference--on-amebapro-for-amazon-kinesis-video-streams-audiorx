@@ -109,8 +109,11 @@ void Metric_StartEvent( MetricEvent_t event )
     {
         MetricEventRecord_t * pEventRecord = &context.eventRecords[ event ];
 
-        pEventRecord->state = METRIC_EVENT_STATE_RECORDING;
-        pEventRecord->startTimeUs = NetworkingUtils_GetCurrentTimeUs( NULL );
+        if( pEventRecord->state == METRIC_EVENT_STATE_NONE )
+        {
+            pEventRecord->state = METRIC_EVENT_STATE_RECORDING;
+            pEventRecord->startTimeUs = NetworkingUtils_GetCurrentTimeUs( NULL );
+        }
 
         xSemaphoreGive( context.mutex );
     }
@@ -137,6 +140,7 @@ void Metric_PrintMetrics( void )
 {
     int i;
     MetricEventRecord_t * pEventRecord;
+    static char runTimeStatsBuffer[ 4096 ];
 
     if( ( context.isInit == 1U ) &&
         ( xSemaphoreTake( context.mutex, portMAX_DELAY ) == pdTRUE ) )
@@ -155,6 +159,9 @@ void Metric_PrintMetrics( void )
         }
 
         LogInfo( ( "Remaining free heap size: %u", xPortGetFreeHeapSize() ) );
+
+        vTaskGetRunTimeStats( runTimeStatsBuffer );
+        LogInfo( ( " == Run Time Stat Start ==\n%s\n == Run Time Stat End ==", runTimeStatsBuffer ) );
         LogInfo( ( "================================ Print Metrics End ================================" ) );
 
         xSemaphoreGive( context.mutex );
