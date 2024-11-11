@@ -201,7 +201,7 @@ IceControllerResult_t IceController_AddRemoteCandidate( IceControllerContext_t *
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     IceResult_t iceResult;
-    #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+    #if LIBRARY_LOG_LEVEL >= LOG_INFO
     char ipBuffer[ INET_ADDRSTRLEN ];
     #endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE  */
 
@@ -209,6 +209,35 @@ IceControllerResult_t IceController_AddRemoteCandidate( IceControllerContext_t *
     {
         LogError( ( "Invalid input, pCtx: %p, pRemoteCandidate: %p", pCtx, pRemoteCandidate ) );
         ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        /* TODO: Skip IPv6 remote candidiate for now. */
+        if( pRemoteCandidate->pEndpoint->transportAddress.family != STUN_ADDRESS_IPv4 )
+        {
+            LogInfo( ( "Dropping IPv6 remote candidate: %s/%u",
+                       IceControllerNet_LogIpAddressInfo( pRemoteCandidate->pEndpoint,
+                                                          ipBuffer,
+                                                          sizeof( ipBuffer ) ),
+                       pRemoteCandidate->pEndpoint->transportAddress.port ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL_ADD_IPv6_REMOTE_CANDIDATE;
+        }
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        /* TODO: Skip TCP remote candidiate for now. */
+        if( pRemoteCandidate->remoteProtocol != ICE_SOCKET_PROTOCOL_UDP )
+        {
+            LogInfo( ( "Dropping non UDP remote candidate: %s/%u, protocol: %d",
+                       IceControllerNet_LogIpAddressInfo( pRemoteCandidate->pEndpoint,
+                                                          ipBuffer,
+                                                          sizeof( ipBuffer ) ),
+                       pRemoteCandidate->pEndpoint->transportAddress.port,
+                       pRemoteCandidate->remoteProtocol ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL_ADD_NON_UDP_REMOTE_CANDIDATE;
+        }
     }
 
     if( ret == ICE_CONTROLLER_RESULT_OK )

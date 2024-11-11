@@ -38,7 +38,7 @@ IceControllerResult_t IceControllerSocketListener_StartPolling( IceControllerCon
 IceControllerResult_t IceControllerSocketListener_StopPolling( IceControllerContext_t * pCtx );
 
 /* Debug utils. */
-#if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+#if LIBRARY_LOG_LEVEL >= LOG_INFO
 const char * IceControllerNet_LogIpAddressInfo( const IceEndpoint_t * pIceEndpoint,
                                                 char * pIpBuffer,
                                                 size_t ipBufferLength );

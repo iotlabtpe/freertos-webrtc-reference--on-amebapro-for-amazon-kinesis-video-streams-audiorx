@@ -1196,7 +1196,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
     HTTPStatus_t xHttpStatus = HTTPSuccess;
     HTTPRequestHeaders_t xRequestHeaders = { 0 };
     HTTPRequestInfo_t xRequestInfo = { 0 };
-    size_t queryParamsStringLength = NETWORKING_META_BUFFER_LENGTH;
+    size_t queryParamsStringLength = NETWORKING_META_BUFFER_LENGTH - 2; /* Reserve first 2 bytes for "/?" */
     char clientKey[ NETWORKING_WSLAY_CLIENT_KEY_LENGTH + 1 ];
     HTTPResponse_t corehttpResponse;
     NetworkingWslayConnectResponseContext_t connectResponseContext;
