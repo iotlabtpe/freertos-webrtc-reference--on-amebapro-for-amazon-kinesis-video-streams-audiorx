@@ -72,15 +72,14 @@ file(
   WSLAY_SOURCE_FILES
   "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/*.c" )
 
-configure_file(${REPO_ROOT_DIRECTORY}/CMake/wslay/wslay_net.h.in
-               ${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/wslay_net.h @ONLY)
-
 configure_file(${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay/wslayver.h.in
                ${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay/wslayver.h @ONLY)
+
 set( WSLAY_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/"
      "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes"
-     "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay" )
+     "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay"
+     "${REPO_ROOT_DIRECTORY}/workarounds/wslay" )
 
 # Include SDP
 include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-sdp/sdpFilePaths.cmake )
@@ -104,6 +103,7 @@ list(
 	APPEND app_flags
      SDP_DO_NOT_USE_CUSTOM_CONFIG
      SIGV4_DO_NOT_USE_CUSTOM_CONFIG
+     HAVE_ARPA_INET_H
 )
 
 set( webrtc_master_demo_src

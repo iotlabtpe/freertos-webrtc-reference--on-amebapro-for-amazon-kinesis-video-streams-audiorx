@@ -22,8 +22,3 @@ execute_process(
      WORKING_DIRECTORY ${AMB_SDK_DIRECTORY}
 )
 
-set( WSLAY_DIRECTORY ${REPO_ROOT_DIRECTORY}/libraries/wslay )
-execute_process(
-     COMMAND bash -c "git apply --whitespace=nowarn --reject ${REPO_ROOT_DIRECTORY}/patch/wslay_net.patch"
-     WORKING_DIRECTORY ${WSLAY_DIRECTORY}
-)
