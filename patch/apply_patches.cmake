@@ -8,11 +8,6 @@ execute_process(
 )
 
 execute_process(
-     COMMAND bash -c "git apply --whitespace=nowarn --reject ${REPO_ROOT_DIRECTORY}/patch/mbedtls_config.patch"
-     WORKING_DIRECTORY ${AMB_SDK_DIRECTORY}
-)
-
-execute_process(
      COMMAND bash -c "git apply --whitespace=nowarn --reject ${REPO_ROOT_DIRECTORY}/patch/rtw_opt_skbuf_rtl8735b_enlarge_skb_buffer_number.patch"
      WORKING_DIRECTORY ${AMB_SDK_DIRECTORY}
 )

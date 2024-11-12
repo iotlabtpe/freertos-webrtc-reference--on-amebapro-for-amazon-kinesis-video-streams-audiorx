@@ -74,7 +74,7 @@ if(NOT BUILD_TZ)
 #build TZ, move to secure project
 list(
     APPEND out_sources
-	
+
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram_s/hal_flash_sec.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram_s/hal_hkdf.c
 	#${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram_s/hal_otp_nsc.c
@@ -87,13 +87,13 @@ endif()
 
 list(
     APPEND out_sources
-	
+
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_audio.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_adc.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_comp.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_crypto.c
-	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_dram_init.c	
-	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_dram_scan.c	
+	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_dram_init.c
+	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_dram_scan.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_eddsa.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_flash.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_gdma.c
@@ -123,7 +123,7 @@ list(
 
 list(
     APPEND out_sources
-	
+
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram_ns/hal_flash_ns.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram_ns/hal_spic_ns.c
 )
@@ -172,11 +172,11 @@ list(
 	${sdk_root}/component/os/freertos/${freertos}/Source/tasks.c
 	${sdk_root}/component/os/freertos/${freertos}/Source/timers.c
 	${sdk_root}/component/os/freertos/${freertos}/Source/portable/MemMang/heap_4_2.c
-	
+
 	${sdk_root}/component/os/freertos/freertos_cb.c
 	${sdk_root}/component/os/freertos/freertos_service.c
 	${sdk_root}/component/os/freertos/cmsis_os.c
-	
+
 	${sdk_root}/component/os/os_dep/osdep_service.c
 	${sdk_root}/component/os/os_dep/device_lock.c
 	${sdk_root}/component/os/os_dep/timer_service.c
@@ -455,7 +455,7 @@ list(
 	${sdk_root}/component/file_system/fatfs/disk_if/src/sdcard.c
 	${sdk_root}/component/file_system/fatfs/disk_if/src/flash_fatfs.c
 	${sdk_root}/component/file_system/fatfs/fatfs_ext/src/ff_driver.c
-	
+
 	${sdk_root}/component/file_system/fatfs/r0.14/diskio.c
 	${sdk_root}/component/file_system/fatfs/r0.14/ff.c
 	${sdk_root}/component/file_system/fatfs/r0.14/ffsystem.c
@@ -502,12 +502,12 @@ list(
 list(
     APPEND app_sources
 	${prj_root}/src/main.c
-	${sdk_root}/component/soc/8735b/misc/driver/mpu_protect.c	
+	${sdk_root}/component/soc/8735b/misc/driver/mpu_protect.c
 )
 
 #RTSP
 list(
-	APPEND app_sources	
+	APPEND app_sources
 	${sdk_root}/component/network/rtsp/rtp_api.c
 	${sdk_root}/component/network/rtsp/rtsp_api.c
 	${sdk_root}/component/network/rtsp/sdp.c
@@ -515,7 +515,7 @@ list(
 
 #VIDEO
 list(
-	APPEND app_sources		
+	APPEND app_sources
 	${sdk_root}/component/video/driver/RTL8735B/video_api.c
 	${sdk_root}/component/video/driver/RTL8735B/video_snapshot.c
 	${sdk_root}/component/video/osd2/isp_osd_lite.c
@@ -529,7 +529,7 @@ list(
 
 #MMF_MODULE
 list(
-	APPEND app_sources	
+	APPEND app_sources
 	${sdk_root}/component/media/mmfv2/module_video.c
 	${sdk_root}/component/media/mmfv2/module_rtsp2.c
 	${sdk_root}/component/media/mmfv2/module_array.c
@@ -556,35 +556,35 @@ list(
 #MISC
 list(
 	APPEND app_sources
-	
+
 	${sdk_root}/component/soc/8735b/misc/utilities/source/ram/libc_wrap.c
-	${sdk_root}/component/soc/8735b/app/shell/cmd_shell.c	
+	${sdk_root}/component/soc/8735b/app/shell/cmd_shell.c
 )
 
 #LIB
 list(
 	APPEND app_sources
-	
+
 )
 
 #FTL
 list(
 	APPEND app_sources
-	
+
 	${sdk_root}/component/file_system/ftl/ftl.c
 )
 
 #FWFS
 list(
 	APPEND app_sources
-	
+
 	${sdk_root}/component/file_system/fwfs/fwfs.c
 )
 
 #NN FILE OP
 list(
 	APPEND app_sources
-	
+
 	${sdk_root}/component/file_system/nn/nn_file_op.c
 )
 
@@ -750,30 +750,31 @@ else()
 	set( videolib video_ntz)
 	if(NODDR)
 		message(STATUS "WITHOUT DDR")
-		set( ld_script ${CMAKE_CURRENT_SOURCE_DIR}/rtl8735b_ram_noddr.ld ) 
+		set( ld_script ${CMAKE_CURRENT_SOURCE_DIR}/rtl8735b_ram_noddr.ld )
 	else()
 		message(STATUS "WITH DDR")
 		set( ld_script ${CMAKE_CURRENT_SOURCE_DIR}/rtl8735b_ram.ld )
-	endif()	
+	endif()
 endif()
 
 
 list(
 	APPEND app_flags
 	${app_example_flags}
-	CONFIG_BUILD_RAM=1 
+	CONFIG_BUILD_RAM=1
 	CONFIG_PLATFORM_8735B
 	CONFIG_RTL8735B_PLATFORM=1
 	CONFIG_SYSTEM_TIME64=1
+	MBEDTLS_CONFIG_FILE="mbedtls_config.h"
 )
 
 if (BUILD_NEWAEC)
 list(
 	APPEND app_flags
     CONFIG_NEWAEC=1
-)    
+)
 endif()
-if(BUILD_WLANMP)	
+if(BUILD_WLANMP)
 list(
 	APPEND app_flags
 	CONFIG_MP_INCLUDED
@@ -797,26 +798,26 @@ target_compile_definitions(outsrc PRIVATE ${app_flags})
 # HEADER FILE PATH
 list(
 	APPEND app_inc_path
-	
+
 	${inc_path}
 	${app_example_inc_path}
 	${sdk_root}/component/os/freertos/${freertos}/Source/portable/GCC/ARM_CM33/non_secure
 	${sdk_root}/component/os/freertos/${freertos}/Source/portable/GCC/ARM_CM33/secure
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/video/voe_bin
 	${sdk_root}/component/video/driver/RTL8735B
-	
+
 	${prj_root}/src/test_model/svm
 	${prj_root}/src/test_model
 	${prj_root}/src
-	
+
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/model_itp
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/nn_api
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/nn_postprocess
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/nn_preprocess
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/run_facerecog
-	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/run_itp	
-	
+	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/run_itp
+
 	${sdk_root}/component/soc/8735b/misc/platform
 
 	${sdk_root}/component/media/mmfv2
@@ -887,26 +888,28 @@ list(
 	${sdk_root}/component/video/md
 	${sdk_root}/component/video/eip
 	${sdk_root}/component/wifi/wifi_config
-	
+
 	${sdk_root}/component/media/framework
 	${sdk_root}/component/soc/8735b/misc/driver
 	${sdk_root}/component/soc/8735b/misc/driver/xmodem
 
 	${sdk_root}/component/network/coap/include
-	
+
 	${sdk_root}/component/usb/common_new/
 	${sdk_root}/component/usb/host_new/
 	${sdk_root}/component/usb/host_new/cdc_ecm
 	${sdk_root}/component/usb/host_new/core
 	${sdk_root}/component/usb/device_new/core
 	${sdk_root}/component/usb/
+
+	${repo_root}/workarounds/mbedtls
 )
 
 target_include_directories( ${app} PUBLIC ${app_inc_path} )
 target_include_directories( outsrc PUBLIC ${app_inc_path} )
 
 
-if(NOT BUILD_WLANMP)	
+if(NOT BUILD_WLANMP)
 	set( wlanlib wlan)
 else()
 	set( wlanlib wlan_mp)
@@ -971,13 +974,13 @@ target_link_libraries(
 
 if(NOT PICOLIBC)
 target_link_libraries(
-	${app} 
+	${app}
 	nosys
 )
 endif()
 
 target_link_options(
-	${app} 
+	${app}
 	PUBLIC
 	"LINKER:SHELL:-L ${sdk_root}/component/soc/8735b/cmsis/rtl8735b/source/GCC"
 	"LINKER:SHELL:-L ${CMAKE_CURRENT_BINARY_DIR}"
@@ -990,7 +993,7 @@ target_link_options(
 
 if(BUILD_TZ)
 target_link_options(
-	${app} 
+	${app}
 	PUBLIC
 	"LINKER:SHELL:-wrap,hal_crypto_engine_init_platform"
 	"LINKER:SHELL:-wrap,hal_pinmux_register"
@@ -1031,29 +1034,29 @@ target_link_options(
 	"LINKER:SHELL:-wrap,hal_sys_get_video_img_ld_offset"
 	"LINKER:SHELL:-wrap,hal_sys_cust_pws_val_ctrl"
 	"LINKER:SHELL:-wrap,hal_32k_s1_sel"
-	"LINKER:SHELL:-wrap,hal_xtal_divider_enable"	
-	
+	"LINKER:SHELL:-wrap,hal_xtal_divider_enable"
+
 )
 endif()
 
 set_target_properties(${app} PROPERTIES LINK_DEPENDS ${ld_script})
 
 
-add_custom_command(TARGET ${app} POST_BUILD 
+add_custom_command(TARGET ${app} POST_BUILD
 	COMMAND ${CMAKE_NM} $<TARGET_FILE:${app}> | sort > ${app}.nm.map
 	COMMAND ${CMAKE_OBJEDUMP} -d $<TARGET_FILE:${app}> > ${app}.asm
 	COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${app}> ${app}.axf
 	COMMAND ${CMAKE_OBJCOPY} -j .bluetooth_trace.text -Obinary ${app}.axf APP.trace
-	COMMAND ${CMAKE_OBJCOPY} -R .bluetooth_trace.text ${app}.axf 
+	COMMAND ${CMAKE_OBJCOPY} -R .bluetooth_trace.text ${app}.axf
 	COMMAND ${CMAKE_READELF} -s -W $<TARGET_FILE:${app}>  > ${app}.symbols
-	
+
 	#COMMAND [ -d output ] || mkdir output
 	COMMAND ${CMAKE_COMMAND} -E remove_directory output && ${CMAKE_COMMAND} -E make_directory  output
 	COMMAND ${CMAKE_COMMAND} -E copy ${app}.nm.map output
 	COMMAND ${CMAKE_COMMAND} -E copy ${app}.asm output
-	COMMAND ${CMAKE_COMMAND} -E copy ${app}.map output 
+	COMMAND ${CMAKE_COMMAND} -E copy ${app}.map output
 	COMMAND ${CMAKE_COMMAND} -E copy ${app}.axf output
-	COMMAND ${CMAKE_COMMAND} -E copy APP.trace output 
-	
+	COMMAND ${CMAKE_COMMAND} -E copy APP.trace output
+
 	COMMAND ${PLAT_COPY} *.a output
 )
