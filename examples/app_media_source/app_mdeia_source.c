@@ -97,7 +97,10 @@ static void AudioTx_Task( void * pParameter )
         {
             /* Received a media frame. */
             LogVerbose( ( "Audio Tx frame(%ld), track kind: %d, timestampUs: %llu", frame.size, frame.trackKind, frame.timestampUs ) );
-
+            if( pAudioContext->pSourcesContext->onMediaSinkHookFunc )
+            {
+                ( void ) pAudioContext->pSourcesContext->onMediaSinkHookFunc( pAudioContext->pSourcesContext->pOnMediaSinkHookCustom, &frame );
+            }
             if( frame.freeData )
             {
                 vPortFree( frame.pData );

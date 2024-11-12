@@ -15,6 +15,9 @@ extern "C" {
 #define PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH      ( 1400 )
 
 PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSession );
+PeerConnectionResult_t PeerConnectionSrtp_WriteOpusFrame( PeerConnectionSession_t * pSession,
+                                                          Transceiver_t * pTransceiver,
+                                                          const PeerConnectionFrame_t * pFrame );
 PeerConnectionResult_t PeerConnectionSrtp_WriteH264Frame( PeerConnectionSession_t * pSession,
                                                           Transceiver_t * pTransceiver,
                                                           const PeerConnectionFrame_t * pFrame );

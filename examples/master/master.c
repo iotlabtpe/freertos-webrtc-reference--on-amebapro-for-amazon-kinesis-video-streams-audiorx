@@ -193,6 +193,7 @@ static int32_t OnMediaSinkHook( void * pCustom,
 
     if( ret == 0 )
     {
+        LogInfo((" The transceiver kind is %d", pFrame->trackKind ));
         if( pFrame->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
         {
             ret = AppMediaSource_GetVideoTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
@@ -730,6 +731,36 @@ static PeerConnectionResult_t HandleRxVideoFrame( void * pCustomContext,
     return PEER_CONNECTION_RESULT_OK;
 }
 
+static PeerConnectionResult_t HandleRxAudioFrame( void * pCustomContext,
+                                                  PeerConnectionFrame_t * pFrame )
+{
+    #ifdef ENABLE_STREAMING_LOOPBACK
+    webrtc_frame_t frame;
+
+    if( pFrame != NULL )
+    {
+        LogDebug( ( "Received audio frame with length: %u", pFrame->dataLength ) );
+
+        frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
+        frame.pData = pFrame->pData;
+        frame.size = pFrame->dataLength;
+        frame.freeData = 0U;
+        frame.timestampUs = pFrame->presentationUs;
+        ( void ) OnMediaSinkHook( pCustomContext,
+                                  &frame );
+    }
+
+    #else /* ifdef ENABLE_STREAMING_LOOPBACK */
+    ( void ) pCustomContext;
+    if( pFrame != NULL )
+    {
+        LogDebug( ( "Received audio frame with length: %u", pFrame->dataLength ) );
+    }
+    #endif /* ifdef ENABLE_STREAMING_LOOPBACK */
+
+    return PEER_CONNECTION_RESULT_OK;
+}
+
 static void HandleSdpOffer( DemoContext_t * pDemoContext,
                             const SignalingControllerReceiveEvent_t * pEvent )
 {
@@ -828,6 +859,18 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
             LogWarn( ( "PeerConnection_SetVideoOnFrame fail, result: %d.", peerConnectionResult ) );
+            skipProcess = 1;
+        }
+    }
+
+     if( skipProcess == 0 )
+    {
+        peerConnectionResult = PeerConnection_SetAudioOnFrame( &pPcSession->peerConnectionSession,
+                                                               HandleRxAudioFrame,
+                                                               pDemoContext );
+        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+        {
+            LogWarn( ( "PeerConnection_SetAudioOnFrame fail, result: %d.", peerConnectionResult ) );
             skipProcess = 1;
         }
     }
@@ -1081,7 +1124,6 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEven
     switch( pEvent->messageType )
     {
         case SIGNALING_TYPE_MESSAGE_SDP_OFFER:
-            Metric_StartEvent( METRIC_EVENT_SENDING_FIRST_FRAME );
             HandleSdpOffer( &demoContext, pEvent );
             break;
         case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:
