@@ -6,8 +6,6 @@ set(REPO_ROOT_DIRECTORY ${repo_root})
 
 option(ENABLE_STREAMING_LOOPBACK "Loopback the received frames to the remote peer" OFF)
 
-include( ${REPO_ROOT_DIRECTORY}/patch/apply_patches.cmake )
-
 file(
   GLOB
   WEBRTC_APPLICATION_MASTER_SOURCE_FILES
@@ -79,7 +77,7 @@ set( WSLAY_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/"
      "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes"
      "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay"
-     "${REPO_ROOT_DIRECTORY}/workarounds/wslay" )
+     "${REPO_ROOT_DIRECTORY}/configs/wslay" )
 
 # Include SDP
 include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-sdp/sdpFilePaths.cmake )
