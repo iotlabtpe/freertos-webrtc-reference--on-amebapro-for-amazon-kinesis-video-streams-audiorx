@@ -12,6 +12,8 @@ endif()
 
 include(../includepath.cmake)
 
+set(SKB_BUFFER_NUM 1024)
+
 if(BUILD_TZ)
 	include(./libsoc_ns.cmake OPTIONAL)
 else()
@@ -744,6 +746,12 @@ else()
 		${app_sources}
 		${app_example_sources}
 		$<TARGET_OBJECTS:outsrc>
+	)
+
+	target_compile_definitions(
+		${app}
+		PUBLIC
+		MAX_SKB_BUF_NUM=${SKB_BUFFER_NUM}
 	)
 
 	set( soclib soc_ntz)
