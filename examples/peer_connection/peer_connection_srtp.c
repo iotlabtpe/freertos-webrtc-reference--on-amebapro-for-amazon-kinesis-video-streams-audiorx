@@ -608,7 +608,6 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteOpusFrame( PeerConnectionSession_
     if(ret == PEER_CONNECTION_RESULT_OK )
     {
         pSsrc = &pTransceiver->ssrc;
-        LogInfo(("Audio SSRC : %lu", *pSsrc));
         pSrtpSender = &pSession->audioSrtpSender;
         pRtpSeq = &pSession->rtpConfig.audioSequenceNumber;
         payloadType = pSession->rtpConfig.audioCodecPayload;
@@ -749,10 +748,6 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteOpusFrame( PeerConnectionSession_
             {
                 LogWarn( ( "Fail to send RTP packet, ret: %d", resultIceController ) );
                 ret = PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_RTP_PACKET;
-            }
-            else 
-            {
-                LogInfo(("Successfully sent RTP packet %u", srtpPacketLength));
             }
         }
 

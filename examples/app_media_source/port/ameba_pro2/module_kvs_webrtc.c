@@ -143,7 +143,6 @@ int kvs_webrtc_handle( void * p,
 
         if( input_item->type == AV_CODEC_ID_H264 )
         {
-            LogInfo(("H264 packetssss, size: %lu", frame.size));
             if( gOnVideoFrameReadyToSendFunc )
             {
                 frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
@@ -157,7 +156,7 @@ int kvs_webrtc_handle( void * p,
         }
         else if (input_item->type == AV_CODEC_ID_OPUS)
         {
-            LogInfo(("Opus packetssss, size: %lu", frame.size));
+            LogInfo(("Opus packets, size: %lu", frame.size));
             if (gOnAudioFrameReadyToSendFunc)
             {
                 frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;

@@ -193,7 +193,6 @@ static int32_t OnMediaSinkHook( void * pCustom,
 
     if( ret == 0 )
     {
-        LogInfo((" The transceiver kind is %d", pFrame->trackKind ));
         if( pFrame->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
         {
             ret = AppMediaSource_GetVideoTransceiver( &pDemoContext->appMediaSourcesContext, &pTransceiver );
