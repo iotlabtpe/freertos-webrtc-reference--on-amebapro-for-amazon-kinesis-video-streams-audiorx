@@ -799,6 +799,8 @@ target_compile_definitions(outsrc PRIVATE ${app_flags})
 list(
 	APPEND app_inc_path
 
+	${repo_root}/configs/mbedtls
+
 	${inc_path}
 	${app_example_inc_path}
 	${sdk_root}/component/os/freertos/${freertos}/Source/portable/GCC/ARM_CM33/non_secure
@@ -901,8 +903,6 @@ list(
 	${sdk_root}/component/usb/host_new/core
 	${sdk_root}/component/usb/device_new/core
 	${sdk_root}/component/usb/
-
-	${repo_root}/workarounds/mbedtls
 )
 
 target_include_directories( ${app} PUBLIC ${app_inc_path} )

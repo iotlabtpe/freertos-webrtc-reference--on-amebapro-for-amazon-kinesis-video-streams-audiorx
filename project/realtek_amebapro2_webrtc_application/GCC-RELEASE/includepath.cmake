@@ -1,6 +1,8 @@
 list (
     APPEND inc_path_re
 
+	${repo_root}/configs/lwip
+
     "${prj_root}/inc"
     "${sdk_root}/component/mbed/hal"
     "${sdk_root}/component/mbed/hal_ext"
