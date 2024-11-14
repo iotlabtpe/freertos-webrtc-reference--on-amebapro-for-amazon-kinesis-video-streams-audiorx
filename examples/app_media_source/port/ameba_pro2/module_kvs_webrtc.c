@@ -13,6 +13,7 @@
 
 #include "module_video.h"
 #include "module_audio.h"
+#include "module_g711.h"
 #include "module_opusc.h"
 #include "module_opusd.h"
 #include "opus_defines.h"
@@ -46,26 +47,40 @@
 #endif
 
 #if V1_RESOLUTION == VIDEO_VGA
-#define V1_WIDTH    640
-#define V1_HEIGHT   480
+#define V1_WIDTH 640
+#define V1_HEIGHT 480
 #elif V1_RESOLUTION == VIDEO_HD
-#define V1_WIDTH    1280
-#define V1_HEIGHT   720
+#define V1_WIDTH 1280
+#define V1_HEIGHT 720
 #elif V1_RESOLUTION == VIDEO_FHD
-#define V1_WIDTH    1920
-#define V1_HEIGHT   1080
+#define V1_WIDTH 1920
+#define V1_HEIGHT 1080
 #endif
 
-#define AUDIO_OPUS 1
+/* Audio format setting */
+#define AUDIO_G711_MULAW 1
+#define AUDIO_G711_ALAW 0
+#define AUDIO_OPUS 0
+#if ( AUDIO_G711_MULAW + AUDIO_G711_ALAW + AUDIO_OPUS ) != 1
+#error only one of audio format should be set
+#endif
 
 static mm_context_t * video_v1_ctx = NULL;
-static mm_context_t *audio_ctx = NULL;
-static mm_context_t *opusc_ctx = NULL;
-// static mm_context_t *opusd_ctx = NULL;
-static mm_context_t * kvs_webrtc_v1_ctx = NULL;
-static mm_siso_t *siso_audio_opus = NULL;
-static mm_siso_t * siso_video_kvs_v1 = NULL;
-static mm_miso_t *miso_video_opus_kvs_v1_a1  = NULL;
+static mm_context_t * audio_ctx = NULL;
+#if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
+static mm_context_t * g711e_ctx = NULL;
+static mm_context_t * g711d_ctx = NULL;
+#endif
+#if ( AUDIO_OPUS )
+static mm_context_t * opusc_ctx = NULL;
+static mm_context_t * opusd_ctx = NULL;
+#endif
+static mm_context_t * kvs_webrtc_v1_a1_ctx = NULL;
+
+static mm_siso_t * siso_audio_a1 = NULL;
+static mm_siso_t * siso_webrtc_a2 = NULL;
+static mm_siso_t * siso_a2_audio = NULL;
+static mm_miso_t * miso_kvs_webrtc_v1_a1 = NULL;
 
 static OnFrameReadyToSend_t gOnVideoFrameReadyToSendFunc;
 static void * gpOnVideoFrameReadyToSendCustomContext;
@@ -85,25 +100,42 @@ static video_params_t video_v1_params = {
     .use_static_addr = 1
 };
 
+#if !USE_DEFAULT_AUDIO_SET
 static audio_params_t audio_params = {
     .sample_rate = ASR_8KHZ,
     .word_length = WL_16BIT,
-    .mic_gain    = MIC_0DB,
+    .mic_gain = MIC_0DB,
     .dmic_l_gain = DMIC_BOOST_24DB,
     .dmic_r_gain = DMIC_BOOST_24DB,
     .use_mic_type = USE_AUDIO_AMIC,
-    .channel     = 1,
+    .channel = 1,
     .mix_mode = 0,
-    .enable_record  = 0
+    .enable_aec = 0
+};
+#endif
+
+#if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
+static g711_params_t g711e_params = {
+    .codec_id = AV_CODEC_ID_PCMU,
+    .buf_len = 2048,
+    .mode = G711_ENCODE
 };
 
+static g711_params_t g711d_params = {
+    .codec_id = AV_CODEC_ID_PCMU,
+    .buf_len = 2048,
+    .mode = G711_DECODE
+};
+#endif
+
+#if ( AUDIO_OPUS )
 static opusc_params_t opusc_params = {
-    .sample_rate = 8000,
+    .sample_rate = 8000, // 16000
     .channel = 1,
-    .bit_length = 16,
-    .complexity = 5,
-    .bitrate = 25000,
-    .use_framesize = 20,
+    .bit_length = 16,    // 16 recommand
+    .complexity = 5,     // 0~10
+    .bitrate = 25000,    // default 25000
+    .use_framesize = 20, // 10 // needs to the same or bigger than AUDIO_DMA_PAGE_SIZE/(sample_rate/1000)/2 but less than 60
     .enable_vbr = 1,
     .vbr_constraint = 0,
     .packetLossPercentage = 0,
@@ -119,6 +151,15 @@ static opusc_params_t opusc_params = {
 //     .opus_application = OPUS_APPLICATION_AUDIO
 // };
 
+static opusd_params_t opusd_only_params = {
+    .sample_rate = 8000, // 16000
+    .channel = 1,
+    .bit_length = 16,         // 16 recommand
+    .frame_size_in_msec = 10, // will not be uused
+    .with_opus_enc = 1,       // enable semaphore if the application with opus encoder
+    .opus_application = OPUS_APPLICATION_AUDIO
+};
+#endif
 
 int kvs_webrtc_handle( void * p,
                        void * input,
@@ -131,13 +172,15 @@ int kvs_webrtc_handle( void * p,
     if( pCtx->mediaStart != 0 )
     {
         frame.size = input_item->size;
-        frame.pData = ( uint8_t * ) pvPortMalloc( frame.size );
+        frame.pData = ( uint8_t * )pvPortMalloc( frame.size );
         if( !frame.pData )
         {
             LogWarn( ( "fail to allocate memory for webrtc media frame" ) );
             return -1;
         }
-        memcpy( frame.pData, ( uint8_t * )input_item->data_addr, frame.size );
+        memcpy( frame.pData,
+                ( uint8_t * )input_item->data_addr,
+                frame.size );
         frame.freeData = 1;
         frame.timestampUs = NetworkingUtils_GetCurrentTimeUs( &input_item->timestamp );
 
@@ -146,7 +189,8 @@ int kvs_webrtc_handle( void * p,
             if( gOnVideoFrameReadyToSendFunc )
             {
                 frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
-                ( void ) gOnVideoFrameReadyToSendFunc( gpOnVideoFrameReadyToSendCustomContext, &frame );
+                ( void )gOnVideoFrameReadyToSendFunc( gpOnVideoFrameReadyToSendCustomContext,
+                                                      &frame );
             }
             else
             {
@@ -154,18 +198,34 @@ int kvs_webrtc_handle( void * p,
                 vPortFree( frame.pData );
             }
         }
-        else if (input_item->type == AV_CODEC_ID_OPUS)
+        else if( input_item->type == AV_CODEC_ID_OPUS )
         {
-            LogInfo(("Opus packets, size: %lu", frame.size));
-            if (gOnAudioFrameReadyToSendFunc)
+            LogInfo( ( "Opus packets, size: %lu", frame.size ) );
+            if( gOnAudioFrameReadyToSendFunc )
             {
                 frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
-                (void) gOnAudioFrameReadyToSendFunc(gpOnAudioFrameReadyToSendCustomContext, &frame);
+                ( void )gOnAudioFrameReadyToSendFunc( gpOnAudioFrameReadyToSendCustomContext,
+                                                      &frame );
             }
             else
             {
-                LogError(("No available ready to send callback function pointer for audio."));
-                vPortFree(frame.pData);
+                LogError( ( "No available ready to send callback function pointer for audio." ) );
+                vPortFree( frame.pData );
+            }
+        }
+        else if( input_item->type == AV_CODEC_ID_PCMU )
+        {
+            LogInfo( ( "G711 packets, size: %lu", frame.size ) );
+            if( gOnAudioFrameReadyToSendFunc )
+            {
+                frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
+                ( void )gOnAudioFrameReadyToSendFunc( gpOnAudioFrameReadyToSendCustomContext,
+                                                      &frame );
+            }
+            else
+            {
+                LogError( ( "No available ready to send callback function pointer for audio." ) );
+                vPortFree( frame.pData );
             }
         }
         else
@@ -189,11 +249,11 @@ int kvs_webrtc_control( void * p,
         case CMD_KVS_WEBRTC_SET_APPLY:
             /* If loopback is enabled, we don't need the camera to provide frames.
              * Instead, we loopback the received frames. */
-        #ifdef ENABLE_STREAMING_LOOPBACK
+#ifdef ENABLE_STREAMING_LOOPBACK
             pCtx->mediaStart = 0;
-        #else
+#else
             pCtx->mediaStart = 1;
-        #endif
+#endif
             break;
         case CMD_KVS_WEBRTC_STOP:
             pCtx->mediaStart = 0;
@@ -202,7 +262,7 @@ int kvs_webrtc_control( void * p,
     return 0;
 }
 
-void * kvs_webrtc_destroy( void * p )
+void *kvs_webrtc_destroy( void * p )
 {
     kvs_webrtc_ctx_t * ctx = ( kvs_webrtc_ctx_t * )p;
     if( ctx )
@@ -212,15 +272,16 @@ void * kvs_webrtc_destroy( void * p )
     return NULL;
 }
 
-
-void * kvs_webrtc_create( void * parent )
+void *kvs_webrtc_create( void * parent )
 {
     kvs_webrtc_ctx_t * ctx = malloc( sizeof( kvs_webrtc_ctx_t ) );
     if( !ctx )
     {
         return NULL;
     }
-    memset( ctx, 0, sizeof( kvs_webrtc_ctx_t ) );
+    memset( ctx,
+            0,
+            sizeof( kvs_webrtc_ctx_t ) );
     ctx->pParent = parent;
 
     printf( "[KVS WebRTC module]: module created.\r\n" );
@@ -228,8 +289,7 @@ void * kvs_webrtc_create( void * parent )
     return ctx;
 }
 
-
-void * kvs_webrtc_new_item( void * p )
+void *kvs_webrtc_new_item( void * p )
 {
     kvs_webrtc_ctx_t * ctx = ( kvs_webrtc_ctx_t * )p;
     ( void )ctx;
@@ -238,9 +298,8 @@ void * kvs_webrtc_new_item( void * p )
     return NULL;
 }
 
-
-void * kvs_webrtc_del_item( void * p,
-                            void * d )
+void *kvs_webrtc_del_item( void * p,
+                           void * d )
 {
     ( void )p;
     // if (d) {
@@ -258,8 +317,8 @@ mm_module_t kvs_webrtc_module = {
     .new_item = kvs_webrtc_new_item,
     .del_item = kvs_webrtc_del_item,
 
-    .output_type = MM_TYPE_NONE,        // output for video sink
-    .module_type = MM_TYPE_VDSP,        // module type is video algorithm
+    .output_type = MM_TYPE_NONE, // output for video sink
+    .module_type = MM_TYPE_VDSP, // module type is video algorithm
     .name = "KVS_WebRTC"
 };
 
@@ -271,18 +330,26 @@ int32_t AppMediaSourcePort_Init( OnFrameReadyToSend_t onVideoFrameReadyToSendFun
     int32_t ret = 0;
     int voe_heap_size;
 
-    kvs_webrtc_v1_ctx = mm_module_open( &kvs_webrtc_module );
-    if( kvs_webrtc_v1_ctx )
+    kvs_webrtc_v1_a1_ctx = mm_module_open( &kvs_webrtc_module );
+    if( kvs_webrtc_v1_a1_ctx )
     {
         gOnVideoFrameReadyToSendFunc = onVideoFrameReadyToSendFunc;
         gpOnVideoFrameReadyToSendCustomContext = pOnVideoFrameReadyToSendCustomContext;
         gOnAudioFrameReadyToSendFunc = onAudioFrameReadyToSendFunc;
         gpOnAudioFrameReadyToSendCustomContext = pOnAudioFrameReadyToSendCustomContext;
 
-        mm_module_ctrl( kvs_webrtc_v1_ctx, MM_CMD_SET_QUEUE_LEN, 6 );
-        mm_module_ctrl( kvs_webrtc_v1_ctx, MM_CMD_INIT_QUEUE_ITEMS, MMQI_FLAG_STATIC );
+        mm_module_ctrl( kvs_webrtc_v1_a1_ctx,
+                        MM_CMD_SET_QUEUE_LEN,
+                        6 );
+        mm_module_ctrl( kvs_webrtc_v1_a1_ctx,
+                        MM_CMD_INIT_QUEUE_ITEMS,
+                        MMQI_FLAG_STATIC );
+        mm_module_ctrl( kvs_webrtc_v1_a1_ctx,
+                        CMD_KVS_WEBRTC_SET_APPLY,
+                        0 );
     }
-    else {
+    else
+    {
         LogError( ( "KVS open fail" ) );
         ret = -1;
     }
@@ -301,101 +368,285 @@ int32_t AppMediaSourcePort_Init( OnFrameReadyToSend_t onVideoFrameReadyToSendFun
         video_v1_ctx = mm_module_open( &video_module );
         if( video_v1_ctx )
         {
-            mm_module_ctrl( video_v1_ctx, CMD_VIDEO_SET_PARAMS, ( int )&video_v1_params );
-            mm_module_ctrl( video_v1_ctx, MM_CMD_SET_QUEUE_LEN, V1_FPS * 3 );
-            mm_module_ctrl( video_v1_ctx, MM_CMD_INIT_QUEUE_ITEMS, MMQI_FLAG_DYNAMIC );
-            mm_module_ctrl( video_v1_ctx, CMD_VIDEO_APPLY, V1_CHANNEL );  // start channel 0
+            mm_module_ctrl( video_v1_ctx,
+                            CMD_VIDEO_SET_PARAMS,
+                            ( int )&video_v1_params );
+            mm_module_ctrl( video_v1_ctx,
+                            MM_CMD_SET_QUEUE_LEN,
+                            V1_FPS * 3 );
+            mm_module_ctrl( video_v1_ctx,
+                            MM_CMD_INIT_QUEUE_ITEMS,
+                            MMQI_FLAG_DYNAMIC );
+            mm_module_ctrl( video_v1_ctx,
+                            CMD_VIDEO_APPLY,
+                            V1_CHANNEL );                              // start channel 0
         }
-        else {
+        else
+        {
             LogError( ( "video open fail" ) );
-            ret = -1;
-        }
-    }
-
-    if (ret == 0)
-        {
-            audio_ctx = mm_module_open(&audio_module);
-            if (audio_ctx)
-            {
-                mm_module_ctrl(audio_ctx, CMD_AUDIO_SET_PARAMS, (int)&audio_params);
-                mm_module_ctrl(audio_ctx, MM_CMD_SET_QUEUE_LEN, 6);
-                mm_module_ctrl(audio_ctx, MM_CMD_INIT_QUEUE_ITEMS, MMQI_FLAG_STATIC);
-                mm_module_ctrl(audio_ctx, CMD_AUDIO_APPLY, 0);
-            }
-            else {
-                LogError(("Audio open fail"));
-                ret = -1;
-            }
-        }
-
-     if (ret == 0)
-    {
-        opusc_ctx = mm_module_open(&opusc_module);
-        if (opusc_ctx)
-        {
-            mm_module_ctrl(opusc_ctx, CMD_OPUSC_SET_PARAMS, (int)&opusc_params);
-            mm_module_ctrl(opusc_ctx, MM_CMD_SET_QUEUE_LEN, 6);
-            mm_module_ctrl(opusc_ctx, MM_CMD_INIT_QUEUE_ITEMS, MMQI_FLAG_STATIC);
-            mm_module_ctrl(opusc_ctx, CMD_OPUSC_APPLY, 0);
-        }
-        else {
-            LogError(("OPUSC open fail"));
             ret = -1;
         }
     }
 
     if( ret == 0 )
     {
-        siso_video_kvs_v1 = siso_create();
-        if( siso_video_kvs_v1 )
+        audio_ctx = mm_module_open( &audio_module );
+        if( audio_ctx )
         {
-    #if defined( configENABLE_TRUSTZONE ) && ( configENABLE_TRUSTZONE == 1 )
-            siso_ctrl( siso_video_kvs_v1, MMIC_CMD_SET_SECURE_CONTEXT, 1, 0 );
-    #endif
-            siso_ctrl( siso_video_kvs_v1, MMIC_CMD_ADD_INPUT, ( uint32_t )video_v1_ctx, 0 );
-            siso_ctrl( siso_video_kvs_v1, MMIC_CMD_ADD_OUTPUT, ( uint32_t )kvs_webrtc_v1_ctx, 0 );
-            siso_start( siso_video_kvs_v1 );
+#if !USE_DEFAULT_AUDIO_SET
+            mm_module_ctrl( audio_ctx,
+                            CMD_AUDIO_SET_PARAMS,
+                            ( int )&audio_params );
+#endif
+            mm_module_ctrl( audio_ctx,
+                            MM_CMD_SET_QUEUE_LEN,
+                            6 );
+            mm_module_ctrl( audio_ctx,
+                            MM_CMD_INIT_QUEUE_ITEMS,
+                            MMQI_FLAG_STATIC );
+            mm_module_ctrl( audio_ctx,
+                            CMD_AUDIO_APPLY,
+                            0 );
         }
-        else {
-            LogError( ( "siso2 open fail" ) );
+        else
+        {
+            LogError( ( "Audio open fail" ) );
             ret = -1;
         }
     }
 
-    if (ret == 0)
+    if( ret == 0 )
     {
-        siso_audio_opus = siso_create();
-        if (siso_audio_opus)
+#if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
+        g711e_ctx = mm_module_open( &g711_module );
+        if( g711e_ctx )
         {
-            siso_ctrl(siso_audio_opus, MMIC_CMD_ADD_INPUT, (uint32_t)audio_ctx, 0);
-            siso_ctrl(siso_audio_opus, MMIC_CMD_ADD_OUTPUT, (uint32_t)opusc_ctx, 0);
-            siso_ctrl(siso_audio_opus, MMIC_CMD_SET_STACKSIZE, 24 * 1024, 0);
-            siso_start(siso_audio_opus);
+            mm_module_ctrl( g711e_ctx,
+                            CMD_G711_SET_PARAMS,
+                            ( int )&g711e_params );
+            mm_module_ctrl( g711e_ctx,
+                            MM_CMD_SET_QUEUE_LEN,
+                            6 );
+            mm_module_ctrl( g711e_ctx,
+                            MM_CMD_INIT_QUEUE_ITEMS,
+                            MMQI_FLAG_STATIC );
+            mm_module_ctrl( g711e_ctx,
+                            CMD_G711_APPLY,
+                            0 );
         }
-        else {
-            LogError(("siso_audio_opus open fail"));
+        else
+        {
+            LogError( ( "G711 open fail" ) );
+            ret = -1;
+        }
+#elif AUDIO_OPUS
+        opusc_ctx = mm_module_open( &opusc_module );
+        if( opusc_ctx )
+        {
+            mm_module_ctrl( opusc_ctx,
+                            CMD_OPUSC_SET_PARAMS,
+                            ( int )&opusc_params );
+            mm_module_ctrl( opusc_ctx,
+                            MM_CMD_SET_QUEUE_LEN,
+                            6 );
+            mm_module_ctrl( opusc_ctx,
+                            MM_CMD_INIT_QUEUE_ITEMS,
+                            MMQI_FLAG_STATIC );
+            mm_module_ctrl( opusc_ctx,
+                            CMD_OPUSC_APPLY,
+                            0 );
+        }
+        else
+        {
+            LogError( ( "OPUSC open fail" ) );
+            ret = -1;
+        }
+#endif
+    }
+
+    if( ret == 0 )
+    {
+        siso_audio_a1 = siso_create();
+        if( siso_audio_a1 )
+        {
+            siso_ctrl( siso_audio_a1,
+                       MMIC_CMD_ADD_INPUT,
+                       ( uint32_t )audio_ctx,
+                       0 );
+#if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
+            siso_ctrl( siso_audio_a1,
+                       MMIC_CMD_ADD_OUTPUT,
+                       ( uint32_t )g711e_ctx,
+                       0 );
+#elif AUDIO_OPUS
+            siso_ctrl( siso_audio_a1,
+                       MMIC_CMD_ADD_OUTPUT,
+                       ( uint32_t )opusc_ctx,
+                       0 );
+            siso_ctrl( siso_audio_a1,
+                       MMIC_CMD_SET_STACKSIZE,
+                       24 * 1024,
+                       0 );
+#endif
+            siso_start( siso_audio_a1 );
+        }
+        else
+        {
+            LogError( ( "siso_audio_a1 open fail" ) );
             ret = -1;
         }
     }
 
-   if (ret == 0)
-   {
-        miso_video_opus_kvs_v1_a1 = miso_create();
-        if (miso_video_opus_kvs_v1_a1) {
-    #if defined(configENABLE_TRUSTZONE) && (configENABLE_TRUSTZONE == 1)
-            miso_ctrl(miso_video_opus_kvs_v1_a1, MMIC_CMD_SET_SECURE_CONTEXT, 1, 0);
-    #endif
-            miso_ctrl(miso_video_opus_kvs_v1_a1, MMIC_CMD_ADD_INPUT0, (uint32_t)video_v1_ctx, 0);
-            miso_ctrl(miso_video_opus_kvs_v1_a1, MMIC_CMD_ADD_INPUT1, (uint32_t)opusc_ctx, 0);
-            miso_ctrl(miso_video_opus_kvs_v1_a1, MMIC_CMD_ADD_OUTPUT, (uint32_t)kvs_webrtc_v1_ctx, 0);
-            miso_start(miso_video_opus_kvs_v1_a1);
-        } 
-        else {
-            LogError(("miso_video_aac_kvs_v1_a1 open fail"));
-            ret =-1;
+    if( ret == 0 )
+    {
+        miso_kvs_webrtc_v1_a1 = miso_create();
+        if( miso_kvs_webrtc_v1_a1 )
+        {
+#if defined( configENABLE_TRUSTZONE ) && ( configENABLE_TRUSTZONE == 1 )
+            miso_ctrl( miso_kvs_webrtc_v1_a1,
+                       MMIC_CMD_SET_SECURE_CONTEXT,
+                       1,
+                       0 );
+#endif
+            miso_ctrl( miso_kvs_webrtc_v1_a1,
+                       MMIC_CMD_ADD_INPUT0,
+                       ( uint32_t )video_v1_ctx,
+                       0 );
+#if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
+            miso_ctrl( miso_kvs_webrtc_v1_a1,
+                       MMIC_CMD_ADD_INPUT1,
+                       ( uint32_t )g711e_ctx,
+                       0 );
+#elif AUDIO_OPUS
+            miso_ctrl( miso_kvs_webrtc_v1_a1,
+                       MMIC_CMD_ADD_INPUT1,
+                       ( uint32_t )opusc_ctx,
+                       0 );
+#endif
+            miso_ctrl( miso_kvs_webrtc_v1_a1,
+                       MMIC_CMD_ADD_OUTPUT,
+                       ( uint32_t )kvs_webrtc_v1_a1_ctx,
+                       0 );
+            miso_start( miso_kvs_webrtc_v1_a1 );
         }
-        rt_printf("miso started\n\r");
-   }
+        else
+        {
+            LogError( ( "miso_kvs_webrtc_v1_a1 open fail" ) );
+            ret = -1;
+        }
+        LogInfo( ( "miso_kvs_webrtc_v1_a1 started" ) );
+    }
+
+    if( ret == 0 )
+    {
+#if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
+        g711d_ctx = mm_module_open( &g711_module );
+        if( g711d_ctx )
+        {
+            mm_module_ctrl( g711d_ctx,
+                            CMD_G711_SET_PARAMS,
+                            ( int )&g711d_params );
+            mm_module_ctrl( g711d_ctx,
+                            MM_CMD_SET_QUEUE_LEN,
+                            6 );
+            mm_module_ctrl( g711d_ctx,
+                            MM_CMD_INIT_QUEUE_ITEMS,
+                            MMQI_FLAG_STATIC );
+            mm_module_ctrl( g711d_ctx,
+                            CMD_G711_APPLY,
+                            0 );
+        }
+        else
+        {
+            LogError( ( "G711 open fail" ) );
+            ret = -1;
+        }
+#elif AUDIO_OPUS
+        opusd_ctx = mm_module_open( &opusd_module );
+        if( opusd_ctx )
+        {
+            mm_module_ctrl( opusd_ctx,
+                            CMD_OPUSD_SET_PARAMS,
+                            ( int )&opusd_only_params );
+            mm_module_ctrl( opusd_ctx,
+                            MM_CMD_SET_QUEUE_LEN,
+                            6 );
+            mm_module_ctrl( opusd_ctx,
+                            MM_CMD_INIT_QUEUE_ITEMS,
+                            MMQI_FLAG_STATIC );
+            mm_module_ctrl( opusd_ctx,
+                            CMD_OPUSD_APPLY,
+                            0 );
+        }
+        else
+        {
+            LogError( ( "OPUSD open fail" ) );
+            ret = -1;
+        }
+#endif
+    }
+
+    if( ret == 0 )
+    {
+        siso_webrtc_a2 = siso_create();
+        if( siso_webrtc_a2 )
+        {
+            siso_ctrl( siso_webrtc_a2,
+                       MMIC_CMD_ADD_INPUT,
+                       ( uint32_t )kvs_webrtc_v1_a1_ctx,
+                       0 );
+#if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
+            siso_ctrl( siso_webrtc_a2,
+                       MMIC_CMD_ADD_OUTPUT,
+                       ( uint32_t )g711d_ctx,
+                       0 );
+#elif AUDIO_OPUS
+            siso_ctrl( siso_webrtc_a2,
+                       MMIC_CMD_ADD_OUTPUT,
+                       ( uint32_t )opusd_ctx,
+                       0 );
+            siso_ctrl( siso_webrtc_a2,
+                       MMIC_CMD_SET_STACKSIZE,
+                       24 * 1024,
+                       0 );
+#endif
+            siso_start( siso_webrtc_a2 );
+        }
+        else
+        {
+            LogError( ( "siso_webrtc_a2 open fail" ) );
+            ret = -1;
+        }
+    }
+
+    if( ret == 0 )
+    {
+        siso_a2_audio = siso_create();
+        if( siso_a2_audio )
+        {
+#if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
+            siso_ctrl( siso_a2_audio,
+                       MMIC_CMD_ADD_INPUT,
+                       ( uint32_t )g711d_ctx,
+                       0 );
+#elif AUDIO_OPUS
+            siso_ctrl( siso_a2_audio,
+                       MMIC_CMD_ADD_INPUT,
+                       ( uint32_t )opusd_ctx,
+                       0 );
+#endif
+            siso_ctrl( siso_a2_audio,
+                       MMIC_CMD_ADD_OUTPUT,
+                       ( uint32_t )audio_ctx,
+                       0 );
+            siso_start( siso_a2_audio );
+        }
+        else
+        {
+            LogError( ( "siso_a2_audio open fail" ) );
+            ret = -1;
+        }
+    }
 
     return ret;
 }
@@ -403,26 +654,40 @@ int32_t AppMediaSourcePort_Init( OnFrameReadyToSend_t onVideoFrameReadyToSendFun
 void AppMediaSourcePort_Destroy( void )
 {
     // Pause Linkers
-    miso_pause(miso_video_opus_kvs_v1_a1, MM_OUTPUT);
-    siso_pause(siso_video_kvs_v1);
-    siso_pause(siso_audio_opus);
+    siso_pause( siso_audio_a1 );
+    miso_pause( miso_kvs_webrtc_v1_a1,
+                MM_OUTPUT );
+    siso_pause( siso_webrtc_a2 );
+    siso_pause( siso_a2_audio );
 
     // Stop modules
-    mm_module_ctrl(kvs_webrtc_v1_ctx, CMD_KVS_WEBRTC_STOP, 0);
-    mm_module_ctrl(video_v1_ctx, CMD_VIDEO_STREAM_STOP, V1_CHANNEL);
-    mm_module_ctrl(audio_ctx, CMD_AUDIO_SET_TRX, 0);
-    mm_module_ctrl(opusc_ctx, CMD_OPUSC_STOP, 0);
+    mm_module_ctrl( kvs_webrtc_v1_a1_ctx,
+                    CMD_KVS_WEBRTC_STOP,
+                    0 );
+    mm_module_ctrl( video_v1_ctx,
+                    CMD_VIDEO_STREAM_STOP,
+                    V1_CHANNEL );
+    mm_module_ctrl( audio_ctx,
+                    CMD_AUDIO_SET_TRX,
+                    0 );
 
     // Delete linkers
-    miso_delete(miso_video_opus_kvs_v1_a1);
-    siso_delete(siso_video_kvs_v1);
-    siso_delete(siso_audio_opus);
+    siso_audio_a1 = siso_delete( siso_audio_a1 );
+    miso_kvs_webrtc_v1_a1 = miso_delete( miso_kvs_webrtc_v1_a1 );
+    siso_webrtc_a2 = siso_delete( siso_webrtc_a2 );
+    siso_a2_audio = siso_delete( siso_a2_audio );
 
     // Close modules
-    mm_module_close(video_v1_ctx);
-    mm_module_close(audio_ctx);
-    mm_module_close(opusc_ctx);
-     mm_module_close(kvs_webrtc_v1_ctx);
+    kvs_webrtc_v1_a1_ctx = mm_module_close( kvs_webrtc_v1_a1_ctx );
+    video_v1_ctx = mm_module_close( video_v1_ctx );
+    audio_ctx = mm_module_close( audio_ctx );
+#if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
+    g711e_ctx = mm_module_close( g711e_ctx );
+    g711d_ctx = mm_module_close( g711d_ctx );
+#elif AUDIO_OPUS
+    opusc_ctx = mm_module_close( opusc_ctx );
+    opusd_ctx = mm_module_close( opusd_ctx );
+#endif
 
     // Video Deinit
     video_deinit();
@@ -432,12 +697,16 @@ int32_t AppMediaSourcePort_Start( void )
 {
     int32_t ret = 0;
 
-    mm_module_ctrl( kvs_webrtc_v1_ctx, CMD_KVS_WEBRTC_SET_APPLY, 0 );
+    mm_module_ctrl( kvs_webrtc_v1_a1_ctx,
+                    CMD_KVS_WEBRTC_SET_APPLY,
+                    0 );
 
     return ret;
 }
 
 void AppMediaSourcePort_Stop( void )
 {
-    mm_module_ctrl( kvs_webrtc_v1_ctx, CMD_KVS_WEBRTC_STOP, 0 );
+    mm_module_ctrl( kvs_webrtc_v1_a1_ctx,
+                    CMD_KVS_WEBRTC_STOP,
+                    0 );
 }
