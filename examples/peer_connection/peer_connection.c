@@ -477,12 +477,12 @@ static int32_t HandleRtpRtcpPackets( void * pCustomContext,
         else
         {
             /* RTP packet */
-            resultPeerConnection = PeerConnectionSrtp_HandleSrtpPacket( pSession, pBuffer, bufferLength );
-            if( resultPeerConnection != PEER_CONNECTION_RESULT_OK )
-            {
-                LogWarn( ( "Failed to handle SRTP packets, result: %d", resultPeerConnection ) );
-                ret = -2;
-            }
+            // resultPeerConnection = PeerConnectionSrtp_HandleSrtpPacket( pSession, pBuffer, bufferLength );
+            // if( resultPeerConnection != PEER_CONNECTION_RESULT_OK )
+            // {
+            //     LogWarn( ( "Failed to handle SRTP packets, result: %d", resultPeerConnection ) );
+            //     ret = -2;
+            // }
         }
     }
 
