@@ -3,6 +3,7 @@
 #include "peer_connection.h"
 #include "peer_connection_jitter_buffer.h"
 #include "h264_depacketizer.h"
+#include "g711_depacketizer.h"
 
 #include "FreeRTOS.h"
 
@@ -36,6 +37,125 @@ static void DiscardPackets( PeerConnectionJitterBuffer_t * pJitterBuffer,
 
         pJitterBuffer->oldestReceivedSequenceNumber = i;
     }
+}
+
+static PeerConnectionResult_t GetG711PacketProperty( PeerConnectionJitterBufferPacket_t * pPacket,
+                                                     uint8_t * pIsStartPacket )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    G711Result_t resultG711;
+    uint32_t properties = 0;
+
+    if( ( pPacket == NULL ) ||
+        ( pIsStartPacket == NULL ) )
+    {
+        LogError( ( "Invalid input, pPacket: %p, pIsStartPacket: %p", pPacket, pIsStartPacket ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        resultG711 = G711Depacketizer_GetPacketProperties( pPacket->pPacketBuffer, pPacket->packetBufferLength, &properties );
+        if( resultG711 != G711_RESULT_OK )
+        {
+            LogError( ( "Fail to get G711 packet properties, result: %d", resultG711 ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_DEPACKETIZER_GET_PROPERTIES;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        *pIsStartPacket = 0U;
+        if( ( properties & G711_PACKET_PROPERTY_START_PACKET ) != 0 )
+        {
+            *pIsStartPacket = 1U;
+        }
+    }
+
+    return ret;
+}
+
+static PeerConnectionResult_t FillFrameG711( PeerConnectionJitterBuffer_t * pJitterBuffer,
+                                             uint16_t rtpSeqStart,
+                                             uint16_t rtpSeqEnd,
+                                             uint8_t * pOutBuffer,
+                                             size_t * pOutBufferLength,
+                                             uint32_t * pRtpTimestamp )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    uint16_t i, index;
+    PeerConnectionJitterBufferPacket_t * pPacket;
+    G711Result_t resultG711;
+    G711DepacketizerContext_t g711DepacketizerContext;
+    G711Packet_t g711Packets[ PEER_CONNECTION_JITTER_BUFFER_MAX_PACKETS_NUM_IN_A_FRAME ];
+    G711Packet_t g711Packet;
+    Frame_t frame;
+    uint32_t rtpTimestamp;
+
+    if( ( pJitterBuffer == NULL ) ||
+        ( pOutBuffer == NULL ) ||
+        ( pOutBufferLength == NULL ) ||
+        ( pRtpTimestamp == NULL ) )
+    {
+        LogError( ( "Invalid input, pJitterBuffer: %p, pOutBuffer: %p, pOutBufferLength: %p, pRtpTimestamp: %p", pJitterBuffer, pOutBuffer, pOutBufferLength, pRtpTimestamp ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        resultG711 = G711Depacketizer_Init( &g711DepacketizerContext,
+                                            g711Packets,
+                                            PEER_CONNECTION_JITTER_BUFFER_MAX_PACKETS_NUM_IN_A_FRAME );
+        if( resultG711 != G711_RESULT_OK )
+        {
+            LogError( ( "Fail to initialize G711 depacketizer, result: %d", resultG711 ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_DEPACKETIZER_INIT;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        for( i = rtpSeqStart; i != rtpSeqEnd + 1; i++ )
+        {
+            index = PEER_CONNECTION_JITTER_BUFFER_WRAP( i, PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM );
+            pPacket = &pJitterBuffer->rtpPackets[ index ];
+            g711Packet.pPacketData = pPacket->pPacketBuffer;
+            g711Packet.packetDataLength = pPacket->packetBufferLength;
+            rtpTimestamp = pPacket->rtpTimestamp;
+            LogDebug( ( "Adding packet seq: %u, length: %u, timestamp: %lu", i, g711Packet.packetDataLength, rtpTimestamp ) );
+
+            resultG711 = G711Depacketizer_AddPacket( &g711DepacketizerContext,
+                                                     &g711Packet );
+            if( resultG711 != G711_RESULT_OK )
+            {
+                LogError( ( "Fail to add G711 depacketizer packet, result: %d", resultG711) );
+                ret = PEER_CONNECTION_RESULT_FAIL_DEPACKETIZER_ADD_PACKET;
+                break;
+            }
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        frame.pFrameData = pOutBuffer;
+        frame.frameDataLength = *pOutBufferLength;
+        resultG711 = G711Depacketizer_GetFrame( &g711DepacketizerContext,
+                                                &frame );
+        if( resultG711 != G711_RESULT_OK )
+        {
+            LogError( ( "Fail to get G711 depacketizer frame, result: %d", resultG711 ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_DEPACKETIZER_GET_FRAME;
+        }
+
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        *pOutBufferLength = frame.frameDataLength;
+        *pRtpTimestamp = rtpTimestamp;
+    }
+
+    return ret;
 }
 
 static PeerConnectionResult_t GetH264PacketProperty( PeerConnectionJitterBufferPacket_t * pPacket,
@@ -457,11 +577,13 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_Create( PeerConnectionJitterBu
         }
         else if( TRANSCEIVER_IS_CODEC_ENABLED( codec, TRANSCEIVER_RTC_CODEC_MULAW_BIT ) )
         {
-
+            pJitterBuffer->getPacketPropertyFunc = GetG711PacketProperty;
+            pJitterBuffer->fillFrameFunc = FillFrameG711;
         }
         else if( TRANSCEIVER_IS_CODEC_ENABLED( codec, TRANSCEIVER_RTC_CODEC_ALAW_BIT ) )
         {
-
+            pJitterBuffer->getPacketPropertyFunc = GetG711PacketProperty;
+            pJitterBuffer->fillFrameFunc = FillFrameG711;
         }
         else if( TRANSCEIVER_IS_CODEC_ENABLED( codec, TRANSCEIVER_RTC_CODEC_H265_BIT ) )
         {
