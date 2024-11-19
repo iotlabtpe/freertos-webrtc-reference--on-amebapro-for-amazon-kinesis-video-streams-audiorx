@@ -740,7 +740,7 @@ static PeerConnectionResult_t HandleRxAudioFrame( void * pCustomContext,
     {
         LogDebug( ( "Received audio frame with length: %u", pFrame->dataLength ) );
 
-        frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
+        frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
         frame.pData = pFrame->pData;
         frame.size = pFrame->dataLength;
         frame.freeData = 0U;
