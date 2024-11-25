@@ -246,7 +246,7 @@ static int32_t InitializeAudioSource( AppMediaSourceContext_t * pAudioSource )
         pAudioSource->transceiver.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
         pAudioSource->transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
         #if ( AUDIO_OPUS )
-        // TRANSCEIVER_ENABLE_CODEC( pAudioSource->transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT );
+        TRANSCEIVER_ENABLE_CODEC( pAudioSource->transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT );
         #else
         TRANSCEIVER_ENABLE_CODEC( pAudioSource->transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_ALAW_BIT );
         TRANSCEIVER_ENABLE_CODEC( pAudioSource->transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT );
