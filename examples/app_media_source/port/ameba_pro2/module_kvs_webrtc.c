@@ -36,8 +36,6 @@
 #define V1_BPS 1024 * 1024
 #define V1_RCMODE 2 // 1: CBR, 2: VBR
 
-#define USE_H265 0
-
 #if USE_H265
 #define VIDEO_TYPE VIDEO_HEVC
 #define VIDEO_CODEC AV_CODEC_ID_H265
@@ -55,14 +53,6 @@
 #elif V1_RESOLUTION == VIDEO_FHD
 #define V1_WIDTH 1920
 #define V1_HEIGHT 1080
-#endif
-
-/* Audio format setting */
-#define AUDIO_G711_MULAW 1
-#define AUDIO_G711_ALAW 0
-#define AUDIO_OPUS 0
-#if ( AUDIO_G711_MULAW + AUDIO_G711_ALAW + AUDIO_OPUS ) != 1
-#error only one of audio format should be set
 #endif
 
 static mm_context_t * video_v1_ctx = NULL;
@@ -215,7 +205,6 @@ int kvs_webrtc_handle( void * p,
         }
         else if( input_item->type == AV_CODEC_ID_PCMU )
         {
-            LogInfo( ( "G711 packets, size: %lu", frame.size ) );
             if( gOnAudioFrameReadyToSendFunc )
             {
                 frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
