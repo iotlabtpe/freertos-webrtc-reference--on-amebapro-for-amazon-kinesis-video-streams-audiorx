@@ -39,7 +39,7 @@ void app_ftl_init(void)
 /* entry for the example*/
 _WEAK void app_example(void)
 {
-
+	
 }
 
 void setup(void)
