@@ -9,6 +9,9 @@
 #include "rtcp_api.h"
 #include "peer_connection_rolling_buffer.h"
 #include "metric.h"
+#include "peer_connection_g711_helper.h"
+#include "peer_connection_h264_helper.h"
+#include "peer_connection_opus_helper.h"
 
 #include "lwip/sockets.h"
 

@@ -4,16 +4,20 @@
 #include "peer_connection_jitter_buffer.h"
 #include "h264_depacketizer.h"
 #include "g711_depacketizer.h"
+#include "opus_depacketizer.h"
 #include "peer_connection_g711_helper.h"
 #include "peer_connection_h264_helper.h"
+#include "peer_connection_opus_helper.h"
 #include "FreeRTOS.h"
 
 #define PEER_CONNECTION_JITTER_BUFFER_MAX_PACKETS_NUM_IN_A_FRAME ( 32 )
 #define PEER_CONNECTION_JITTER_BUFFER_SEQ_WRAPPER_THRESHOLD ( 10 )
 #define PEER_CONNECTION_JITTER_BUFFER_TIMESTAMP_WRAPPER_THRESHOLD_SEC ( 0.1 )
 #define PEER_CONNECTION_JITTER_BUFFER_WRAP( x, max ) ( ( x ) % max )
-#define PEER_CONNECTION_JITTER_BUFFER_INCREASE_WITH_WRAP( x, y, max ) ( PEER_CONNECTION_JITTER_BUFFER_WRAP( ( x ) + ( y ), max ) )
-#define PEER_CONNECTION_JITTER_BUFFER_DECREASE_WITH_WRAP( x, y, max ) ( PEER_CONNECTION_JITTER_BUFFER_WRAP( ( x ) - ( y ), max ) )
+#define PEER_CONNECTION_JITTER_BUFFER_INCREASE_WITH_WRAP( x, y, max ) ( PEER_CONNECTION_JITTER_BUFFER_WRAP( ( x ) + ( y ),\
+                                                                                                            max ) )
+#define PEER_CONNECTION_JITTER_BUFFER_DECREASE_WITH_WRAP( x, y, max ) ( PEER_CONNECTION_JITTER_BUFFER_WRAP( ( x ) - ( y ),\
+                                                                                                            max ) )
 
 static void DiscardPacket( PeerConnectionJitterBuffer_t * pJitterBuffer,
                            PeerConnectionJitterBufferPacket_t * pPacket );
@@ -31,9 +35,11 @@ static void DiscardPackets( PeerConnectionJitterBuffer_t * pJitterBuffer,
         /* Free from start sequence to end sequence number. */
         for( i = startSeq; i != endSeq + 1; i++ )
         {
-            index = PEER_CONNECTION_JITTER_BUFFER_WRAP( i, PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM );
+            index = PEER_CONNECTION_JITTER_BUFFER_WRAP( i,
+                                                        PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM );
             pPacket = &pJitterBuffer->rtpPackets[index];
-            DiscardPacket( pJitterBuffer, pPacket );
+            DiscardPacket( pJitterBuffer,
+                           pPacket );
         }
 
         pJitterBuffer->oldestReceivedSequenceNumber = i;
@@ -77,7 +83,8 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
         prev = pJitterBuffer->oldestReceivedSequenceNumber;
         for( i = pJitterBuffer->oldestReceivedSequenceNumber; i != pJitterBuffer->newestReceivedSequenceNumber + 1; i++ )
         {
-            index = PEER_CONNECTION_JITTER_BUFFER_WRAP( i, PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM );
+            index = PEER_CONNECTION_JITTER_BUFFER_WRAP( i,
+                                                        PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM );
             pPacket = &pJitterBuffer->rtpPackets[ index ];
             if( pPacket->isPushed == 0U )
             {
@@ -108,7 +115,10 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
                             }
                         }
 
-                        DiscardPackets( pJitterBuffer, firstTimestampIndex, prev, currentTimestamp );
+                        DiscardPackets( pJitterBuffer,
+                                        firstTimestampIndex,
+                                        prev,
+                                        currentTimestamp );
                     }
 
                     firstTimestampIndex = i;
@@ -118,7 +128,8 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
                     poppingTimestamp = currentTimestamp;
                 }
 
-                if( pJitterBuffer->getPacketPropertyFunc && ( pJitterBuffer->getPacketPropertyFunc( pPacket, &isStart ) == PEER_CONNECTION_RESULT_OK ) )
+                if( pJitterBuffer->getPacketPropertyFunc && ( pJitterBuffer->getPacketPropertyFunc( pPacket,
+                                                                                                    &isStart ) == PEER_CONNECTION_RESULT_OK ) )
                 {
                     if( ( popingPacketStartIndex == -1 ) && isStart )
                     {
@@ -134,7 +145,10 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
                                pPacket->pPacketBuffer[1],
                                pPacket->pPacketBuffer[2],
                                pPacket->pPacketBuffer[3] ) );
-                    DiscardPackets( pJitterBuffer, ( uint16_t ) firstTimestampIndex, i, currentTimestamp );
+                    DiscardPackets( pJitterBuffer,
+                                    ( uint16_t ) firstTimestampIndex,
+                                    i,
+                                    currentTimestamp );
                     firstTimestampIndex = -1;
                     poppingTimestamp = 0U;
                     continue;
@@ -274,7 +288,9 @@ static void DiscardPacket( PeerConnectionJitterBuffer_t * pJitterBuffer,
     if( pPacket && ( pPacket->pPacketBuffer != NULL ) )
     {
         vPortFree( pPacket->pPacketBuffer );
-        memset( pPacket, 0, sizeof( PeerConnectionJitterBufferPacket_t ) );
+        memset( pPacket,
+                0,
+                sizeof( PeerConnectionJitterBufferPacket_t ) );
     }
 }
 
@@ -298,7 +314,9 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_Create( PeerConnectionJitterBu
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        memset( pJitterBuffer, 0, sizeof( PeerConnectionJitterBuffer_t ) );
+        memset( pJitterBuffer,
+                0,
+                sizeof( PeerConnectionJitterBuffer_t ) );
         pJitterBuffer->isStart = 0U;
         pJitterBuffer->clockRate = clockRate;
         pJitterBuffer->codec = codec;
@@ -325,30 +343,37 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_Create( PeerConnectionJitterBu
     {
         LogInfo( ( "Setting jitter buffer with codec: 0x%lx.", codec ) );
         /* Pick get property function based on codec. */
-        if( TRANSCEIVER_IS_CODEC_ENABLED( codec, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) )
+        if( TRANSCEIVER_IS_CODEC_ENABLED( codec,
+                                          TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) )
         {
             pJitterBuffer->getPacketPropertyFunc = GetH264PacketProperty;
             pJitterBuffer->fillFrameFunc = FillFrameH264;
         }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( codec, TRANSCEIVER_RTC_CODEC_OPUS_BIT ) )
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( codec,
+                                               TRANSCEIVER_RTC_CODEC_OPUS_BIT ) )
+        {
+            pJitterBuffer->getPacketPropertyFunc = GetOpusPacketProperty;
+            pJitterBuffer->fillFrameFunc = FillFrameOpus;
+        }
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( codec,
+                                               TRANSCEIVER_RTC_CODEC_VP8_BIT ) )
         {
 
         }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( codec, TRANSCEIVER_RTC_CODEC_VP8_BIT ) )
-        {
-
-        }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( codec, TRANSCEIVER_RTC_CODEC_MULAW_BIT ) )
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( codec,
+                                               TRANSCEIVER_RTC_CODEC_MULAW_BIT ) )
         {
             pJitterBuffer->getPacketPropertyFunc = GetG711PacketProperty;
             pJitterBuffer->fillFrameFunc = FillFrameG711;
         }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( codec, TRANSCEIVER_RTC_CODEC_ALAW_BIT ) )
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( codec,
+                                               TRANSCEIVER_RTC_CODEC_ALAW_BIT ) )
         {
             pJitterBuffer->getPacketPropertyFunc = GetG711PacketProperty;
             pJitterBuffer->fillFrameFunc = FillFrameG711;
         }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( codec, TRANSCEIVER_RTC_CODEC_H265_BIT ) )
+        else if( TRANSCEIVER_IS_CODEC_ENABLED( codec,
+                                               TRANSCEIVER_RTC_CODEC_H265_BIT ) )
         {
 
         }
@@ -377,12 +402,16 @@ void PeerConnectionJitterBuffer_Free( PeerConnectionJitterBuffer_t * pJitterBuff
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        ( void ) ParseFramesInJitterBuffer( pJitterBuffer, pdTRUE );
+        ( void ) ParseFramesInJitterBuffer( pJitterBuffer,
+                                            pdTRUE );
     }
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        DiscardPackets( pJitterBuffer, 0, PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM - 1, 0U );
+        DiscardPackets( pJitterBuffer,
+                        0,
+                        PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM - 1,
+                        0U );
     }
 }
 
@@ -392,7 +421,8 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_AllocateBuffer( PeerConnection
                                                                   uint16_t rtpSeq )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
-    int index = PEER_CONNECTION_JITTER_BUFFER_WRAP( rtpSeq, PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM );
+    int index = PEER_CONNECTION_JITTER_BUFFER_WRAP( rtpSeq,
+                                                    PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM );
 
     if( ( pJitterBuffer == NULL ) ||
         ( ppOutPacket == NULL ) )
@@ -416,7 +446,8 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_AllocateBuffer( PeerConnection
         if( ( *ppOutPacket )->pPacketBuffer != NULL )
         {
             /* Remove old information. */
-            DiscardPacket( pJitterBuffer, *ppOutPacket );
+            DiscardPacket( pJitterBuffer,
+                           *ppOutPacket );
         }
 
         ( *ppOutPacket )->pPacketBuffer = ( uint8_t * )pvPortMalloc( packetBufferSize );
@@ -432,7 +463,8 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_GetPacket( PeerConnectionJitte
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     PeerConnectionJitterBufferPacket_t * pPacket = NULL;
-    int index = PEER_CONNECTION_JITTER_BUFFER_WRAP( rtpSeq, PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM );
+    int index = PEER_CONNECTION_JITTER_BUFFER_WRAP( rtpSeq,
+                                                    PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM );
 
     if( ( pJitterBuffer == NULL ) ||
         ( ppOutPacket == NULL ) )
@@ -481,7 +513,8 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_Push( PeerConnectionJitterBuff
             pJitterBuffer->oldestReceivedSequenceNumber = pPacket->sequenceNumber;
         }
 
-        ret = ShouldAcceptPacket( pJitterBuffer, pPacket );
+        ret = ShouldAcceptPacket( pJitterBuffer,
+                                  pPacket );
     }
 
     if( ret == PEER_CONNECTION_RESULT_OK )
@@ -489,7 +522,8 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_Push( PeerConnectionJitterBuff
         pPacket->isPushed = 1U;
 
         /* Update variables in jitter buffer. */
-        ret = UpdateJitterBufferAddPacket( pJitterBuffer, pPacket );
+        ret = UpdateJitterBufferAddPacket( pJitterBuffer,
+                                           pPacket );
     }
 
     if( ret != PEER_CONNECTION_RESULT_OK )
@@ -498,14 +532,17 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_Push( PeerConnectionJitterBuff
         if( pPacket && ( pPacket->pPacketBuffer != NULL ) )
         {
             vPortFree( pPacket->pPacketBuffer );
-            memset( pPacket, 0, sizeof( PeerConnectionJitterBufferPacket_t ) );
+            memset( pPacket,
+                    0,
+                    sizeof( PeerConnectionJitterBufferPacket_t ) );
         }
     }
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
         /* Parse the jitter buffer to check if any frames are ready for decoding or if any packets need to be dropped. */
-        ret = ParseFramesInJitterBuffer( pJitterBuffer, pdFALSE );
+        ret = ParseFramesInJitterBuffer( pJitterBuffer,
+                                         pdFALSE );
     }
 
     return ret;

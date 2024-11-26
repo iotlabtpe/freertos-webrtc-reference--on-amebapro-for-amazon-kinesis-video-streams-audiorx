@@ -3,7 +3,7 @@
 #include "g711_depacketizer.h"
 
 PeerConnectionResult_t GetG711PacketProperty( PeerConnectionJitterBufferPacket_t * pPacket,
-                                                     uint8_t * pIsStartPacket )
+                                              uint8_t * pIsStartPacket )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     G711Result_t resultG711;
@@ -18,7 +18,9 @@ PeerConnectionResult_t GetG711PacketProperty( PeerConnectionJitterBufferPacket_t
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        resultG711 = G711Depacketizer_GetPacketProperties( pPacket->pPacketBuffer, pPacket->packetBufferLength, &properties );
+        resultG711 = G711Depacketizer_GetPacketProperties( pPacket->pPacketBuffer,
+                                                           pPacket->packetBufferLength,
+                                                           &properties );
         if( resultG711 != G711_RESULT_OK )
         {
             LogError( ( "Fail to get G711 packet properties, result: %d", resultG711 ) );
@@ -39,11 +41,11 @@ PeerConnectionResult_t GetG711PacketProperty( PeerConnectionJitterBufferPacket_t
 }
 
 PeerConnectionResult_t FillFrameG711( PeerConnectionJitterBuffer_t * pJitterBuffer,
-                                             uint16_t rtpSeqStart,
-                                             uint16_t rtpSeqEnd,
-                                             uint8_t * pOutBuffer,
-                                             size_t * pOutBufferLength,
-                                             uint32_t * pRtpTimestamp )
+                                      uint16_t rtpSeqStart,
+                                      uint16_t rtpSeqEnd,
+                                      uint8_t * pOutBuffer,
+                                      size_t * pOutBufferLength,
+                                      uint32_t * pRtpTimestamp )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     uint16_t i, index;
@@ -80,7 +82,8 @@ PeerConnectionResult_t FillFrameG711( PeerConnectionJitterBuffer_t * pJitterBuff
     {
         for( i = rtpSeqStart; i != rtpSeqEnd + 1; i++ )
         {
-            index = PEER_CONNECTION_JITTER_BUFFER_WRAP( i, PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM );
+            index = PEER_CONNECTION_JITTER_BUFFER_WRAP( i,
+                                                        PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM );
             pPacket = &pJitterBuffer->rtpPackets[ index ];
             g711Packet.pPacketData = pPacket->pPacketBuffer;
             g711Packet.packetDataLength = pPacket->packetBufferLength;
@@ -91,7 +94,7 @@ PeerConnectionResult_t FillFrameG711( PeerConnectionJitterBuffer_t * pJitterBuff
                                                      &g711Packet );
             if( resultG711 != G711_RESULT_OK )
             {
-                LogError( ( "Fail to add G711 depacketizer packet, result: %d", resultG711) );
+                LogError( ( "Fail to add G711 depacketizer packet, result: %d", resultG711 ) );
                 ret = PEER_CONNECTION_RESULT_FAIL_DEPACKETIZER_ADD_PACKET;
                 break;
             }
@@ -155,16 +158,16 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteG711Frame( PeerConnectionSession_
 
     if( pTransceiver->trackKind != TRANSCEIVER_TRACK_KIND_AUDIO )
     {
-        LogError(( "Invalid track kind."));
+        LogError( ( "Invalid track kind." ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
     }
 
-     if( ret == PEER_CONNECTION_RESULT_OK )
+    if( ret == PEER_CONNECTION_RESULT_OK )
     {
         g711Frame.pFrameData = pFrame->pData;
         g711Frame.frameDataLength = pFrame->dataLength;
         resultG711 = G711Packetizer_Init( &g711PacketizerContext,
-                                          &g711Frame);
+                                          &g711Frame );
         if( resultG711 != G711_RESULT_OK )
         {
             LogError( ( "Fail to init G711 packetizer, result: %d", resultG711 ) );
@@ -172,7 +175,7 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteG711Frame( PeerConnectionSession_
         }
     }
 
-    if(ret == PEER_CONNECTION_RESULT_OK )
+    if( ret == PEER_CONNECTION_RESULT_OK )
     {
         pSsrc = &pTransceiver->ssrc;
         pSrtpSender = &pSession->audioSrtpSender;
@@ -184,7 +187,8 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteG711Frame( PeerConnectionSession_
             bufferAfterEncrypt = 0;
         }
 
-        if( xSemaphoreTake( pSrtpSender->senderMutex, portMAX_DELAY ) == pdTRUE )
+        if( xSemaphoreTake( pSrtpSender->senderMutex,
+                            portMAX_DELAY ) == pdTRUE )
         {
             isLocked = 1;
         }
@@ -195,7 +199,7 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteG711Frame( PeerConnectionSession_
         }
     }
 
-     while( ret == PEER_CONNECTION_RESULT_OK )
+    while( ret == PEER_CONNECTION_RESULT_OK )
     {
         /* Get buffer from sender for later use.
          * PeerConnectionRollingBuffer_GetRtpSequenceBuffer() returns the buffer with its size.
@@ -243,24 +247,28 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteG711Frame( PeerConnectionSession_
         else if( resultG711 == G711_RESULT_OK )
         {
             /* Prepare RTP packet for each payload buffer. */
-            memset( &pRollingBufferPacket->rtpPacket, 0, sizeof( RtpPacket_t ) );
+            memset( &pRollingBufferPacket->rtpPacket,
+                    0,
+                    sizeof( RtpPacket_t ) );
             pRollingBufferPacket->rtpPacket.header.payloadType = payloadType;
             pRollingBufferPacket->rtpPacket.header.sequenceNumber = *pRtpSeq;
             pRollingBufferPacket->rtpPacket.header.ssrc = *pSsrc;
-            
+
             /* For G711, typically each packet is complete, so we set the marker bit for each packet */
             pRollingBufferPacket->rtpPacket.header.flags |= RTP_HEADER_FLAG_MARKER;
 
             pRollingBufferPacket->rtpPacket.header.csrcCount = 0;
             pRollingBufferPacket->rtpPacket.header.pCsrc = NULL;
-            pRollingBufferPacket->rtpPacket.header.timestamp = PEER_CONNECTION_SRTP_CONVERT_TIME_US_TO_RTP_TIMESTAMP( PEER_CONNECTION_SRTP_VIDEO_CLOCKRATE, pFrame->presentationUs );
+            pRollingBufferPacket->rtpPacket.header.timestamp = PEER_CONNECTION_SRTP_CONVERT_TIME_US_TO_RTP_TIMESTAMP( PEER_CONNECTION_SRTP_VIDEO_CLOCKRATE,
+                                                                                                                      pFrame->presentationUs );
 
             if( pSession->rtpConfig.twccId > 0 )
             {
                 pRollingBufferPacket->rtpPacket.header.flags |= RTP_HEADER_FLAG_EXTENSION;
                 pRollingBufferPacket->rtpPacket.header.extension.extensionProfile = PEER_CONNECTION_SRTP_TWCC_EXT_PROFILE;
                 pRollingBufferPacket->rtpPacket.header.extension.extensionPayloadLength = 1;
-                extensionPayload = PEER_CONNECTION_SRTP_GET_TWCC_PAYLOAD( pSession->rtpConfig.twccId, pSession->rtpConfig.twccSequence );
+                extensionPayload = PEER_CONNECTION_SRTP_GET_TWCC_PAYLOAD( pSession->rtpConfig.twccId,
+                                                                          pSession->rtpConfig.twccSequence );
                 pRollingBufferPacket->rtpPacket.header.extension.pExtensionPayload = &extensionPayload;
                 pSession->rtpConfig.twccSequence++;
             }
@@ -270,9 +278,9 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteG711Frame( PeerConnectionSession_
 
             /* PeerConnectionSrtp_ConstructSrtpPacket() serializes RTP packet and encrypt it. */
             ret = PeerConnectionSrtp_ConstructSrtpPacket( pSession,
-                                    &pRollingBufferPacket->rtpPacket,
-                                    pSrtpPacket,
-                                    &srtpPacketLength );
+                                                          &pRollingBufferPacket->rtpPacket,
+                                                          pSrtpPacket,
+                                                          &srtpPacketLength );
         }
         else
         {
@@ -325,7 +333,7 @@ PeerConnectionResult_t PeerConnectionSrtp_WriteG711Frame( PeerConnectionSession_
     }
 
     if( isLocked )
-    {   
+    {
         xSemaphoreGive( pSrtpSender->senderMutex );
     }
     //  LogInfo((" G711 write frame is done. return = %d", ret));
