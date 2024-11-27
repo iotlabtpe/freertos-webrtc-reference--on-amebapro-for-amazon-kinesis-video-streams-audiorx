@@ -42,6 +42,9 @@ extern "C" {
  */
 #define SIGNALING_CONNECT_STATE_TIMEOUT_SEC ( 15 )
 
+// Grace period for refreshing the ICE configuration
+#define ICE_CONFIGURATION_REFRESH_GRACE_PERIOD_SEC ( 30 )
+
 typedef enum SignalingControllerEventStatus
 {
     SIGNALING_CONTROLLER_EVENT_STATUS_NONE = 0,
@@ -190,6 +193,8 @@ typedef struct SignalingControllerContext
 
     SignalingControllerChannelInfo_t channelInfo;
 
+    uint64_t iceServerConfigTime;
+    uint64_t iceServerConfigExpiration;
     uint8_t iceServerConfigsCount;
     SignalingControllerIceServerConfig_t iceServerConfigs[SIGNALING_CONTROLLER_ICE_SERVER_MAX_ICE_CONFIG_COUNT];
 
