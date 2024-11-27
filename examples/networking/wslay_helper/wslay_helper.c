@@ -1445,6 +1445,68 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
     return ret;
 }
 
+WebsocketResult_t Websocket_Disconnect(void)
+{
+    WebsocketResult_t ret = WEBSOCKET_RESULT_OK;
+    TlsTransportStatus_t tlsStatus = TLS_TRANSPORT_SUCCESS;
+
+    if (networkingWslayContext.wslayContext != NULL)
+    {
+        /* Shutdown WebSocket read operations */
+        wslay_event_shutdown_read(networkingWslayContext.wslayContext);
+
+        /* Shutdown WebSocket write operations */
+        wslay_event_shutdown_write(networkingWslayContext.wslayContext);
+
+        /* Free the wslay context */
+        wslay_event_context_free(networkingWslayContext.wslayContext);
+        networkingWslayContext.wslayContext = NULL;
+
+        if (networkingWslayContext.wslayContext != NULL)
+        {
+            LogError(("Failed to free wslay context"));
+            ret = WEBSOCKET_RESULT_FAIL;
+        }
+    }
+
+    /* Close wake-up socket if it's open */
+    if ( ( ret == WEBSOCKET_RESULT_OK ) && (networkingWslayContext.socketWakeUp != -1) )
+    {
+        if (close(networkingWslayContext.socketWakeUp) == -1)
+        {
+            LogError(("Failed to close wake-up socket: errno=%d", errno));
+            ret = WEBSOCKET_RESULT_FAIL;
+        }
+        else
+        {
+            networkingWslayContext.socketWakeUp = -1;
+        }
+    }
+
+    /* Close TLS connection if it exists */
+    if ( ret == WEBSOCKET_RESULT_OK )
+    {
+        tlsStatus = TLS_FreeRTOS_Disconnect(&networkingWslayContext.xNetworkContext);
+        if (tlsStatus != TLS_TRANSPORT_SUCCESS)
+        {
+            LogError(("Failed to disconnect TLS connection: Status=%d", tlsStatus));
+            ret = WEBSOCKET_RESULT_FAIL;
+        }
+    }
+
+    /* Log the final status */
+    if (ret == WEBSOCKET_RESULT_OK)
+    {
+        LogInfo(("WebSocket connection successfully closed"));
+    }
+    else
+    {
+        LogWarn(("WebSocket disconnect completed with errors"));
+    }
+
+    return ret;
+}
+
 WebsocketResult_t Websocket_Send( char * pMessage,
                                   size_t messageLength )
 {

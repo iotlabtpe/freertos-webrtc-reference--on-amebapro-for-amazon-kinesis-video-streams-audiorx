@@ -1187,7 +1187,7 @@ PeerConnectionResult_t PeerConnection_WriteFrame( PeerConnectionSession_t * pSes
     {
         if( pSession->state < PEER_CONNECTION_SESSION_STATE_CONNECTION_READY )
         {
-            LogInfo( ( "This session is not ready for sending frames." ) );
+            // LogInfo( ( "This session is not ready for sending frames." ) );                  /* Will enable for multi viewer */
         }
         else if( TRANSCEIVER_IS_CODEC_ENABLED( pTransceiver->codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) )
         {

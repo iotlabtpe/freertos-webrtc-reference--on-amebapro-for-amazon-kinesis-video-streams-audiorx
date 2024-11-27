@@ -69,6 +69,8 @@ static DemoPeerConnectionSession_t * GetCreatePeerConnectionSession( DemoContext
                                                                      uint8_t allowCreate );
 static void HandleRemoteCandidate( DemoContext_t * pDemoContext,
                                    const SignalingControllerReceiveEvent_t * pEvent );
+static void HandleIceServerReconnect( DemoContext_t * pDemoContext,
+                                     const SignalingControllerReceiveEvent_t * pEvent );
 static void HandleLocalCandidateReady( void * pCustomContext,
                                        PeerConnectionIceLocalCandidate_t * pIceLocalCandidate );
 static void HandleSdpOffer( DemoContext_t * pDemoContext,
@@ -837,7 +839,7 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
 
     if( skipProcess == 0 )
     {
-        bufferSessionDescription.pSdpBuffer = pDemoContext->sdpBuffer;
+        bufferSessionDescription.pSdpBuffer = pDemoContext->sdpBuffer;                              /*  Memory to fill the actual sdp Buffer */
         bufferSessionDescription.sdpBufferLength = formalSdpMessageLength;
         bufferSessionDescription.type = SDP_CONTROLLER_MESSAGE_TYPE_OFFER;
         peerConnectionResult = PeerConnection_SetRemoteDescription( &pPcSession->peerConnectionSession,
@@ -961,6 +963,30 @@ static void HandleRemoteCandidate( DemoContext_t * pDemoContext,
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
             LogWarn( ( "PeerConnection_AddRemoteCandidate fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
+        }
+    }
+}
+
+static void HandleIceServerReconnect( DemoContext_t * pDemoContext,
+                                   const SignalingControllerReceiveEvent_t * pEvent )
+{
+    SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
+    uint64_t initTime = NetworkingUtils_GetCurrentTimeSec( NULL );
+    uint64_t currTime = initTime; 
+
+    while(currTime < initTime + SIGNALING_CONNECT_STATE_TIMEOUT )
+    {
+        ret = SignalingController_IceServerReconnection(&demoContext.signalingControllerContext);
+        if( ret == SIGNALING_CONTROLLER_RESULT_OK )
+        {
+            LogInfo(("Ice-Server Reconnection Successful."));
+            break;
+        }
+        else
+        {
+            LogError(("Unable to Reconnect Ice Server."));
+
+            currTime = NetworkingUtils_GetCurrentTimeSec( NULL );
         }
     }
 }
@@ -1157,9 +1183,8 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEven
             HandleRemoteCandidate( &demoContext,
                                    pEvent );
             break;
-        case SIGNALING_TYPE_MESSAGE_GO_AWAY:
-            break;
         case SIGNALING_TYPE_MESSAGE_RECONNECT_ICE_SERVER:
+        HandleIceServerReconnect(&demoContext, pEvent);
             break;
         case SIGNALING_TYPE_MESSAGE_STATUS_RESPONSE:
             break;
