@@ -346,36 +346,26 @@ PeerConnectionResult_t PeerConnectionJitterBuffer_Create( PeerConnectionJitterBu
         if( TRANSCEIVER_IS_CODEC_ENABLED( codec,
                                           TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT ) )
         {
-            pJitterBuffer->getPacketPropertyFunc = GetH264PacketProperty;
-            pJitterBuffer->fillFrameFunc = FillFrameH264;
+            pJitterBuffer->getPacketPropertyFunc = PeerConnectionH264Helper_GetH264PacketProperty;
+            pJitterBuffer->fillFrameFunc = PeerConnectionH264Helper_FillFrameH264;
         }
         else if( TRANSCEIVER_IS_CODEC_ENABLED( codec,
                                                TRANSCEIVER_RTC_CODEC_OPUS_BIT ) )
         {
-            pJitterBuffer->getPacketPropertyFunc = GetOpusPacketProperty;
-            pJitterBuffer->fillFrameFunc = FillFrameOpus;
-        }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( codec,
-                                               TRANSCEIVER_RTC_CODEC_VP8_BIT ) )
-        {
-
+            pJitterBuffer->getPacketPropertyFunc = PeerConnectionOpusHelper_GetOpusPacketProperty;
+            pJitterBuffer->fillFrameFunc = PeerConnectionOpusHelper_FillFrameOpus;
         }
         else if( TRANSCEIVER_IS_CODEC_ENABLED( codec,
                                                TRANSCEIVER_RTC_CODEC_MULAW_BIT ) )
         {
-            pJitterBuffer->getPacketPropertyFunc = GetG711PacketProperty;
-            pJitterBuffer->fillFrameFunc = FillFrameG711;
+            pJitterBuffer->getPacketPropertyFunc = PeerConnectionG711Helper_GetG711PacketProperty;
+            pJitterBuffer->fillFrameFunc = PeerConnectionG711Helper_FillFrameG711;
         }
         else if( TRANSCEIVER_IS_CODEC_ENABLED( codec,
                                                TRANSCEIVER_RTC_CODEC_ALAW_BIT ) )
         {
-            pJitterBuffer->getPacketPropertyFunc = GetG711PacketProperty;
-            pJitterBuffer->fillFrameFunc = FillFrameG711;
-        }
-        else if( TRANSCEIVER_IS_CODEC_ENABLED( codec,
-                                               TRANSCEIVER_RTC_CODEC_H265_BIT ) )
-        {
-
+            pJitterBuffer->getPacketPropertyFunc = PeerConnectionG711Helper_GetG711PacketProperty;
+            pJitterBuffer->fillFrameFunc = PeerConnectionG711Helper_FillFrameG711;
         }
         else
         {

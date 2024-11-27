@@ -1,5 +1,5 @@
-#ifndef OPUS_CODEC_H
-#define OPUS_CODEC_H
+#ifndef PEER_CONNECTION_OPUS_HELPER_H
+#define PEER_CONNECTION_OPUS_HELPER_H
 
 #pragma once
 
@@ -15,22 +15,22 @@ extern "C" {
 
 #include "peer_connection_data_types.h"
 
-PeerConnectionResult_t GetOpusPacketProperty( PeerConnectionJitterBufferPacket_t * pPacket,
-                                              uint8_t * pIsStartPacket );
+PeerConnectionResult_t PeerConnectionOpusHelper_GetOpusPacketProperty( PeerConnectionJitterBufferPacket_t * pPacket,
+                                                                       uint8_t * pIsStartPacket );
 
-PeerConnectionResult_t FillFrameOpus( PeerConnectionJitterBuffer_t * pJitterBuffer,
-                                      uint16_t rtpSeqStart,
-                                      uint16_t rtpSeqEnd,
-                                      uint8_t * pOutBuffer,
-                                      size_t * pOutBufferLength,
-                                      uint32_t * pRtpTimestamp );
+PeerConnectionResult_t PeerConnectionOpusHelper_FillFrameOpus( PeerConnectionJitterBuffer_t * pJitterBuffer,
+                                                               uint16_t rtpSeqStart,
+                                                               uint16_t rtpSeqEnd,
+                                                               uint8_t * pOutBuffer,
+                                                               size_t * pOutBufferLength,
+                                                               uint32_t * pRtpTimestamp );
 
-PeerConnectionResult_t PeerConnectionSrtp_WriteOpusFrame( PeerConnectionSession_t * pSession,
-                                                          Transceiver_t * pTransceiver,
-                                                          const PeerConnectionFrame_t * pFrame );
+PeerConnectionResult_t PeerConnectionOpusHelper_WriteOpusFrame( PeerConnectionSession_t * pSession,
+                                                                Transceiver_t * pTransceiver,
+                                                                const PeerConnectionFrame_t * pFrame );
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* OPUS_CODEC_H */
+#endif /* PEER_CONNECTION_OPUS_HELPER_H */

@@ -2,8 +2,8 @@
 #include "g711_packetizer.h"
 #include "g711_depacketizer.h"
 
-PeerConnectionResult_t GetG711PacketProperty( PeerConnectionJitterBufferPacket_t * pPacket,
-                                              uint8_t * pIsStartPacket )
+PeerConnectionResult_t PeerConnectionG711Helper_GetG711PacketProperty( PeerConnectionJitterBufferPacket_t * pPacket,
+                                                                       uint8_t * pIsStartPacket )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     G711Result_t resultG711;
@@ -40,12 +40,12 @@ PeerConnectionResult_t GetG711PacketProperty( PeerConnectionJitterBufferPacket_t
     return ret;
 }
 
-PeerConnectionResult_t FillFrameG711( PeerConnectionJitterBuffer_t * pJitterBuffer,
-                                      uint16_t rtpSeqStart,
-                                      uint16_t rtpSeqEnd,
-                                      uint8_t * pOutBuffer,
-                                      size_t * pOutBufferLength,
-                                      uint32_t * pRtpTimestamp )
+PeerConnectionResult_t PeerConnectionG711Helper_FillFrameG711( PeerConnectionJitterBuffer_t * pJitterBuffer,
+                                                               uint16_t rtpSeqStart,
+                                                               uint16_t rtpSeqEnd,
+                                                               uint8_t * pOutBuffer,
+                                                               size_t * pOutBufferLength,
+                                                               uint32_t * pRtpTimestamp )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     uint16_t i, index;
@@ -124,9 +124,9 @@ PeerConnectionResult_t FillFrameG711( PeerConnectionJitterBuffer_t * pJitterBuff
     return ret;
 }
 
-PeerConnectionResult_t PeerConnectionSrtp_WriteG711Frame( PeerConnectionSession_t * pSession,
-                                                          Transceiver_t * pTransceiver,
-                                                          const PeerConnectionFrame_t * pFrame )
+PeerConnectionResult_t PeerConnectionG711Helper_WriteG711Frame( PeerConnectionSession_t * pSession,
+                                                                Transceiver_t * pTransceiver,
+                                                                const PeerConnectionFrame_t * pFrame )
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     G711PacketizerContext_t g711PacketizerContext;

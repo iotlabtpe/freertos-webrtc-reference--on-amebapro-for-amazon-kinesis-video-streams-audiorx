@@ -43,7 +43,7 @@ endif()
 
 # root of repository
 set (repo_root "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
-# root of realtek_amebapro2_v0_example
+# root of realtek_amebapro2_webrtc_example
 set (prj_root "${CMAKE_CURRENT_SOURCE_DIR}/..")
 # root of SDK
 set (sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../libraries/ambpro2_sdk")
@@ -76,34 +76,18 @@ else()
 	set(boot_dep ${ELF2BIN})
 endif()
 
-if(BUILD_TZ)
-	if(BUILD_WLANMP)
-		set(target flash_tz_mp)
-	else()
-		set(target flash_tz)
-	endif()
-	set(fw application/firmware_tz.bin)
-	set(isp_iq application/firmware_isp_iq.bin)
-	set(app_dep application.s application.ns)
-	set(symbols application/application.ns.symbols)
-	
-	set(bttrace application/APP.trace)
-	add_subdirectory (application)
+if(BUILD_WLANMP)
+	set(target flash_ntz_mp)
 else()
-	if(BUILD_WLANMP)
-		set(target flash_ntz_mp)
-	else()
-		set(target flash_ntz)
-	endif()
-	set(fw application/firmware_ntz.bin)
-	set(isp_iq application/firmware_isp_iq.bin)
-	set(app_dep application.ntz)
-	set(symbols application/application.ntz.symbols)
-	
-	set(bttrace application/APP.trace)
-	add_subdirectory (application)
+	set(target flash_ntz)
 endif()
+set(fw application/firmware_ntz.bin)
+set(isp_iq application/firmware_isp_iq.bin)
+set(app_dep application.ntz)
+set(symbols application/application.ntz.symbols)
 
+set(bttrace application/APP.trace)
+add_subdirectory (application)
 
 if(MPCHIP)
 add_custom_command(

@@ -1,3 +1,12 @@
+#ifndef PEER_CONNECTION_CODEC_HELPER_H
+#define PEER_CONNECTION_CODEC_HELPER_H
+
+#pragma once
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdlib.h>
 #include "logging.h"
 #include "peer_connection.h"
@@ -58,5 +67,10 @@
 // https://tools.ietf.org/html/draft-holmer-rmcat-transport-wide-cc-extensions-01
 #define PEER_CONNECTION_SRTP_TWCC_EXT_PROFILE ( 0xBEDE )
 #define PEER_CONNECTION_SRTP_GET_TWCC_PAYLOAD( extId, sequenceNum ) ( ( ( ( extId ) & 0xfu ) << 28u ) | ( 1u << 24u ) | ( ( uint32_t ) ( sequenceNum ) << 8u ) )
-
 #define PEER_CONNECTION_SRTCP_NACK_MAX_SEQ_NUM ( 128 )
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* PEER_CONNECTION_CODEC_HELPER_H */
