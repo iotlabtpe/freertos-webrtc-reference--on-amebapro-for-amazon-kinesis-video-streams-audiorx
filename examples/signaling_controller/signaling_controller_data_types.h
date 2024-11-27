@@ -40,7 +40,7 @@ extern "C" {
 /**
  * Default connect sync API timeout
  */
-#define SIGNALING_CONNECT_STATE_TIMEOUT ( 150000000 )
+#define SIGNALING_CONNECT_STATE_TIMEOUT_SEC ( 15 )
 
 typedef enum SignalingControllerEventStatus
 {
