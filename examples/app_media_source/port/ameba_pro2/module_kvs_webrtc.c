@@ -132,15 +132,6 @@ static opusc_params_t opusc_params = {
     .opus_application = OPUS_APPLICATION_AUDIO
 };
 
-// static opusd_params_t opusd_params = {
-//     .sample_rate = 8000,
-//     .channel = 1,
-//     .bit_length = 16,
-//     .frame_size_in_msec = 10,
-//     .with_opus_enc = 1,
-//     .opus_application = OPUS_APPLICATION_AUDIO
-// };
-
 static opusd_params_t opusd_only_params = {
     .sample_rate = 8000, // 16000
     .channel = 1,

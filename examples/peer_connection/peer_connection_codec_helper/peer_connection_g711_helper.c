@@ -336,6 +336,6 @@ PeerConnectionResult_t PeerConnectionG711Helper_WriteG711Frame( PeerConnectionSe
     {
         xSemaphoreGive( pSrtpSender->senderMutex );
     }
-    //  LogInfo((" G711 write frame is done. return = %d", ret));
+   
     return ret;
 }
