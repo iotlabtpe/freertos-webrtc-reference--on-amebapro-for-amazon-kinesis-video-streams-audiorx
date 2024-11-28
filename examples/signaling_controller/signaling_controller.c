@@ -406,6 +406,7 @@ static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerCo
                                                            size_t iceServerListNum )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
+    uint64_t iceServerConfigTimeSec;
     uint64_t minTTL = UINT64_MAX;
     uint8_t i;
     uint8_t j;
@@ -487,14 +488,14 @@ static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerCo
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        pCtx->iceServerConfigTime = NetworkingUtils_GetCurrentTimeSec(NULL);
+        iceServerConfigTimeSec = NetworkingUtils_GetCurrentTimeSec(NULL);
 
         if(minTTL < ICE_CONFIGURATION_REFRESH_GRACE_PERIOD_SEC )
         {
             LogWarn(("Minimum TTL is less than Refresh Grace Period."));
         }
 
-        pCtx->iceServerConfigExpiration = pCtx->iceServerConfigTime + ( minTTL - ICE_CONFIGURATION_REFRESH_GRACE_PERIOD );
+        pCtx->iceServerConfigExpirationSec = iceServerConfigTimeSec + ( minTTL - ICE_CONFIGURATION_REFRESH_GRACE_PERIOD_SEC );
 
         LogInfo(("Succesfully Added Ice Server Config Expiration Time as Current Time - 1 "));
     }
@@ -1226,10 +1227,9 @@ SignalingControllerResult_t SignalingController_QueryIceServerConfigs( Signaling
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        /* TODO: check if ICE server configs expire. */
         currentTimeSec = NetworkingUtils_GetCurrentTimeSec(NULL);
 
-        if( pCtx->iceServerConfigsCount == 0 || pCtx->iceServerConfigExpiration < currentTimeSec )
+        if( pCtx->iceServerConfigsCount == 0 || pCtx->iceServerConfigExpirationSec < currentTimeSec )
         {
             LogInfo(("Ice server configs expired, Starting Refresing Configs."));
 

@@ -193,8 +193,7 @@ typedef struct SignalingControllerContext
 
     SignalingControllerChannelInfo_t channelInfo;
 
-    uint64_t iceServerConfigTime;
-    uint64_t iceServerConfigExpiration;
+    uint64_t iceServerConfigExpirationSec;
     uint8_t iceServerConfigsCount;
     SignalingControllerIceServerConfig_t iceServerConfigs[SIGNALING_CONTROLLER_ICE_SERVER_MAX_ICE_CONFIG_COUNT];
 
