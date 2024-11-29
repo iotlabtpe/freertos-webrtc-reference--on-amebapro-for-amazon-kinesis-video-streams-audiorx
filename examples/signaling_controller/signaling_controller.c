@@ -496,8 +496,6 @@ static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerCo
         }
 
         pCtx->iceServerConfigExpirationSec = iceServerConfigTimeSec + ( minTTL - ICE_CONFIGURATION_REFRESH_GRACE_PERIOD_SEC );
-
-        LogInfo(("Succesfully Added Ice Server Config Expiration Time as Current Time - 1 "));
     }
 
     return ret;
