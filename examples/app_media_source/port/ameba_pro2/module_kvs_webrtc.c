@@ -324,9 +324,6 @@ int32_t AppMediaSourcePort_Init( OnFrameReadyToSend_t onVideoFrameReadyToSendFun
         mm_module_ctrl( kvs_webrtc_v1_a1_ctx,
                         MM_CMD_INIT_QUEUE_ITEMS,
                         MMQI_FLAG_STATIC );
-        mm_module_ctrl( kvs_webrtc_v1_a1_ctx,
-                        CMD_KVS_WEBRTC_SET_APPLY,
-                        0 );
     }
     else
     {

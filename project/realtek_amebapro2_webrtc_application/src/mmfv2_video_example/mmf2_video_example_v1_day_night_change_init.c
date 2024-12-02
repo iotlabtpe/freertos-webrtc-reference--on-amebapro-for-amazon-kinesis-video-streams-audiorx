@@ -436,8 +436,7 @@ static void example_deinit(void)
 	video_rgb_ctx = mm_module_close(video_rgb_ctx);
 	video_v1_ctx = mm_module_close(video_v1_ctx);
 
-	//Video Deinit
-	video_deinit();
+	video_voe_release();
 }
 #else
 static void example_deinit(void)
@@ -456,8 +455,7 @@ static void example_deinit(void)
 	rtsp2_v1_ctx = mm_module_close(rtsp2_v1_ctx);
 	video_v1_ctx = mm_module_close(video_v1_ctx);
 
-	//Video Deinit
-	video_deinit();
+	video_voe_release();
 }
 #endif
 

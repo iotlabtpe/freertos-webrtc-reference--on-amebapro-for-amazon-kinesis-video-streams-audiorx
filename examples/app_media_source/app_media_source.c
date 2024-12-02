@@ -150,14 +150,18 @@ static int32_t HandlePcEventCallback( void * pCustomContext,
         ret = -1;
     }
 
-    switch( event )
+    if( ret == 0 )
     {
-        case TRANSCEIVER_CB_EVENT_REMOTE_PEER_READY:
-            ret = OnPcEventRemotePeerReady( pMediaSource );
-            break;
-        default:
-            LogWarn( ( "Unknown event: 0x%x", event ) );
-            break;
+        LogDebug( ( "Receiving peer connection event %d", event ) );
+        switch( event )
+        {
+            case TRANSCEIVER_CB_EVENT_REMOTE_PEER_READY:
+                ret = OnPcEventRemotePeerReady( pMediaSource );
+                break;
+            default:
+                LogWarn( ( "Unknown event: 0x%x", event ) );
+                break;
+        }
     }
 
     return ret;

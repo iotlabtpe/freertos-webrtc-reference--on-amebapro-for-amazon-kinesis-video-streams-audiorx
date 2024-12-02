@@ -1,1 +1,0 @@
-The skynet iot task runs at 2, so when creating mmf linker, the task priority of the linker and the task priority of the module must be increased to 2.

@@ -291,8 +291,7 @@ static void example_deinit(void)
 {
 	mmf2_rtsp_deinit();
 	mmf2_bayercap_deinit();
-	//Video Deinit
-	video_deinit();
+	video_voe_release();
 }
 
 static void fUC(void *arg)

@@ -263,7 +263,7 @@ exit:
 void httpd_register_audio_disk_tag(const char *tag_name, int tag_len) {
 	if (tag_len < MAX_TAG_LEN) {
 		memset(audio_disk_tag, 0, MAX_TAG_LEN);
-		memcpy(audio_disk_tag, tag_name, tag_len);
+		snprintf(audio_disk_tag, MAX_TAG_LEN, "%s:/", tag_name);
 		printf("httpd audio disk name %s\r\n", audio_disk_tag);
 		audio_disk_initialed = 1;
 	} else if (audio_disk_initialed) {

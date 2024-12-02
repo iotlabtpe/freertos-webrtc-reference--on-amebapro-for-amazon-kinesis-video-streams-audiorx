@@ -8,7 +8,7 @@ set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu99 -O3")
 
 set(viplite "VIPLiteDrv_1.8.0")
 set (prj_root "${CMAKE_CURRENT_SOURCE_DIR}/../..")
-set (sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../../libraries/ambpro2_sdk")
+set (sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 
 list(
 	APPEND src

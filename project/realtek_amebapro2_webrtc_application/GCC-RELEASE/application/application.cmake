@@ -12,8 +12,6 @@ endif()
 
 include(../includepath.cmake)
 
-set(SKB_BUFFER_NUM 1024)
-
 if(BUILD_TZ)
 	include(./libsoc_ns.cmake OPTIONAL)
 else()
@@ -51,6 +49,7 @@ include(./libfmp4.cmake OPTIONAL)
 include(./libispfeature.cmake OPTIONAL)
 include(./libmd.cmake OPTIONAL)
 include(./libfaultlog.cmake OPTIONAL)
+include(./libeap.cmake OPTIONAL)
 
 if(BUILD_LIB)
 	message(STATUS "build libraries")
@@ -76,7 +75,7 @@ if(NOT BUILD_TZ)
 #build TZ, move to secure project
 list(
     APPEND out_sources
-
+	
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram_s/hal_flash_sec.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram_s/hal_hkdf.c
 	#${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram_s/hal_otp_nsc.c
@@ -89,14 +88,15 @@ endif()
 
 list(
     APPEND out_sources
-
+	
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_audio.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_adc.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_comp.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_crypto.c
-	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_dram_init.c
-	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_dram_scan.c
+	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_dram_init.c	
+	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_dram_scan.c	
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_eddsa.c
+	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_ecdsa.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_flash.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_gdma.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram/hal_gpio.c
@@ -125,7 +125,7 @@ list(
 
 list(
     APPEND out_sources
-
+	
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram_ns/hal_flash_ns.c
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/source/ram_ns/hal_spic_ns.c
 )
@@ -136,6 +136,7 @@ list(
 	${sdk_root}/component/mbed/targets/hal/rtl8735b/audio_api.c
 	${sdk_root}/component/mbed/targets/hal/rtl8735b/crypto_api.c
 	${sdk_root}/component/mbed/targets/hal/rtl8735b/dma_api.c
+	${sdk_root}/component/mbed/targets/hal/rtl8735b/ecdsa_api.c
 	${sdk_root}/component/mbed/targets/hal/rtl8735b/flash_api.c
 	${sdk_root}/component/soc/8735b/misc/driver/flash_api_ext.c
 	${sdk_root}/component/mbed/targets/hal/rtl8735b/i2c_api.c
@@ -161,6 +162,7 @@ list(
 	${sdk_root}/component/mbed/targets/hal/rtl8735b/snand_api.c
 	${sdk_root}/component/mbed/targets/hal/rtl8735b/sys_api.c
 	${sdk_root}/component/mbed/targets/hal/rtl8735b/ethernet_api.c
+	${sdk_root}/component/mbed/targets/hal/rtl8735b/efuse_api.c
 )
 
 #RTOS
@@ -174,11 +176,11 @@ list(
 	${sdk_root}/component/os/freertos/${freertos}/Source/tasks.c
 	${sdk_root}/component/os/freertos/${freertos}/Source/timers.c
 	${sdk_root}/component/os/freertos/${freertos}/Source/portable/MemMang/heap_4_2.c
-
+	
 	${sdk_root}/component/os/freertos/freertos_cb.c
 	${sdk_root}/component/os/freertos/freertos_service.c
 	${sdk_root}/component/os/freertos/cmsis_os.c
-
+	
 	${sdk_root}/component/os/os_dep/osdep_service.c
 	${sdk_root}/component/os/os_dep/device_lock.c
 	${sdk_root}/component/os/os_dep/timer_service.c
@@ -271,6 +273,10 @@ list(
 	${sdk_root}/component/wifi/wifi_fast_connect/wifi_fast_connect.c
 	#wpa_supplicant
 	${sdk_root}/component/wifi/wpa_supplicant/wpa_supplicant/wifi_wps_config.c
+	#wpa_supplicant
+	${sdk_root}/component/wifi/wpa_supplicant/src/crypto/tls_polarssl.c		
+	#wpa_supplicant
+	${sdk_root}/component/wifi/wpa_supplicant/wpa_supplicant/wifi_eap_config.c	
 	#option
 	${sdk_root}/component/wifi/driver/src/core/option/rtw_opt_crypto_ssl.c
 	${sdk_root}/component/wifi/driver/src/core/option/rtw_opt_skbuf_rtl8735b.c
@@ -391,6 +397,13 @@ list(
 	${sdk_root}/component/lwip/${lwip}/port/realtek/freertos/sys_arch.c
 )
 
+if(${lwip} STREQUAL "lwip_v2.2.0")
+list(
+	APPEND out_sources
+	${sdk_root}/component/lwip/${lwip}/src/core/ipv4/acd.c
+)
+endif()
+
 #ssl
 if(${mbedtls} STREQUAL "mbedtls-2.4.0")
 list(
@@ -457,7 +470,7 @@ list(
 	${sdk_root}/component/file_system/fatfs/disk_if/src/sdcard.c
 	${sdk_root}/component/file_system/fatfs/disk_if/src/flash_fatfs.c
 	${sdk_root}/component/file_system/fatfs/fatfs_ext/src/ff_driver.c
-
+	
 	${sdk_root}/component/file_system/fatfs/r0.14/diskio.c
 	${sdk_root}/component/file_system/fatfs/r0.14/ff.c
 	${sdk_root}/component/file_system/fatfs/r0.14/ffsystem.c
@@ -503,8 +516,7 @@ list(
 #USER
 list(
     APPEND app_sources
-	${prj_root}/src/main.c
-	${sdk_root}/component/soc/8735b/misc/driver/mpu_protect.c
+	${sdk_root}/component/soc/8735b/misc/driver/mpu_protect.c	
 )
 
 #RTSP
@@ -527,32 +539,6 @@ list(
 	${sdk_root}/component/media/framework/ir_ctrl.c
 	${sdk_root}/component/media/framework/ir_cut.c
 	${sdk_root}/component/media/framework/sensor_service.c
-)
-
-#MMF_MODULE
-list(
-	APPEND app_sources
-	${sdk_root}/component/media/mmfv2/module_video.c
-	${sdk_root}/component/media/mmfv2/module_rtsp2.c
-	${sdk_root}/component/media/mmfv2/module_array.c
-	${sdk_root}/component/media/mmfv2/module_audio.c
-	${sdk_root}/component/media/mmfv2/module_aac.c
-	${sdk_root}/component/media/mmfv2/module_aad.c
-	${sdk_root}/component/media/mmfv2/module_g711.c
-	${sdk_root}/component/media/mmfv2/module_httpfs.c
-	${sdk_root}/component/media/mmfv2/module_i2s.c
-	${sdk_root}/component/media/mmfv2/module_mp4.c
-	${sdk_root}/component/media/mmfv2/module_rtp.c
-    ${sdk_root}/component/media/mmfv2/module_opusc.c
-	${sdk_root}/component/media/mmfv2/module_opusd.c
-    ${sdk_root}/component/media/mmfv2/module_uvcd.c
-    ${sdk_root}/component/media/mmfv2/module_demuxer.c
-    ${sdk_root}/component/media/mmfv2/module_eip.c
-    ${sdk_root}/component/media/mmfv2/module_md.c
-    ${sdk_root}/component/media/mmfv2/module_fmp4.c
-    ${sdk_root}/component/media/mmfv2/module_fileloader.c
-    ${sdk_root}/component/media/mmfv2/module_filesaver.c
-    ${sdk_root}/component/media/mmfv2/module_queue.c
 )
 
 #MISC
@@ -643,48 +629,6 @@ list(
 	${sdk_root}/component/bluetooth/rtk_stack/example/bt_config/bt_config_wifi.c
 )
 
-#NN MODEL
-list(
-	APPEND app_sources
-	${prj_root}/src/test_model/model_yolo.c
-	${prj_root}/src/test_model/model_yamnet.c
-	${prj_root}/src/test_model/model_yamnet_s.c
-	${prj_root}/src/test_model/model_landmark_sim.c
-	${prj_root}/src/test_model/model_mobilefacenet.c
-	${prj_root}/src/test_model/model_scrfd.c
-	${prj_root}/src/test_model/model_nanodet.c
-	${prj_root}/src/test_model/mel_spectrogram.c
-)
-#NN utils
-list(
-	APPEND app_sources
-	${prj_root}/src/test_model/nn_utils/sigmoid.c
-	${prj_root}/src/test_model/nn_utils/quantize.c
-	${prj_root}/src/test_model/nn_utils/iou.c
-	${prj_root}/src/test_model/nn_utils/nms.c
-	${prj_root}/src/test_model/nn_utils/tensor.c
-	${prj_root}/src/test_model/nn_utils/class_name.c
-
-	${prj_root}/src/test_model/roi_delta_qp/roi_delta_qp.c
-)
-#NN module
-list(
-	APPEND app_sources
-
-	${sdk_root}/component/media/mmfv2/module_vipnn.c
-	${sdk_root}/component/media/mmfv2/module_facerecog.c
-)
-
-#SVM
-list(
-	APPEND app_sources
-	${prj_root}/src/test_model/svm/svm.cpp
-	#sim_io
-	${prj_root}/src/test_model/svm/sim_io/sim_io.c
-	#FastLZ
-	${prj_root}/src/test_model/svm/fastlz/fastlz.c
-)
-
 if(PICOLIBC)
 list(
 	APPEND app_sources
@@ -692,7 +636,6 @@ list(
 	${sdk_root}/component/soc/8735b/misc/driver/picolibc/getentropy.c
 )
 endif()
-
 
 if(NOT DEFINED WEBRTC_APPLICATION_DEMO)
 	message(STATUS "Build WebRTC Application project")
@@ -709,6 +652,26 @@ if(NOT DEFINED WEBRTC_APPLICATION_DEMO)
 else()
 	message(STATUS "Build other project")
 	message(FATAL_ERROR "No other project supported")
+endif()
+
+if(DEFINED SCENARIO AND SCENARIO AND NOT "${SCENARIO}" STREQUAL "standard")
+    message(STATUS "SCENARIO = ${SCENARIO}")
+    if(EXISTS ${prj_root}/scenario/${SCENARIO})
+        if(EXISTS ${prj_root}/scenario/${SCENARIO}/scenario.cmake)
+            message(STATUS "Found SCENARIO ${SCENARIO} and start to build up ${SCENARIO} project")
+            include(${prj_root}/scenario/${SCENARIO}/scenario.cmake)
+    endif()
+    else()
+        message(ERROR SCENARIO "${SCENARIO} Not Found")
+        endif()
+	if(NOT DEBUG)
+        set(SCENARIO OFF CACHE STRING INTERNAL FORCE)
+	endif()
+else()
+#If users do not choose the scenario, the SDK will use the standard scenario, which means using sdk original src folder
+#Todo: maybe some libraries and source files for applcaition also not need to include in every scenario
+    message(STATUS "Set SCENARIO standard and start to build up standard project")
+    include(${prj_root}/scenario.cmake)
 endif()
 
 if(CONSOLE STREQUAL "RTT")
@@ -731,7 +694,7 @@ if(BUILD_TZ)
 	add_executable(
 		${app}
 		${app_sources}
-		${app_example_sources}
+		${scn_sources}
 		$<TARGET_OBJECTS:outsrc>
 		$<TARGET_OBJECTS:secure_object>
 	)
@@ -744,32 +707,26 @@ else()
 	add_executable(
 		${app}
 		${app_sources}
-		${app_example_sources}
+		${scn_sources}
 		$<TARGET_OBJECTS:outsrc>
-	)
-
-	target_compile_definitions(
-		${app}
-		PUBLIC
-		MAX_SKB_BUF_NUM=${SKB_BUFFER_NUM}
 	)
 
 	set( soclib soc_ntz)
 	set( videolib video_ntz)
 	if(NODDR)
 		message(STATUS "WITHOUT DDR")
-		set( ld_script ${CMAKE_CURRENT_SOURCE_DIR}/rtl8735b_ram_noddr.ld )
+		set( ld_script ${CMAKE_CURRENT_SOURCE_DIR}/rtl8735b_ram_noddr.ld ) 
 	else()
 		message(STATUS "WITH DDR")
 		set( ld_script ${CMAKE_CURRENT_SOURCE_DIR}/rtl8735b_ram.ld )
-	endif()
+	endif()	
 endif()
 
 
 list(
 	APPEND app_flags
-	${app_example_flags}
-	CONFIG_BUILD_RAM=1
+	${scn_flags}
+	CONFIG_BUILD_RAM=1 
 	CONFIG_PLATFORM_8735B
 	CONFIG_RTL8735B_PLATFORM=1
 	CONFIG_SYSTEM_TIME64=1
@@ -780,9 +737,9 @@ if (BUILD_NEWAEC)
 list(
 	APPEND app_flags
     CONFIG_NEWAEC=1
-)
+)    
 endif()
-if(BUILD_WLANMP)
+if(BUILD_WLANMP)	
 list(
 	APPEND app_flags
 	CONFIG_MP_INCLUDED
@@ -808,26 +765,23 @@ list(
 	APPEND app_inc_path
 
 	${repo_root}/configs/mbedtls
-
+	
 	${inc_path}
-	${app_example_inc_path}
 	${sdk_root}/component/os/freertos/${freertos}/Source/portable/GCC/ARM_CM33/non_secure
 	${sdk_root}/component/os/freertos/${freertos}/Source/portable/GCC/ARM_CM33/secure
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/video/voe_bin
 	${sdk_root}/component/video/driver/RTL8735B
-
-	${prj_root}/src/test_model/svm
-	${prj_root}/src/test_model
-	${prj_root}/src
-
+	
+    ${scn_inc_path}
+	
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/model_itp
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/nn_api
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/nn_postprocess
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/nn_preprocess
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/run_facerecog
-	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/run_itp
-
+	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/nn/run_itp	
+	
 	${sdk_root}/component/soc/8735b/misc/platform
 
 	${sdk_root}/component/media/mmfv2
@@ -880,14 +834,7 @@ list(
 	${sdk_root}/component/network/tftp
 	${sdk_root}/component/network/ftp
 
-	${prj_root}/src/${viplite}/sdk/inc
-	${prj_root}/src/${viplite}/driver/inc
-	${prj_root}/src/${viplite}/hal/inc
-	${prj_root}/src/${viplite}/hal/user
-	${prj_root}/src/${viplite}/hal/user/freeRTOS
-
 	${sdk_root}/component/example/media_framework/inc
-	${prj_root}/src/doorbell-chime
 	${sdk_root}/component/wifi/wpa_supplicant/src
 	${sdk_root}/component/wifi/driver/src/core/option
 	${sdk_root}/component/ssl/ssl_ram_map/rom
@@ -895,29 +842,32 @@ list(
 	${prj_root}/component/file_system/fatfs/r0.14
 	${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/video/osd
 	${sdk_root}/component/video/osd2
-	${sdk_root}/component/video/md
 	${sdk_root}/component/video/eip
+	${sdk_root}/component/video/md
 	${sdk_root}/component/wifi/wifi_config
-
+	
 	${sdk_root}/component/media/framework
 	${sdk_root}/component/soc/8735b/misc/driver
 	${sdk_root}/component/soc/8735b/misc/driver/xmodem
 
 	${sdk_root}/component/network/coap/include
-
+	
 	${sdk_root}/component/usb/common_new/
 	${sdk_root}/component/usb/host_new/
 	${sdk_root}/component/usb/host_new/cdc_ecm
 	${sdk_root}/component/usb/host_new/core
 	${sdk_root}/component/usb/device_new/core
 	${sdk_root}/component/usb/
+
+	${sdk_root}/component/wifi/wpa_supplicant/src/
+	${sdk_root}/component/wifi/wpa_supplicant/src/crypto
 )
 
 target_include_directories( ${app} PUBLIC ${app_inc_path} )
 target_include_directories( outsrc PUBLIC ${app_inc_path} )
 
 
-if(NOT BUILD_WLANMP)
+if(NOT BUILD_WLANMP)	
 	set( wlanlib wlan)
 else()
 	set( wlanlib wlan_mp)
@@ -931,22 +881,17 @@ target_link_libraries(
 endif()
 
 if(BUILD_NEWAEC)
-list(
-	APPEND aec_lib
-    ctaec
-    ${sdk_root}/component/audio/3rdparty/AEC/CTAEC/libVQE.a
-)
+	set( aeclib ctaec)
+	set( aeclib_ex ${sdk_root}/component/audio/3rdparty/AEC/CTAEC/libVQE.a)
+
 else()
-list(
-	APPEND aec_lib
-    aec
-)
+	set( aeclib aec)
+	unset( aeclib_ex )
 endif()
 
-target_link_libraries(
-	${app}
+list(
+	APPEND libs
 	${wlanlib}
-	${app_example_lib}
 	wps
 	opusenc
 	opusfile
@@ -954,10 +899,9 @@ target_link_libraries(
 	hmp3
 	g711
 	http
- 	${aec_lib}
+ 	${aeclib}
 	${videolib}
 	mmf
-	bt_upperstack_lib
 	sdcard
 	faac
 	haac
@@ -970,8 +914,26 @@ target_link_libraries(
 	libface
 	ispfeature
 	md
+	eap	
 	faultlog
 	${soclib}
+)
+
+list(
+	APPEND out_libs 
+	${aeclib_ex}
+	bt_upperstack_lib
+)
+
+
+target_link_libraries(
+	${app}
+	#${wlanlib}
+	${scn_libs}
+	
+	${libs}
+	${out_libs}
+	
     stdc++
 	m
 	c
@@ -982,13 +944,13 @@ target_link_libraries(
 
 if(NOT PICOLIBC)
 target_link_libraries(
-	${app}
+	${app} 
 	nosys
 )
 endif()
 
 target_link_options(
-	${app}
+	${app} 
 	PUBLIC
 	"LINKER:SHELL:-L ${sdk_root}/component/soc/8735b/cmsis/rtl8735b/source/GCC"
 	"LINKER:SHELL:-L ${CMAKE_CURRENT_BINARY_DIR}"
@@ -1001,7 +963,7 @@ target_link_options(
 
 if(BUILD_TZ)
 target_link_options(
-	${app}
+	${app} 
 	PUBLIC
 	"LINKER:SHELL:-wrap,hal_crypto_engine_init_platform"
 	"LINKER:SHELL:-wrap,hal_pinmux_register"
@@ -1042,29 +1004,29 @@ target_link_options(
 	"LINKER:SHELL:-wrap,hal_sys_get_video_img_ld_offset"
 	"LINKER:SHELL:-wrap,hal_sys_cust_pws_val_ctrl"
 	"LINKER:SHELL:-wrap,hal_32k_s1_sel"
-	"LINKER:SHELL:-wrap,hal_xtal_divider_enable"
-
+	"LINKER:SHELL:-wrap,hal_xtal_divider_enable"	
+	
 )
 endif()
 
 set_target_properties(${app} PROPERTIES LINK_DEPENDS ${ld_script})
 
 
-add_custom_command(TARGET ${app} POST_BUILD
+add_custom_command(TARGET ${app} POST_BUILD 
 	COMMAND ${CMAKE_NM} $<TARGET_FILE:${app}> | sort > ${app}.nm.map
 	COMMAND ${CMAKE_OBJEDUMP} -d $<TARGET_FILE:${app}> > ${app}.asm
 	COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${app}> ${app}.axf
 	COMMAND ${CMAKE_OBJCOPY} -j .bluetooth_trace.text -Obinary ${app}.axf APP.trace
-	COMMAND ${CMAKE_OBJCOPY} -R .bluetooth_trace.text ${app}.axf
+	COMMAND ${CMAKE_OBJCOPY} -R .bluetooth_trace.text ${app}.axf 
 	COMMAND ${CMAKE_READELF} -s -W $<TARGET_FILE:${app}>  > ${app}.symbols
-
+	
 	#COMMAND [ -d output ] || mkdir output
 	COMMAND ${CMAKE_COMMAND} -E remove_directory output && ${CMAKE_COMMAND} -E make_directory  output
 	COMMAND ${CMAKE_COMMAND} -E copy ${app}.nm.map output
 	COMMAND ${CMAKE_COMMAND} -E copy ${app}.asm output
-	COMMAND ${CMAKE_COMMAND} -E copy ${app}.map output
+	COMMAND ${CMAKE_COMMAND} -E copy ${app}.map output 
 	COMMAND ${CMAKE_COMMAND} -E copy ${app}.axf output
-	COMMAND ${CMAKE_COMMAND} -E copy APP.trace output
-
+	COMMAND ${CMAKE_COMMAND} -E copy APP.trace output 
+	
 	COMMAND ${PLAT_COPY} *.a output
 )

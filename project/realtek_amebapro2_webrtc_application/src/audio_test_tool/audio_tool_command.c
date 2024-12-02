@@ -58,8 +58,9 @@ RX_cfg_t rx_asp_params = {
 		.NS_EN = 0,
 		.NSLevel = 5,
 		.HPFEnable = 0,
-		.QuickConvergenceEnable = 0,
-	}
+		.NSSlowConvergence = 200,
+	},
+	.post_mute = 0,
 };
 
 TX_cfg_t tx_asp_params = {
@@ -81,8 +82,9 @@ TX_cfg_t tx_asp_params = {
 		.NS_EN = 0,
 		.NSLevel = 5,
 		.HPFEnable = 0,
-		.QuickConvergenceEnable = 0,
-	}
+		.NSSlowConvergence = 200,
+	},
+	.post_mute = 0,
 };
 #else
 RX_cfg_t rx_asp_params = {
@@ -125,7 +127,8 @@ RX_cfg_t rx_asp_params = {
 	.ns_cfg = {
 		.NS_EN = 0,
 		.NSLevel = 5,
-	}
+	},
+	.post_mute = 0,
 };
 
 TX_cfg_t tx_asp_params = {
@@ -140,6 +143,7 @@ TX_cfg_t tx_asp_params = {
 		.NS_EN = 0,
 		.NSLevel = 5,
 	},
+	.post_mute = 0,
 };
 #endif
 
@@ -646,7 +650,7 @@ void fAUAEC(void *arg)
 		printf("  \r     [EchoTailLen]=32/64/128, the length of the buffer that the echo cancel process will be rely on, the higher it set, the cpu usage is higher\n");
 		printf("  \r     [CNGEnable]=0/1, enable the comfort noise generate or not\n");
 		printf("  \r     [DTControl]=1~3, the coarse tune value of AEC, the higher level more aggressive\n");
-		printf("  \r     [ConvergenceTime]=100~1000, AEC initialization convergence time in msec\n");
+		printf("  \r     [ConvergenceTime]=0~1000, AEC initialization convergence time in msec\n");
 
 		printf("  \r     OPEN AEC by AUAEC=1,4,64,1,1,100\n");
 		printf("  \r     CLOSE AEC by AUAEC=0\n");
@@ -670,8 +674,8 @@ void fAUAEC(void *arg)
 				rx_asp_params.aec_cfg.CNGEnable = atoi(argv[4]);
 				rx_asp_params.aec_cfg.DTControl = atoi(argv[5]);
 				rx_asp_params.aec_cfg.ConvergenceTime = atoi(argv[6]);
-				if (rx_asp_params.aec_cfg.ConvergenceTime < 100 || rx_asp_params.aec_cfg.ConvergenceTime > 1000) {
-					rx_asp_params.aec_cfg.ConvergenceTime = 100;
+				if (rx_asp_params.aec_cfg.ConvergenceTime < 0 || rx_asp_params.aec_cfg.ConvergenceTime > 1000) {
+					rx_asp_params.aec_cfg.ConvergenceTime = 0;
 					printf("invalid AEC ConvergenceTime set to default %d \r\n", rx_asp_params.aec_cfg.ConvergenceTime);
 				}
 			}
@@ -711,7 +715,7 @@ void fAUAEC(void *arg)
 #endif
 }
 
-//Set the AEC
+//Set the AEC run-time enable flag
 void fAUAECRUN(void *arg)
 {
 	int argc = 0;
@@ -739,6 +743,57 @@ void fAUAECRUN(void *arg)
 	}
 }
 
+//Set/Get the AEC mode
+void fAUAECMODE(void *arg)
+{
+	int argc = 0;
+	char *argv[MAX_ARGC] = {0};
+	if (!arg) {
+		printf("\n\r[AUAECMODE] Set or Get AEC mode: AUAECMODE=[action],[mode]\n");
+
+		printf("  \r     [action]=G or S, G for getting AEC mode, S for setting AEC mode\n");
+		printf("  \r     [mode]=speech ot siren, speech for canceling speech, siren for canceling siren\n");
+
+		printf("  \r     set AEC speech mode by AUAECMODE=S,speech\n");
+		printf("  \r     set AEC siren mode by AUAECMODE=S,siren\n");
+		printf("  \r     get AEC mode by AUAECMODE=G\n");
+		return;
+	}
+
+	//reset array data
+	argc = parse_param(arg, argv);
+	if (argc) {
+		printf("argc = %d\r\n", argc);
+#if (defined(CONFIG_NEWAEC) && CONFIG_NEWAEC)
+		if (strcmp(argv[1], "S") == 0 || strcmp(argv[1], "s") == 0) {
+			if (strcmp(argv[2], "speech") == 0) {
+				printf("Setting AEC speech mode\r\n");
+				mm_module_ctrl(audio_save_ctx, CMD_AUDIO_SET_AEC_MODE, ADAPTATION);
+			} else if (strcmp(argv[2], "siren") == 0) {
+				printf("Setting AEC siren mode\r\n");
+				mm_module_ctrl(audio_save_ctx, CMD_AUDIO_SET_AEC_MODE, ADAPTATION | SIREN_TONE);
+			} else {
+				printf("Setting AEC mode is unknown\r\n");
+			}
+		} else if (strcmp(argv[1], "G") == 0 || strcmp(argv[1], "g") == 0) {
+			uint8_t aec_mode = 0;
+			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_GET_AEC_MODE, (int)&aec_mode);
+			if (aec_mode == (ADAPTATION | SIREN_TONE)) {
+				printf("Get AEC mode (0x%02x) = siren mode\r\n", aec_mode);
+			} else if (aec_mode == ADAPTATION) {
+				printf("Get AEC mode (0x%02x) = speech mode\r\n", aec_mode);
+			} else {
+				printf("Get AEC mode (0x%02x) = unknown mode\r\n", aec_mode);
+			}
+		} else {
+			printf("Unkown action for AUAEC mode, please use G or S\r\n");
+		}
+#else
+		printf("This command is not supported in AEC of the webrtc version \r\n");
+#endif
+	}
+}
+
 //Set mic NS level
 void fAUNS(void *arg)
 {
@@ -747,12 +802,12 @@ void fAUNS(void *arg)
 
 #if defined(CONFIG_NEWAEC) && CONFIG_NEWAEC
 	if (!arg) {
-		printf("\n\r[AUNS] Set up mic NS module: AUNS=[NS_enable],[NS_level],[NS_HPFEnable],[NS_QuickConvergenceEnable]\n");
+		printf("\n\r[AUNS] Set up mic NS module: AUNS=[NS_enable],[NS_level],[NS_HPFEnable],[NS_SlowConvergence]\n");
 
 		printf("  \r     [NS_enable]=0 or 1\n");
 		printf("  \r     [NS_level]=3~35 to set the NS level (dB), more NS level more aggressive\n");
 		printf("  \r     [NS_HPFEnable]=0/1 to enable the HPF before NS or not\n");
-		printf("  \r     [NS_QuickConvergenceEnable]=0/1 to the NS convergence speed, immediately suppress(quick) 1, smooth suppress 0\n");
+		printf("  \r     [NS_SlowConvergence]=0~100 to the NS convergence speed\n");
 		printf("  \r     Set NS in AEC process with NS level 3 by AUNS=1,3\n");
 		printf("  \r     Set NS in AEC process with NS level 3, without HPF and quick drop by AUNS=1,3,0,1\n");
 		printf("  \r     Disable NS by AUNS=0\n");
@@ -773,12 +828,12 @@ void fAUNS(void *arg)
 				rx_asp_params.ns_cfg.HPFEnable = atoi(argv[3]);
 			}
 			if (argc >= 5) {
-				rx_asp_params.ns_cfg.QuickConvergenceEnable = atoi(argv[4]);
+				rx_asp_params.ns_cfg.NSSlowConvergence = atoi(argv[4]);
 			}
 			rx_asp_params.ns_cfg.NS_EN = 1;
 			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_SET_RXASP_PARAM, (int)&rx_asp_params);
 			printf("Enable mic NS = %x, level %d, HPF %d, QuickConvergence %d\r\n", rx_asp_params.ns_cfg.NS_EN, rx_asp_params.ns_cfg.NSLevel,
-				   rx_asp_params.ns_cfg.HPFEnable, rx_asp_params.ns_cfg.QuickConvergenceEnable);
+				   rx_asp_params.ns_cfg.HPFEnable, rx_asp_params.ns_cfg.NSSlowConvergence);
 		} else {
 			rx_asp_params.ns_cfg.NS_EN = 0;
 			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_SET_RXASP_PARAM, (int)&rx_asp_params);
@@ -1061,6 +1116,37 @@ void fAUMICM(void *arg)
 	}
 }
 
+//Set pre or post asp mute for rx asp
+void fAURXASPM(void *arg)
+{
+	int argc = 0;
+	char *argv[MAX_ARGC] = {0};
+	int rxasp_mute = 0;
+	if (!arg) {
+		printf("\n\r[AURXASPM] Set up post mute for RX ASP: AURXASPM=[enable_mute]\n");
+
+		printf("  \r     [enable_mute]=0 or 1\n");
+		printf("  \r     Disable RX ASP mute by AURXASPM=0\n");
+		printf("  \r     Set up RX ASP post mute by AURXASPM=1\n");
+		return;
+	}
+
+	argc = parse_param(arg, argv);
+	if (argc) {
+		printf("argc = %d\r\n", argc);
+		rxasp_mute = atoi(argv[1]);
+		if (rxasp_mute == 0) {
+			printf("Disable the mute of RX ASP \r\n");
+			rx_asp_params.post_mute = 0;
+			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_SET_RXASP_POST_MUTE, 0);
+		} else {
+			printf("Enable the post mute of RX ASP \r\n");
+			rx_asp_params.post_mute = 1;
+			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_SET_RXASP_POST_MUTE, 1);
+		}
+	}
+}
+
 #if P2P_ENABLE
 extern int gProcessRun;
 //open audio RX p2p streaming
@@ -1151,12 +1237,12 @@ void fAUSPNS(void *arg)
 
 #if defined(CONFIG_NEWAEC) && CONFIG_NEWAEC
 	if (!arg) {
-		printf("\n\r[AUSPNS] Set up speaker NS module: AUSPNS=[NS_enable],[NS_level],[NS_HPFEnable],[NS_QuickConvergenceEnable]\n");
+		printf("\n\r[AUSPNS] Set up speaker NS module: AUSPNS=[NS_enable],[NS_level],[NS_HPFEnable],[NS_SlowConvergence]\n");
 
 		printf("  \r     [NS_enable]=0 or 1\n");
 		printf("  \r     [NS_level]=3~35 to set the NS level (dB), more NS level more aggressive\n");
 		printf("  \r     [NS_HPFEnable]=0/1 to enable the HPF before NS or not]");
-		printf("  \r     [NS_QuickConvergenceEnable]=0/1 to the NS convergence speed, immediately suppress(quick) 1, smooth suppress 0\n");
+		printf("  \r     [NS_SlowConvergence]=0~1000 to the NS convergence speed\n");
 		printf("  \r     Set extra speaker NS with NS level 3 by AUSPNS=1,3\n");
 		printf("  \r     Set extra speaker NS with NS level 3, wihtout HPF and quick drop by AUSPNS=1,3,0,1\n");
 		printf("  \r     Disable speaker NS by AUSPNS=0\n");
@@ -1177,12 +1263,12 @@ void fAUSPNS(void *arg)
 				tx_asp_params.ns_cfg.HPFEnable = atoi(argv[3]);
 			}
 			if (argc >= 5) {
-				tx_asp_params.ns_cfg.QuickConvergenceEnable = atoi(argv[4]);
+				tx_asp_params.ns_cfg.NSSlowConvergence = atoi(argv[4]);
 			}
 			tx_asp_params.ns_cfg.NS_EN = 1;
 			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_SET_TXASP_PARAM, (int)&tx_asp_params);
 			printf("Enable speaker NS = %x, level %d, HPF %d, QuickConvergence %d\r\n", tx_asp_params.ns_cfg.NS_EN, tx_asp_params.ns_cfg.NSLevel,
-				   tx_asp_params.ns_cfg.HPFEnable, tx_asp_params.ns_cfg.QuickConvergenceEnable);
+				   tx_asp_params.ns_cfg.HPFEnable, tx_asp_params.ns_cfg.NSSlowConvergence);
 		} else {
 			tx_asp_params.ns_cfg.NS_EN = 0;
 			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_SET_TXASP_PARAM, (int)&tx_asp_params);
@@ -1396,6 +1482,80 @@ void fAUSPAGC(void *arg)
 #endif
 }
 
+//Set the AGC run-time enable flag
+void fAUAGCRUN(void *arg)
+{
+	int argc = 0;
+	char *argv[MAX_ARGC] = {0};
+	if (!arg) {
+		printf("\n\r[AUAGCRUN] Enable RX/TX(mic/speaker) AGC run or stop: AUAGCRUN=[agc_mask]\n");
+
+		printf("  \r     [agc_mask]=STOP,RX,TX,TRX, STOP for stop both RX and TX, TX for only enable in TX, RX for only enable in RX, TRX for enable both TX and RX\n");
+
+		printf("  \r     OPEN run time AGC only in TX by AUAGCRUN=TX\n");
+		printf("  \r     OPEN run time AGC only in RX by AUAGCRUN=RX\n");
+		printf("  \r     OPEN run time AGC both TX and RX by AUAGCRUN=TRX\n");
+		printf("  \r     CLOSE run time AGC both TX and RX by AUAGCRUN=STOP\n");
+		return;
+	}
+
+	argc = parse_param(arg, argv);
+	if (argc) {
+		if (strcmp(argv[1], "TRX") == 0) {
+			printf("Set up run time AGC in both TX and RX\r\n");
+			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_RUN_AGC, AUDIO_TX_MASK | AUDIO_RX_MASK);
+		} else if (strcmp(argv[1], "TX") == 0) {
+			printf("Set up run time AGC only in TX\r\n");
+			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_RUN_AGC, AUDIO_TX_MASK);
+		} else if (strcmp(argv[1], "RX") == 0) {
+			printf("Set up run time AGC only in RX\r\n");
+			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_RUN_AGC, AUDIO_RX_MASK);
+		} else if (strcmp(argv[1], "STOP") == 0) {
+			printf("disable run time AGC\r\n");
+			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_RUN_AGC, 0);
+		} else {
+			printf("Unknown setting for run time AGC\r\n");
+		}
+	}
+}
+
+//Set the NS run-time enable flag
+void fAUNSRUN(void *arg)
+{
+	int argc = 0;
+	char *argv[MAX_ARGC] = {0};
+	if (!arg) {
+		printf("\n\r[AUNSRUN] Enable RX/TX(mic/speaker) NS run or stop: AUNSRUN=[ns_mask]\n");
+
+		printf("  \r     [ns_mask]=STOP,RX,TX,TRX, STOP for stop both RX and TX, TX for only enable in TX, RX for only enable in RX, TRX for enable both TX and RX\n");
+
+		printf("  \r     OPEN run time NS only in TX by AUNSRUN=TX\n");
+		printf("  \r     OPEN run time NS only in RX by AUNSRUN=RX\n");
+		printf("  \r     OPEN run time NS both TX and RX by AUNSRUN=TRX\n");
+		printf("  \r     CLOSE run time NS both TX and RX by AUNSRUN=STOP\n");
+		return;
+	}
+
+	argc = parse_param(arg, argv);
+	if (argc) {
+		if (strcmp(argv[1], "TRX") == 0) {
+			printf("Set up run time NS in both TX and RX\r\n");
+			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_RUN_NS, AUDIO_TX_MASK | AUDIO_RX_MASK);
+		} else if (strcmp(argv[1], "TX") == 0) {
+			printf("Set up run time NS only in TX\r\n");
+			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_RUN_NS, AUDIO_TX_MASK);
+		} else if (strcmp(argv[1], "RX") == 0) {
+			printf("Set up run time NS only in RX\r\n");
+			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_RUN_NS, AUDIO_RX_MASK);
+		} else if (strcmp(argv[1], "STOP") == 0) {
+			printf("disable run time NS\r\n");
+			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_RUN_NS, 0);
+		} else {
+			printf("Unknown setting for run time NS\r\n");
+		}
+	}
+}
+
 //Set the speaker EQ
 void fAUSPEQ(void *arg)
 {
@@ -1519,6 +1679,38 @@ void fAUSPM(void *arg)
 			printf("Enable Speaker Mute\r\n");
 			audio_save_params.DAC_mute = 1;
 			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_SET_SPK_ENABLE, 0);
+		}
+	}
+}
+
+//Set pre or post asp mute for tx asp
+void fAUTXASPM(void *arg)
+{
+	int argc = 0;
+	char *argv[MAX_ARGC] = {0};
+	int txasp_mute = 0;
+	if (!arg) {
+		printf("\n\r[AUTXASPM] Set up post mute for TX ASP: AUTXASPM=[enable_mute]\n");
+
+		printf("  \r     [enable_mute]=0 or 1\n");
+		printf("  \r     Disable TX ASP mute by AUTXASPM=0\n");
+		printf("  \r     Set up TX ASP post mute by AUTXASPM=1\n");
+		printf("  \r     Set up both of TX ASP pre and post mute by AUTXASPM=1,all\n");
+		return;
+	}
+
+	argc = parse_param(arg, argv);
+	if (argc) {
+		printf("argc = %d\r\n", argc);
+		txasp_mute = atoi(argv[1]);
+		if (txasp_mute == 0) {
+			printf("Disable the mute of TX ASP \r\n");
+			tx_asp_params.post_mute = 0;
+			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_SET_TXASP_POST_MUTE, 0);
+		} else {
+			printf("Enable the post mute of TX ASP \r\n");
+			tx_asp_params.post_mute = 1;
+			mm_module_ctrl(audio_save_ctx, CMD_AUDIO_SET_TXASP_POST_MUTE, 1);
 		}
 	}
 }
@@ -2228,10 +2420,12 @@ void fAUINFO(void *arg)
 	mm_module_ctrl(audio_save_ctx, CMD_AUDIO_GET_RXASP_PARAM, (int)&rx_asp_params);
 	char *audio_json = Get_Audio_CJSON(audio_save_params, rx_asp_params, tx_asp_params);
 	printf("%s\r\n", audio_json);
-	mm_module_ctrl(audio_save_ctx, CMD_AUDIO_PRINT_ASP_INFO, (int)&rx_asp_params);
+	free(audio_json);
+	mm_module_ctrl(audio_save_ctx, CMD_AUDIO_PRINT_ASP_INFO, 0);
+#if defined(CONFIG_NEWAEC) && CONFIG_NEWAEC
 	extern const char *libVQE_get_version(void);
 	printf("%s\r\n", libVQE_get_version());
-	free(audio_json);
+#endif
 
 	//get AEC, AGC, NS run status
 	uint8_t AEC_run_status = 0;
@@ -2336,9 +2530,11 @@ log_item_t at_audio_save_items[ ] = {
 	{"AUMICEQR",    fAUMICEQR,  {NULL, NULL}}, //reset mic eq parameters without audio reset
 	{"AUAEC",       fAUAEC,     {NULL, NULL}}, //open and adjust the SW AEC
 	{"AUAECRUN",    fAUAECRUN,  {NULL, NULL}}, //run/stop the SW AEC for mic if the AEC is initialed
+	{"AUAECMODE",   fAUAECMODE, {NULL, NULL}}, //set/get mode for AEC
 	{"AUNS",        fAUNS,      {NULL, NULL}}, //open and adjust the SW NS for mic
 	{"AUAGC",       fAUAGC,     {NULL, NULL}}, //open and adjust the SW AGC for mic
 	{"AUMICM",      fAUMICM,    {NULL, NULL}}, //enable/disable to mute the mic
+	{"AURXASPM",    fAURXASPM,  {NULL, NULL}}, //enable/disable post mute for RX ASP
 	//For Audio speaker
 	{"AUSPNS",      fAUSPNS,    {NULL, NULL}}, //open and adjust the SW NS for speaker
 	{"AUSPAGC",     fAUSPAGC,   {NULL, NULL}}, //open and adjust the SW AGC for speaker
@@ -2346,9 +2542,13 @@ log_item_t at_audio_save_items[ ] = {
 	{"AUSPKEQR",    fAUSPKEQR,  {NULL, NULL}}, //reset speaker eq parameters without audio reset
 	{"AUDAC",       fAUDAC,     {NULL, NULL}}, //adjust the DAC dain for speaker
 	{"AUSPM",       fAUSPM,     {NULL, NULL}}, //enable/disable to mute the speaker
+	{"AUTXASPM",    fAUTXASPM,  {NULL, NULL}}, //enable/disable post mute for TX ASP
 	{"AUTXMODE",    fAUTXMODE,  {NULL, NULL}}, //adjust speaker output to playtone/playback/noplay
 	{"TONEDBSW",    fTONEDBSW,  {NULL, NULL}}, //enable tone DB sweep with interval
 	{"AUAMPIN",     fAUAMPIN,   {NULL, NULL}}, //select the speaker amplifier pin
+	//For Audio both speaker and mic
+	{"AUAGCRUN",    fAUAGCRUN,  {NULL, NULL}}, //run/stop the SW AGC for mic/spk if the AGC is initialed
+	{"AUNSRUN",     fAUNSRUN,   {NULL, NULL}}, //run/stop the SW NS for mic/spk if the NS is initialed
 	//For Audio TRX
 	{"AUSR",        fAUSR,      {NULL, NULL}}, //set the audio sample rate for both TRX
 	{"AUTRX",       fAUTRX,     {NULL, NULL}}, //enable/disable the audio TRX

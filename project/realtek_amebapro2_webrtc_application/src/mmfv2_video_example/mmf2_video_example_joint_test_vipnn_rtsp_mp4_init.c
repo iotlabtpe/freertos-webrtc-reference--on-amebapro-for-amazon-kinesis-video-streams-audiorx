@@ -284,7 +284,7 @@ static TX_cfg_t audio_tx_cfg;
 static RX_cfg_t audio_rx_cfg;
 static void audio_params_customized_setting(void)
 {
-	memcpy(&audio_params, &default_audio_params, sizeof(audio_params_t));
+	mm_module_ctrl(audio_ctx, CMD_AUDIO_GET_PARAMS, (int)&audio_params); // get the audio default setting parameters
 	audio_params.sample_rate = ASR_16KHZ;  // NN audio classification require 16K
 	mm_module_ctrl(audio_ctx, CMD_AUDIO_GET_TXASP_PARAM, (int)&audio_tx_cfg);
 	mm_module_ctrl(audio_ctx, CMD_AUDIO_GET_RXASP_PARAM, (int)&audio_rx_cfg);
@@ -293,9 +293,6 @@ static void audio_params_customized_setting(void)
 	audio_tx_cfg.agc_cfg.AGC_EN = 1;    // enable AGC/DRC for Peer-->Ameba
 	mm_module_ctrl(audio_ctx, CMD_AUDIO_SET_TXASP_PARAM, (int)&audio_tx_cfg);
 	mm_module_ctrl(audio_ctx, CMD_AUDIO_SET_RXASP_PARAM, (int)&audio_rx_cfg);
-	//audio_params.enable_aec = 1;  // enable AEC, NS, AGC for Ameba-->Peer
-	//audio_params.enable_ns = 0;   // disable MS for Peer-->Ameba
-	//audio_params.enable_agc = 1;  // enable AGC/DRC for Peer-->Ameba
 }
 
 //--------------------------------------------
@@ -1006,8 +1003,7 @@ static void example_deinit(void)
 	mm_module_close(facerecog_ctx);
 #endif
 
-	//Video Deinit
-	video_deinit();
+	video_voe_release();
 }
 
 static void fUC(void *arg)

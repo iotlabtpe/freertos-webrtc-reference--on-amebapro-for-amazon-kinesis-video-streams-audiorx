@@ -33,5 +33,4 @@
 	url = https://github.com/awslabs/amazon-kinesis-video-streams-rtcp
 [submodule "libraries/ambpro2_sdk"]
 	path = libraries/ambpro2_sdk
-	url = https://github.com/Ameba-AIoT/ameba-rtos-pro2.git
-	branch = amazon-webrtc
+	url = https://github.com/Freertos-kvs-LTS/freertos-kvs-LTS

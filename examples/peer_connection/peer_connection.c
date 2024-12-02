@@ -298,6 +298,7 @@ static int32_t HandleIceEventCallback( void * pCustomContext,
     }
     else
     {
+        LogDebug( ( "Receiving ICE event %d callback", event ) );
         switch( event )
         {
             case ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY:

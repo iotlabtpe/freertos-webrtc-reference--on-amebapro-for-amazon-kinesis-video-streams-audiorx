@@ -6,6 +6,10 @@
 #include "analogin_api.h"
 #include "wait_api.h"
 
+#if defined(configENABLE_TRUSTZONE) && (configENABLE_TRUSTZONE == 1)
+#include "osdep_service.h"
+#endif
+
 #define MBED_ADC_EXAMPLE_PIN_0    PF_0
 #define MBED_ADC_EXAMPLE_PIN_1    PF_1
 #define MBED_ADC_EXAMPLE_PIN_2    PF_2
@@ -36,6 +40,10 @@ void adc_delay(void)
 
 static void adc_test_task(void *param)
 {
+
+#if defined(configENABLE_TRUSTZONE) && (configENABLE_TRUSTZONE == 1)
+	rtw_create_secure_context(configMINIMAL_SECURE_STACK_SIZE);
+#endif
 
 	uint16_t adctmp     = 0;
 	uint16_t adcdat0    = 0;

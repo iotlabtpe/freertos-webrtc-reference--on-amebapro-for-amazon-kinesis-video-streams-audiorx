@@ -26,6 +26,12 @@
 #include "hal_video.h"
 #include "hal_isp.h"
 
+#define V1_ENA 1
+#define V4_ENA 1
+#define AUD_ENA 1   //enable audio process in joint test
+#if AUD_ENA
+#define ASP_ENA 0   //enable audio signal process in joint test
+#endif
 
 /*****************************************************************************
 * ISP channel : 4
@@ -87,11 +93,6 @@ static rtsp2_params_t rtsp2_v1_params = {
 };
 
 static audio_params_t audio_params;
-static void audio_params_customized_setting(void)
-{
-	memcpy(&audio_params, &default_audio_params, sizeof(audio_params_t));
-	audio_params.sample_rate = ASR_16KHZ;  // NN audio classification require 16K
-}
 
 static nn_data_param_t aud_info = {
 	.aud = {
@@ -163,10 +164,6 @@ static nn_data_param_t fr_param_nn = {
 	.codec_type = AV_CODEC_ID_NN_RAW
 };
 
-#define V1_ENA 1
-#define V4_ENA 1
-#define AUD_ENA 1
-
 static mm_context_t *video_v1_ctx           = NULL;
 static mm_context_t *rtsp2_v1_ctx           = NULL;
 static mm_context_t *audio_ctx              = NULL;
@@ -174,7 +171,7 @@ static mm_context_t *video_rgb_ctx          = NULL;
 static mm_context_t *facedet_ctx            = NULL;
 static mm_context_t *facenet_ctx            = NULL;
 static mm_context_t *objdet_ctx             = NULL;
-static mm_context_t *audclas_ctx             = NULL;
+static mm_context_t *audclas_ctx            = NULL;
 static mm_context_t *facerecog_ctx          = NULL;
 
 static mm_siso_t *siso_video_rtsp_v1        = NULL;
@@ -184,6 +181,35 @@ static mm_siso_t *siso_facenet_facerecog    = NULL;
 static mm_simo_t *simo_video_yolo_facedet   = NULL;
 
 static void atcmd_frc_init(void *ctx);
+
+#if AUD_ENA
+#if ASP_ENA
+static RX_cfg_t rx_asp_params;
+static TX_cfg_t tx_asp_params;
+#endif
+
+static void audio_params_customized_setting(void)
+{
+	mm_module_ctrl(audio_ctx, CMD_AUDIO_GET_PARAMS, (int)&audio_params); // get the default audio codec setting parameters
+	audio_params.sample_rate = ASR_16KHZ;  // NN audio classification require 16K
+	mm_module_ctrl(audio_ctx, CMD_AUDIO_SET_PARAMS, (int)&audio_params);
+#if ASP_ENA
+	// get the default audio signal setting parameters
+	// TX => Peer-->device signal, RX => Ameba-->Peer
+	mm_module_ctrl(audio_ctx, CMD_AUDIO_GET_TXASP_PARAM, (int)&audio_tx_cfg);
+	mm_module_ctrl(audio_ctx, CMD_AUDIO_GET_RXASP_PARAM, (int)&audio_rx_cfg);
+	// set up the enable flag and the related ASP will be initialed when audio module apply
+	audio_rx_cfg.aec_cfg.AEC_EN = 1;
+	audio_tx_cfg.agc_cfg.AGC_EN = 1;
+	audio_rx_cfg.ns_cfg.NS_EN = 1;
+	audio_tx_cfg.agc_cfg.AGC_EN = 1;
+	mm_module_ctrl(audio_ctx, CMD_AUDIO_SET_TXASP_PARAM, (int)&audio_tx_cfg);
+	mm_module_ctrl(audio_ctx, CMD_AUDIO_SET_RXASP_PARAM, (int)&audio_rx_cfg);
+	// If setting ASP run, the ASP will be adopted by the audio module, except that the ASP is not initialed
+
+#endif
+}
+#endif
 
 //--------------------------------------------
 // Draw Rect
@@ -463,7 +489,6 @@ void mmf2_video_example_joint_test_all_nn_rtsp_init(void)
 	audio_ctx = mm_module_open(&audio_module);
 	if (audio_ctx) {
 		audio_params_customized_setting();
-		mm_module_ctrl(audio_ctx, CMD_AUDIO_SET_PARAMS, (int)&audio_params);
 		mm_module_ctrl(audio_ctx, MM_CMD_SET_QUEUE_LEN, 6);
 		mm_module_ctrl(audio_ctx, MM_CMD_INIT_QUEUE_ITEMS, MMQI_FLAG_STATIC);
 		mm_module_ctrl(audio_ctx, CMD_AUDIO_APPLY, 0);

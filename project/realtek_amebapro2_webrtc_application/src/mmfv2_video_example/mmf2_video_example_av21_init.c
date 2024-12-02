@@ -267,8 +267,7 @@ static void example_deinit(void)
 	mm_module_close(audio_ctx);
 	mm_module_close(aac_ctx);
 
-	//Video Deinit
-	video_deinit();
+	video_voe_release();
 }
 
 static void fUC(void *arg)

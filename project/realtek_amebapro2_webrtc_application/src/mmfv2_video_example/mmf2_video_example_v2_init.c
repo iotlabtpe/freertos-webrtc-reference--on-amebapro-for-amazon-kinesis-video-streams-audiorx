@@ -137,8 +137,7 @@ static void example_deinit(void)
 	mm_module_close(rtsp2_v2_ctx);
 	mm_module_close(video_v2_ctx);
 
-	//Video Deinit
-	video_deinit();
+	video_voe_release();
 }
 
 static void fUC(void *arg)

@@ -390,8 +390,7 @@ static void example_deinit(void)
 #endif
 	mm_module_close(mp4_ctx);
 
-	//Video Deinit
-	video_deinit();
+	video_voe_release();
 }
 
 static void fUC(void *arg)

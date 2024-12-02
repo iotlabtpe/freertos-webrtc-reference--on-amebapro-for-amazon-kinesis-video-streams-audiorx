@@ -75,7 +75,7 @@ list(
 )
 
 #ssl
-if(${mbedtls} STREQUAL "mbedtls-3.4.0")
+if(${mbedtls} STREQUAL "mbedtls-3.4.0" OR ${mbedtls} STREQUAL "mbedtls-3.6.0")
 file(GLOB MBEDTLS_SRC CONFIGURE_DEPENDS ${sdk_root}/component/ssl/${mbedtls}/library/*.c)
 list(
 	APPEND out_s_sources

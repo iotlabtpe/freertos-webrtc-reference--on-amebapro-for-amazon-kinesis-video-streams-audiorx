@@ -287,7 +287,7 @@ static cJSON *CreateNSJSObject(CTNS_cfg_t ns_cfg)
 		Update_ItemInObject(NSJSObject, "NS_EN", cJSON_CreateNumber(ns_cfg.NS_EN));
 		Update_ItemInObject(NSJSObject, "NSLevel", cJSON_CreateNumber(ns_cfg.NSLevel));
 		Update_ItemInObject(NSJSObject, "HPFEnable", cJSON_CreateNumber(ns_cfg.HPFEnable));
-		Update_ItemInObject(NSJSObject, "QuickConvergenceEnable", cJSON_CreateNumber(ns_cfg.QuickConvergenceEnable));
+		Update_ItemInObject(NSJSObject, "NSSlowConvergence", cJSON_CreateNumber(ns_cfg.NSSlowConvergence));
 	}
 	return NSJSObject;
 }
@@ -387,7 +387,7 @@ static void Update_TxConfig(cJSON *TXCONFIG_JSObject, TX_cfg_t tx_asp_params)
 	if (TXCONFIG_JSObject) {
 		Update_ItemInObject(TXCONFIG_JSObject, "agc_cfg", CreateAGCJSObject(tx_asp_params.agc_cfg));
 		Update_ItemInObject(TXCONFIG_JSObject, "ns_cfg", CreateNSJSObject(tx_asp_params.ns_cfg));
-
+		Update_ItemInObject(TXCONFIG_JSObject, "post_mute", cJSON_CreateNumber(tx_asp_params.post_mute));
 	}
 }
 static void Update_RxConfig(cJSON *RXCONFIG_JSObject, RX_cfg_t rx_asp_params)
@@ -399,6 +399,7 @@ static void Update_RxConfig(cJSON *RXCONFIG_JSObject, RX_cfg_t rx_asp_params)
 #if !(defined(CONFIG_PLATFORM_8735B) && defined(CONFIG_NEWAEC) && CONFIG_NEWAEC)
 		Update_ItemInObject(RXCONFIG_JSObject, "vad_cfg", CreateVADJSObject(rx_asp_params.vad_cfg));
 #endif
+		Update_ItemInObject(RXCONFIG_JSObject, "post_mute", cJSON_CreateNumber(rx_asp_params.post_mute));
 	}
 }
 

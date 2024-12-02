@@ -80,8 +80,15 @@ static mm_siso_t *siso_aad_audio			= NULL;
 
 #include "video_boot.h"
 #include "ftl_common_api.h"
+#include "boot_retention.h"
 
 //#define FCS_PARTITION //Use the FCS data to change the parameter from bootloader.If mark the marco, it will use the FTL config.
+
+#define EXAMPLE_SAVE_TO_FLASH 0
+#define EXAMPLE_SAVE_TO_RETENTION 1
+#define EXAMPLE_SAVE_OPTION EXAMPLE_SAVE_TO_FLASH
+
+#define ENA_SLEEP_TEST 0 //for testing fcs with retention data
 
 static video_boot_stream_t video_boot_stream = {
 	.video_params[STREAM_V1].stream_id = STREAM_V1,
@@ -378,13 +385,18 @@ void voe_fcs_change_parameters(int ch, int width, int height, int iq_id, int vid
 	}
 }
 #else
+
+#if EXAMPLE_SAVE_OPTION == EXAMPLE_SAVE_TO_RETENTION
+extern boot_retention_table_t retention_table;
+__attribute__((section(".retention.data"))) video_boot_stream_t video_boot_retention_data __attribute__((aligned(32)));
+#endif
 void voe_fcs_change_parameters(int ch, int width, int height, int iq_id, int video_pre_init) //Setup the tag and modify the parameters.
 {
 	video_boot_stream_t *fcs_data = NULL;// = (video_boot_stream_t *)malloc(sizeof(video_boot_stream_t));
-	unsigned char *fcs_buf = malloc(2048);
 	int i = 0;
-	unsigned int checksum_tag = 0;
 	unsigned char *ptr = (unsigned char *)&video_boot_stream;
+#if EXAMPLE_SAVE_OPTION == EXAMPLE_SAVE_TO_FLASH
+	unsigned char *fcs_buf = malloc(2048);
 	unsigned int flash_addr = 0;
 	if (sys_get_boot_sel() == 0) {
 		flash_addr = NOR_FLASH_FCS;
@@ -395,6 +407,8 @@ void voe_fcs_change_parameters(int ch, int width, int height, int iq_id, int vid
 		printf("It can't get the buffer\r\n");
 		return;
 	}
+#endif
+
 	video_boot_stream.video_params[ch].width  = width;
 	video_boot_stream.video_params[ch].height = height;
 	video_boot_stream.fcs_isp_iq_id = iq_id;
@@ -421,11 +435,14 @@ void voe_fcs_change_parameters(int ch, int width, int height, int iq_id, int vid
 		video_boot_stream.fcs_isp_awb_enable = 0;
 	}
 	printf("ch %d width %d height %d iq_id %d\r\n", ch, width, height, iq_id);
+
+#if EXAMPLE_SAVE_OPTION == EXAMPLE_SAVE_TO_FLASH
 	memset(fcs_buf, 0x00, 2048);
 	fcs_buf[0] = 'F';
 	fcs_buf[1] = 'C';
 	fcs_buf[2] = 'S';
 	fcs_buf[3] = 'D';
+	unsigned int checksum_tag = 0;
 	for (i = 0; i < sizeof(video_boot_stream_t); i++) {
 		checksum_tag += ptr[i];
 	}
@@ -442,6 +459,25 @@ void voe_fcs_change_parameters(int ch, int width, int height, int iq_id, int vid
 	if (fcs_buf) {
 		free(fcs_buf);
 	}
+#elif EXAMPLE_SAVE_OPTION == EXAMPLE_SAVE_TO_RETENTION
+	uint32_t checksum_value = 0;
+	uint8_t *checksum_array = (uint8_t *) &video_boot_stream;
+	for (int i = 0; i < sizeof(video_boot_stream); i++) {
+		checksum_value += checksum_array[i];
+	}
+	memcpy(&video_boot_retention_data, &video_boot_stream, sizeof(video_boot_retention_data));
+	dcache_clean_invalidate_by_addr((uint32_t *)&video_boot_retention_data, sizeof(video_boot_retention_data));
+
+	uint8_t *tag = (uint8_t *)&retention_table.reserve_data[0].tag;
+	tag[0] = 'F';
+	tag[1] = 'C';
+	tag[2] = 'S';
+	tag[3] = 'D';
+	retention_table.reserve_data[0].data_len = sizeof(video_boot_stream_t);
+	retention_table.reserve_data[0].address = (uint32_t)&video_boot_retention_data;
+	retention_table.reserve_data[0].checksum = checksum_value;
+	dcache_clean_invalidate_by_addr((uint32_t *)&retention_table, sizeof(retention_table));
+#endif
 }
 #endif
 
@@ -460,18 +496,11 @@ void fcs_change(void *arg)
 	int ret = 0;
 	char *argv[MAX_ARGC] = {0};
 	unsigned char *ptr = NULL;
-	int type = 0;
-	int page_size = 0;
-	int block_size = 0;
-	int block_cnt = 0;
 	int ch, width, height, iq_id = 0, video_pre_init = 0;
 
 	argc = parse_param(arg, argv);
-
-	ftl_common_info(&type, &page_size, &block_size, &block_cnt);
-	printf("type %d page_size %d block_size %d block_cnt %d\r\n", type, page_size, block_size, block_cnt);
 	if (argc != 6) {
-		printf("FCST=ch,width,height,iq_id,video_pre_init\r\n");//FCST=0,1280,720,IQ_ID
+		printf("FCST=ch,width,height,iq_id,video_pre_init\r\n");//FCST=0,1280,720,IQ_ID,1
 		return;
 	}
 	ch = str_to_value((unsigned char const *)argv[1]);
@@ -480,11 +509,7 @@ void fcs_change(void *arg)
 	iq_id = str_to_value((unsigned char const *)argv[4]);
 	video_pre_init = str_to_value((unsigned char const *)argv[5]);
 	printf("ch %d width %d height %d iq_id %d video_pre_init %d\r\n", ch, width, height, iq_id, video_pre_init);
-	if (type == 1) {
-		voe_fcs_change_parameters(ch, width, height, iq_id, video_pre_init);
-	} else {
-		voe_fcs_change_parameters(ch, width, height, iq_id, video_pre_init);
-	}
+	voe_fcs_change_parameters(ch, width, height, iq_id, video_pre_init);
 }
 
 void fcs_info(void *arg)
@@ -716,20 +741,22 @@ void mmf2_video_example_joint_test_rtsp_mp4_init_fcs(void)
 				printf("fcs_start_ch %d\r\n", fcs_start_ch);
 			}
 		}
+		//sync video settings from fcs data
 		if ((video_boot_stream.isp_info.sensor_width == isp_fcs_info->isp_info.sensor_width) &&
 			(video_boot_stream.isp_info.sensor_height == isp_fcs_info->isp_info.sensor_height)) {
-			if (isp_fcs_info->video_params[STREAM_V1].fcs) {
-				video_v1_params.width = isp_fcs_info->video_params[STREAM_V1].width;
-				video_v1_params.height = isp_fcs_info->video_params[STREAM_V1].height;
-				mp4_v1_params.width = video_v1_params.width;
-				mp4_v1_params.height = video_v1_params.height;
-				//printf("ch 0 w %d h %d\r\n",mp4_v1_params.width,mp4_v1_params.height);
-			}
-			if (isp_fcs_info->video_params[STREAM_V2].fcs) {
-				video_v2_params.width = isp_fcs_info->video_params[STREAM_V2].width;
-				video_v2_params.height = isp_fcs_info->video_params[STREAM_V2].height;
-				//printf("ch 1 w %d h %d\r\n",video_v2_params.width,video_v2_params.height);
-			}
+			memcpy(&video_boot_stream, isp_fcs_info, sizeof(video_boot_stream));
+			video_v1_params.width = isp_fcs_info->video_params[STREAM_V1].width;
+			video_v1_params.height = isp_fcs_info->video_params[STREAM_V1].height;
+			video_v1_params.fps = isp_fcs_info->video_params[STREAM_V1].fps;
+			video_v1_params.gop = isp_fcs_info->video_params[STREAM_V1].gop;
+			mp4_v1_params.width = video_v1_params.width;
+			mp4_v1_params.height = video_v1_params.height;
+			//printf("ch 0 w %d h %d\r\n",mp4_v1_params.width,mp4_v1_params.height);
+			video_v2_params.width = isp_fcs_info->video_params[STREAM_V2].width;
+			video_v2_params.height = isp_fcs_info->video_params[STREAM_V2].height;
+			video_v2_params.fps = isp_fcs_info->video_params[STREAM_V2].fps;
+			video_v2_params.gop = isp_fcs_info->video_params[STREAM_V2].gop;
+			//printf("ch 1 w %d h %d\r\n",video_v2_params.width,video_v2_params.height);
 		}
 	}
 	if (isp_fcs_info->fcs_status == 1 && fcs_start_ch == 1) { //It need to change the order if the fcs channel is not zero
@@ -1096,10 +1123,16 @@ static void example_deinit(int need_pause)
 	video_rgb_ctx = mm_module_close(video_rgb_ctx);
 #endif
 
-	//Video Deinit
-	video_deinit();
-
+	video_voe_release();
 }
+
+#if ENA_SLEEP_TEST
+#include "power_mode_api.h"
+#include "wifi_conf.h"
+#include "lwip_netconf.h"
+extern int rtl8735b_suspend(int mode);
+extern void rtl8735b_set_lps_pg(void);
+#endif
 
 static void fUC(void *arg)
 {
@@ -1120,6 +1153,27 @@ static void fUC(void *arg)
 		} else {
 			printf("invalid state, can not do %s init!\r\n", example);
 		}
+#if ENA_SLEEP_TEST
+	} else if (!strcmp(arg, "SLEEP")) {
+		//test fcs with retention data
+		if ((wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS) || (*(u32 *)LwIP_GetIP(0) != IP_ADDR_INVALID)) {
+			// sleep
+			rtl8735b_set_lps_pg();
+			rtw_enter_critical(NULL, NULL);
+			if (rtl8735b_suspend(0) == 0) { // should stop wifi application before doing rtl8735b_suspend
+				rtw_exit_critical(NULL, NULL);
+				dbg_printf("wakeup after 3 sec\r\n");
+				Standby(SLP_AON_TIMER | SLP_GTIMER, 3000000 /* 3s */, 0 /* CLOCK */, 1 /* SRAM retention */);
+			} else {
+				rtw_exit_critical(NULL, NULL);
+				printf("rtl8735b_suspend fail\r\n");
+				sys_reset();
+			}
+		} else {
+			printf("wakeup after 3 sec\r\n"); //printf cannot show
+			Standby(SLP_AON_TIMER | SLP_GTIMER, 3000000 /* 3s */, 0 /* CLOCK */, 1 /* SRAM retention */);
+		}
+#endif
 	} else {
 		printf("invalid cmd");
 	}
@@ -1143,5 +1197,5 @@ static void atcmd_userctrl_init(void)
 static void atcmd_fcs_init(void)
 {
 	log_service_add_table(at_fcs_change_items, sizeof(at_fcs_change_items) / sizeof(at_fcs_change_items[0]));
-	printf("FCST=ch,width,height -> change the fcs resolution; FCSG get the fcs resolution info\r\n");
+	printf("FCST=ch,width,height,iq_id,video_pre_init -> change the fcs resolution; FCSG get the fcs resolution info\r\n");
 }

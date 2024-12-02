@@ -835,7 +835,7 @@ void audio_tool_flow_init(void *param)
 	rtw_create_secure_context(configMINIMAL_SECURE_STACK_SIZE);
 #endif
 	// register the audio disk
-	register_audio_disk_tag("audio_ram:/", strlen("audio_ram:/"));
+	register_audio_disk_tag("audio_ram", strlen("audio_ram"));
 	ram_dump_sd_sema = xSemaphoreCreateBinary();
 	ram_upload_tftp_sema = xSemaphoreCreateBinary();
 
@@ -846,6 +846,8 @@ void audio_tool_flow_init(void *param)
 		mm_module_ctrl(audio_save_ctx, CMD_AUDIO_SET_TXASP_PARAM, (int)&tx_asp_params);
 		mm_module_ctrl(audio_save_ctx, CMD_AUDIO_SET_RXASP_PARAM, (int)&rx_asp_params);
 		mm_module_ctrl(audio_save_ctx, CMD_AUDIO_RUN_AEC, 1);
+		mm_module_ctrl(audio_save_ctx, CMD_AUDIO_RUN_AGC, AUDIO_TX_MASK | AUDIO_RX_MASK);
+		mm_module_ctrl(audio_save_ctx, CMD_AUDIO_RUN_NS, AUDIO_TX_MASK | AUDIO_RX_MASK);
 		mm_module_ctrl(audio_save_ctx, MM_CMD_SET_QUEUE_LEN, 800);
 		mm_module_ctrl(audio_save_ctx, MM_CMD_INIT_QUEUE_ITEMS, MMQI_FLAG_STATIC);
 		mm_module_ctrl(audio_save_ctx, CMD_AUDIO_APPLY, 0);

@@ -32,11 +32,10 @@ extern void wifi_wowlan_bcntrack_stage1(uint8_t rx_bcn_window, uint8_t bcn_limit
 extern void wifi_wowlan_set_rxbcnlimit(uint8_t set_rxbcnlimit);
 extern void wifi_wowlan_set_pstimeout(uint8_t set_pstimeout);
 extern void wifi_wowlan_set_psretry(uint8_t set_psretry);
-extern void rtw_hal_set_unicast_wakeup(u8 enable);
 
 static uint8_t wowlan_wake_reason = 0;
 static uint8_t wlan_resume = 0;
-static uint8_t tcp_syn_wakeup = 0;
+static uint8_t unicast_wakeup = 0;
 //dtim
 static uint8_t lps_dtim = 10;
 
@@ -55,9 +54,6 @@ static uint8_t set_pstimeout = 16;
 static uint8_t set_psretry = 7;
 static uint8_t unicast_wakeup_enable = 1;
 
-static uint16_t server_local_port = 0;
-static uint16_t server_local_port0 = 4000;
-static uint16_t server_local_port1 = 554;
 __attribute__((section(".retention.data"))) uint32_t retention_local_ip __attribute__((aligned(32))) = 0;
 
 static uint8_t goto_sleep = 0;
@@ -82,8 +78,10 @@ extern void console_init(void);
 
 void tcp_app_task(void *param)
 {
+	int ret = 0;
+
 	while (!goto_sleep) {
-		if (tcp_syn_wakeup) {
+		if (unicast_wakeup) {
 			break;
 		}
 
@@ -103,7 +101,7 @@ void tcp_app_task(void *param)
 		vTaskDelay(10);
 	}
 
-	if (tcp_syn_wakeup) {
+	if (unicast_wakeup) {
 		int server_fd = -1;
 
 		// server socket
@@ -111,6 +109,7 @@ void tcp_app_task(void *param)
 		printf("\n\r socket(%d) \n\r", server_fd);
 
 		// bind server port
+		uint16_t server_local_port = 554;
 		struct sockaddr_in local_addr;
 		local_addr.sin_family = AF_INET;
 		local_addr.sin_addr.s_addr = INADDR_ANY;
@@ -122,6 +121,10 @@ void tcp_app_task(void *param)
 		// fill wakeup packet
 		extern int lwip_fill_wakeup_packet(void);
 		lwip_fill_wakeup_packet();
+
+		// fill packets blocked in ethernetif
+		extern void ethernetif_fill_blocked_packet(void);
+		ethernetif_fill_blocked_packet();
 
 		// wait for input
 		while (1) {
@@ -191,7 +194,11 @@ void tcp_app_task(void *param)
 	// static uint8_t  stage2_duration = 10;
 	wifi_wowlan_set_bcn_track(stage2_start_window, stage2_max_window, stage2_increment_steps, stage2_duration);
 
-	rtw_hal_set_unicast_wakeup(unicast_wakeup_enable);
+	wifi_set_unicast_wakeup(unicast_wakeup_enable);
+
+	//select fw
+	extern void rtl8735b_select_keepalive(u8 ka);
+	rtl8735b_select_keepalive(WOWLAN_TCPPTL_BCNV2);
 
 	extern int dhcp_retain(void);
 	printf("retain DHCP %s \n\r", dhcp_retain() == 0 ? "OK" : "FAIL");
@@ -207,7 +214,8 @@ void tcp_app_task(void *param)
 	// sleep
 	rtl8735b_set_lps_pg();
 	rtw_enter_critical(NULL, NULL);
-	if (rtl8735b_suspend(0) == 0) { // should stop wifi application before doing rtl8735b_suspend(
+	ret = rtl8735b_suspend(0);
+	if (ret == 0) { // should stop wifi application before doing rtl8735b_suspend(
 		if (((wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS) && (*(u32 *)LwIP_GetIP(0) != IP_ADDR_INVALID))) {
 			printf("rtl8735b_suspend\r\n");
 
@@ -241,7 +249,11 @@ void tcp_app_task(void *param)
 		}
 	} else {
 		rtw_exit_critical(NULL, NULL);
-		printf("rtl8735b_suspend fail\r\n");
+		if (ret != -4) {
+			wifi_power_hci_axi_deinit();
+			HAL_WRITE32(0x40009000, 0x18, 0x1 | HAL_READ32(0x40009000, 0x18)); //SWR 1.35V
+			Standby(SLP_AON_TIMER | SLP_GTIMER, 1000000 /* 1s */, 0/* CLOCK */, 1 /* SRAM retention */);
+		}
 	}
 	//rtw_exit_critical(NULL, NULL);
 
@@ -261,6 +273,9 @@ int wlan_do_resume(void)
 
 	wifi_fast_connect_enable(1);
 	wifi_fast_connect_load_fast_dhcp();
+
+	extern int arp_resume_router_gw(void);
+	printf("\n\rresume ARP router gw %s\n\r", arp_resume_router_gw() == 0 ? "OK" : "FAIL");
 
 	extern uint8_t lwip_check_dhcp_resume(void);
 	if (lwip_check_dhcp_resume() == 1) {
@@ -345,6 +360,7 @@ log_item_t at_power_save_items[ ] = {
 void main(void)
 {
 	uint32_t pm_reason = Get_wake_reason();
+	uint8_t suspend_fail = 0;
 	printf("\n\rpm_reason=0x%x\n\r", pm_reason);
 
 	hal_xtal_divider_enable(1);
@@ -383,51 +399,36 @@ void main(void)
 				extern uint8_t *read_rf_conuter_report(void);
 				read_rf_conuter_report();
 				if (wowlan_wake_reason == 0x22) {
-					wlan_mcu_ok = 1;
 					printf("\r\nunicast wakeup!!\r\n");
+					unicast_wakeup = 1;
+					wlan_mcu_ok = 1;
 
 					uint32_t packet_len = 0;
 					uint8_t *wakeup_packet = rtl8735b_read_wakeup_packet(&packet_len, wowlan_wake_reason);
 
 					// parse wakeup packet
 					uint8_t *ip_header = NULL;
-					uint8_t *tcp_header = NULL;
-					uint16_t dst_port = 0;
 
 					for (int i = 0; i < packet_len - 4; i ++) {
 						if ((memcmp(wakeup_packet + i, &retention_local_ip, 4) == 0) && (*(wakeup_packet + i - 16) == 0x45)) {
 							ip_header = wakeup_packet + i - 16;
-							tcp_header = wakeup_packet + i + 4;
 							break;
 						}
 					}
 
-					if (ip_header && tcp_header) {
-						if (tcp_header[13] == 0x02) {
-							printf("SYN\n\r");
+					if (ip_header) {
+						uint16_t ip_len = (((uint16_t) ip_header[2]) << 8) | ((uint16_t) ip_header[3]);
+						uint32_t wakeup_eth_packet_len = 6 + 6 + (ip_len + 2);
+						uint8_t *wakeup_eth_packet = (uint8_t *) malloc(wakeup_eth_packet_len);
+						if (wakeup_eth_packet) {
+							memcpy(wakeup_eth_packet, wakeup_packet + 4, 6);
+							memcpy(wakeup_eth_packet + 6, wakeup_packet + 16, 6);
+							memcpy(wakeup_eth_packet + 12, ip_header - 2, ip_len + 2);
 
-							dst_port = ntohs(*(uint16_t *)(tcp_header + 2));
-							printf("dst port=%u\n\r", dst_port);
+							extern int lwip_set_wakeup_packet(uint8_t *packet, uint32_t packet_len);
+							lwip_set_wakeup_packet(wakeup_eth_packet, wakeup_eth_packet_len);
 
-							if ((dst_port == server_local_port0) || (dst_port == server_local_port1)) {
-								tcp_syn_wakeup = 1;
-								server_local_port = dst_port;
-
-								uint16_t ip_len = (((uint16_t) ip_header[2]) << 8) | ((uint16_t) ip_header[3]);
-
-								uint32_t wakeup_eth_packet_len = 6 + 6 + (ip_len + 2);
-								uint8_t *wakeup_eth_packet = (uint8_t *) malloc(wakeup_eth_packet_len);
-								if (wakeup_eth_packet) {
-									memcpy(wakeup_eth_packet, wakeup_packet + 4, 6);
-									memcpy(wakeup_eth_packet + 6, wakeup_packet + 16, 6);
-									memcpy(wakeup_eth_packet + 12, ip_header - 2, ip_len + 2);
-
-									extern int lwip_set_wakeup_packet(uint8_t *packet, uint32_t packet_len);
-									lwip_set_wakeup_packet(wakeup_eth_packet, wakeup_eth_packet_len);
-
-									free(wakeup_eth_packet);
-								}
-							}
+							free(wakeup_eth_packet);
 						}
 					}
 
@@ -445,20 +446,72 @@ void main(void)
 				wlan_mcu_ok = 0;
 				printf("\n\rERROR: rtw_hal_wowlan_check_wlan_mcu_wakeup \n\r");
 			}
+		} else if (pm_reason & BIT(6)) {
+			//wakeup by suspend fail
+			uint8_t suspend_wakeup = 0;
+			extern uint8_t rtw_hal_wowlan_get_suspend_wakeup_reason(void);
+			extern uint8_t rtw_hal_wowlan_get_suspend_fail(void);
+			suspend_fail = rtw_hal_wowlan_get_suspend_fail();
+
+			if (suspend_fail) {
+				suspend_wakeup = rtw_hal_wowlan_get_suspend_wakeup_reason();
+				printf("\r\nsuspend wakeup reason  0x%x\r\n", suspend_wakeup);
+				if (suspend_wakeup == 0x22) {
+					printf("\r\nunicast wakeup!!\r\n");
+					unicast_wakeup = 1;
+					wlan_mcu_ok = 1;
+
+					uint32_t packet_len = 0;
+					extern u8 *rtw_hal_wowlan_get_suspend_wakeup_pattern(u32 * packet_len);
+					uint8_t *wakeup_packet = rtw_hal_wowlan_get_suspend_wakeup_pattern(&packet_len);
+
+					// parse wakeup packet
+					uint8_t *ip_header = NULL;
+
+					for (int i = 0; i < packet_len - 4; i ++) {
+						if ((memcmp(wakeup_packet + i, &retention_local_ip, 4) == 0) && (*(wakeup_packet + i - 16) == 0x45)) {
+							ip_header = wakeup_packet + i - 16;
+							break;
+						}
+					}
+
+					if (ip_header) {
+						uint16_t ip_len = (((uint16_t) ip_header[2]) << 8) | ((uint16_t) ip_header[3]);
+						uint32_t wakeup_eth_packet_len = 6 + 6 + (ip_len + 2);
+						uint8_t *wakeup_eth_packet = (uint8_t *) malloc(wakeup_eth_packet_len);
+						if (wakeup_eth_packet) {
+							memcpy(wakeup_eth_packet, wakeup_packet + 4, 6);
+							memcpy(wakeup_eth_packet + 6, wakeup_packet + 16, 6);
+							memcpy(wakeup_eth_packet + 12, ip_header - 2, ip_len + 2);
+
+							extern int lwip_set_wakeup_packet(uint8_t *packet, uint32_t packet_len);
+							lwip_set_wakeup_packet(wakeup_eth_packet, wakeup_eth_packet_len);
+
+							free(wakeup_eth_packet);
+						}
+					}
+
+					free(wakeup_packet);
+				} else if (suspend_wakeup == 0) {
+					wlan_mcu_ok = 1;
+				}
+			}
 		}
 
-		if (tcp_syn_wakeup) {
-			extern void tcp_set_wakeup_port(uint16_t port);
-			tcp_set_wakeup_port(server_local_port);
-
+		if (unicast_wakeup) {
+			extern void ethernetif_set_blocked(uint8_t blocked);
+			ethernetif_set_blocked(1);
 		}
 
 		extern int rtw_hal_wlan_resume_check(void);
 		if (wlan_mcu_ok && (rtw_hal_wlan_resume_check() == 1)) {
 			wlan_resume = 1;
-
 			extern int rtw_hal_read_aoac_rpt_from_txfifo(u8 * buf, u16 addr, u16 len);
-			rtw_hal_read_aoac_rpt_from_txfifo(NULL, 0, 0);
+			if (suspend_fail == 0) {
+				if ((rtw_hal_read_aoac_rpt_from_txfifo(NULL, 0, 0) == 0)) {
+					wlan_resume = 0;
+				}
+			}
 		}
 	}
 

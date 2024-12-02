@@ -7,7 +7,7 @@ set (repo_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 # root of realtek_amebapro2_webrtc_application
 set (prj_root "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 # root of SDK
-set (sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../../libraries/ambpro2_sdk")
+set (sdk_root "${repo_root}/libraries/ambpro2_sdk")
 set(bootloader bootloader)
 
 #set(freertos freertos_v202012.00)
@@ -24,6 +24,19 @@ endif()
 ADD_LIBRARY (hal_pmc_lib STATIC IMPORTED )
 SET_PROPERTY ( TARGET hal_pmc_lib PROPERTY IMPORTED_LOCATION ${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/lib/hal_pmc.a )
 
+if(DEFINED PS5270)
+list(
+    APPEND bootloader_sources
+	${sdk_root}/component/video/driver/RTL8735B/sensor_ps5270.c
+)
+endif()
+
+if(DEFINED PS5420)
+list(
+    APPEND bootloader_sources
+	${sdk_root}/component/video/driver/RTL8735B/sensor_ps5420.c
+)
+endif()
 
 #VIDEO
 list(

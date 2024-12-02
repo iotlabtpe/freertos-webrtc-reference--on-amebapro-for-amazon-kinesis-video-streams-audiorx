@@ -377,9 +377,7 @@ static void example_deinit(int need_pause)
 	video_v1_ctx = mm_module_close(video_v1_ctx);
 	video_v2_ctx = mm_module_close(video_v2_ctx);
 
-	//Video Deinit
-	video_deinit();
-
+	video_voe_release();
 }
 
 static void fUC(void *arg)

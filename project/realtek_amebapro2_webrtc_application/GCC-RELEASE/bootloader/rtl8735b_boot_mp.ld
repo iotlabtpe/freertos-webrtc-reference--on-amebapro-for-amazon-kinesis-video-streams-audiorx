@@ -22,9 +22,10 @@ MEMORY
   VECTORS_RAM   (rwx)	: ORIGIN = 0x00018000, LENGTH = 0x00018200 - 0x00018000  /* 512B */
   RAM_FUN_TABLE (rwx)	: ORIGIN = 0x00018200, LENGTH = 0x00018300 - 0x00018200  /* 240B */ 
   ITCM_RAM_BSS  (rwx)	: ORIGIN = 0x00018300, LENGTH = 0x00020300 - 0x00018300  /* 32 KB */
-  ITCM_RAM      (rwx)	: ORIGIN = 0x00020300, LENGTH = 0x00040000 - 0x00020300  /* 63.25KB */
+  ITCM_RAM      (rwx)	: ORIGIN = 0x00020300, LENGTH = 0x00030000 - 0x00020300  /* 63.25KB */
   RAM           (rwx)	: ORIGIN = 0x20101200, LENGTH = 0x20105200 - 0x20101200  /* 16 KB */
   RAM_BSS       (rwx)	: ORIGIN = 0x20105200, LENGTH = 0x20106200 - 0x20105200  /* 4 KB */
+  RAM_REV (rwx)         : ORIGIN = 0x2011FD00, LENGTH = 0x20120000 - 0x2011FD00  /* 512B reserved for MPU_REGION */   
   RAM_RETENTION (rwx)   : ORIGIN = 0x20120000, LENGTH = 0x20140000 - 0x20120000  /* 128KB retention data */
   VOE           (rwx)	: ORIGIN = 0x70000000, LENGTH = 0x70100000 - 0x70000000  /* 1MB */ 
   NN     (rwx)          : ORIGIN = 0x72C00000, LENGTH = 0x74000000 - 0x72C00000	 /* 20MB For FCS*/
@@ -70,6 +71,8 @@ MEMORY
  */
 _start_addr = 0x10000000;
 ENTRY(_start_addr)
+__sram_rev_start__  = ORIGIN(RAM_REV);
+__sram_rev_end__    = ORIGIN(RAM_REV)+ LENGTH(RAM_REV);
 __eram_start__      = ORIGIN(DDR);
 __eram_end__		= ORIGIN(DDR) + LENGTH(DDR);
 __nn_code_size__    = LENGTH(NN);
