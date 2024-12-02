@@ -42,7 +42,9 @@ extern "C" {
  */
 #define SIGNALING_CONNECT_STATE_TIMEOUT_SEC ( 15 )
 
-// Grace period for refreshing the ICE configuration
+/**
+ * Grace period for refreshing the ICE configuration
+ */
 #define ICE_CONFIGURATION_REFRESH_GRACE_PERIOD_SEC ( 30 )
 
 typedef enum SignalingControllerEventStatus
