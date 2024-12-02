@@ -36,11 +36,85 @@ void app_ftl_init(void)
 }
 #endif
 
-/* entry for the example*/
-_WEAK void app_example(void)
+
+/* overwrite log uart baud rate for application. ROM and bootloader will remain 115200
+ * set LOGUART_TX_OFF 1 to turn off uart output from application
+ */
+#include "stdio_port_func.h"
+extern hal_uart_adapter_t log_uart;
+
+//#define LOGUART_TX_OFF 1
+
+#if defined(LOGUART_TX_OFF) && (LOGUART_TX_OFF==1)
+static void (*user_wputc)(phal_uart_adapter_t puart_adapter, uint8_t tx_data) = (void *)0xffffffff;
+static void wputc(phal_uart_adapter_t puart_adapter, uint8_t tx_data)
 {
-	
+	if ((uint32_t)user_wputc == (uint32_t)hal_uart_wputc) {
+		user_wputc(puart_adapter, tx_data);
+	}
 }
+
+void fUART(void *arg)
+{
+	int argc = 0;
+	char *argv[MAX_ARGC] = {0};
+	argc = parse_param(arg, argv);
+
+	if (argc != 2)	{
+		return;
+	}
+
+	if (strncmp(argv[1], "ON", 2) == 0) {
+		user_wputc = hal_uart_wputc;
+	} else {
+		user_wputc = (void *)0xffffffff;
+	}
+}
+
+static log_item_t uart_items[] = {
+	{"UART", fUART,},
+};
+
+void atcmd_uart_init(void)
+{
+	log_service_add_table(uart_items, sizeof(uart_items) / sizeof(uart_items[0]));
+}
+#else
+static void (*wputc)(phal_uart_adapter_t puart_adapter, uint8_t tx_data) = hal_uart_wputc;
+#endif
+
+void log_uart_port_init(int log_uart_tx, int log_uart_rx, uint32_t baud_rate)
+{
+	baud_rate = 115200;  //115200, 1500000, 3000000
+
+	hal_status_t ret;
+	uint8_t uart_idx;
+
+#if defined(CONFIG_BUILD_NONSECURE) && (CONFIG_BUILD_NONSECURE == 1)
+	/* prevent pin confliction */
+	uart_idx = hal_uart_pin_to_idx(log_uart_rx, UART_Pin_RX);
+	hal_pinmux_unregister(log_uart_rx, (PID_UART0 + uart_idx));
+	hal_pinmux_unregister(log_uart_tx, (PID_UART0 + uart_idx));
+#endif
+
+	//* Init the UART port hadware
+	ret = hal_uart_init(&log_uart, log_uart_tx, log_uart_rx, NULL);
+	if (ret == HAL_OK) {
+		hal_uart_set_baudrate(&log_uart, baud_rate);
+		hal_uart_set_format(&log_uart, 8, UartParityNone, 1);
+
+		// hook the putc function to stdio port for printf
+#if defined(CONFIG_BUILD_NONSECURE) && (CONFIG_BUILD_NONSECURE == 1)
+		stdio_port_init((void *)&log_uart, (stdio_putc_t)wputc, (stdio_getc_t)&hal_uart_rgetc);
+#else
+		stdio_port_init_s((void *)&log_uart, (stdio_putc_t)wputc, (stdio_getc_t)&hal_uart_rgetc);
+		stdio_port_init_ns((void *)&log_uart, (stdio_putc_t)wputc, (stdio_getc_t)&hal_uart_rgetc);
+#endif
+	}
+}
+
+/* entry for the example*/
+__weak void app_example(void) {}
 
 void setup(void)
 {
@@ -56,6 +130,11 @@ void setup(void)
 #if defined(CONFIG_FTL_ENABLED)
 	app_ftl_init();
 #endif
+
+#if defined(LOGUART_TX_OFF) && (LOGUART_TX_OFF==1)
+	atcmd_uart_init();
+#endif
+
 }
 
 void set_initial_tick_count(void)

@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdint.h>
 
-static float fast_exp(float x)
+float fast_exp(float x)
 {
 	union {
 		uint32_t i;

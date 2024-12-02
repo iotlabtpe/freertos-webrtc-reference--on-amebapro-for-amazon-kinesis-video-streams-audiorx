@@ -35,6 +35,7 @@ static float yolo_confidence_thresh = 0.5;    // default
 static float yolo_nms_thresh = 0.3;      // default
 static int yolo_new_coords = 0;  // 0 --> yolov3 & yolov4,  1 --> yolov7
 static float *pAnchor = NULL;
+static int yolo_in_width, yolo_in_height;
 
 // yolov4-tiny & yolov3-tiny
 // https://github.com/AlexeyAB/darknet/blob/master/cfg/yolov4-tiny.cfg
@@ -59,28 +60,50 @@ static float anchor_yolov7_3layer[9][2] = {
 	{116, 90}, {156, 198}, {373, 326},		// 13x13
 };
 
-void *yolov3_get_network_filename_init(void)
+void *yolov3_get_network_filename(void)
 {
-	yolo_new_coords = 0;
-	pAnchor = &anchor_yolov3v4_2layer[0][0]; // setup anchor
-	return (void *)"NN_MDL/yolov3_tiny.nb";	// fix name for NN model binary
+	return (void *)"NN_MDL/yolov3_tiny.nb";
 }
 
-void *yolov4_get_network_filename_init(void)
+void *yolov4_get_network_filename(void)
 {
-	yolo_new_coords = 0;
-	pAnchor = &anchor_yolov3v4_2layer[0][0];
 	return (void *)"NN_MDL/yolov4_tiny.nb";
 }
 
-void *yolov7_get_network_filename_init(void)
+void *yolov7_get_network_filename(void)
 {
-	yolo_new_coords = 1;
-	pAnchor = &anchor_yolov7_3layer[0][0];
 	return (void *)"NN_MDL/yolov7_tiny.nb";
 }
 
-static int yolo_in_width, yolo_in_height;
+void yolov3_set_network_init_info(void *m)
+{
+	yolo_new_coords = 0;
+	pAnchor = &anchor_yolov3v4_2layer[0][0]; // setup anchor
+
+	nnmodel_t *model = (nnmodel_t *)m;
+	yolo_in_width  = model->input_param.dim[0].size[0];
+	yolo_in_height = model->input_param.dim[0].size[1];
+}
+
+void yolov4_set_network_init_info(void *m)
+{
+	yolo_new_coords = 0;
+	pAnchor = &anchor_yolov3v4_2layer[0][0]; // setup anchor
+
+	nnmodel_t *model = (nnmodel_t *)m;
+	yolo_in_width  = model->input_param.dim[0].size[0];
+	yolo_in_height = model->input_param.dim[0].size[1];
+}
+
+void yolov7_set_network_init_info(void *m)
+{
+	yolo_new_coords = 1;
+	pAnchor = &anchor_yolov7_3layer[0][0]; // setup anchor
+
+	nnmodel_t *model = (nnmodel_t *)m;
+	yolo_in_width  = model->input_param.dim[0].size[0];
+	yolo_in_height = model->input_param.dim[0].size[1];
+}
 
 int yolo_preprocess(void *data_in, nn_data_param_t *data_param, void *tensor_in, nn_tensor_param_t *tensor_param)
 {
@@ -93,25 +116,22 @@ int yolo_preprocess(void *data_in, nn_data_param_t *data_param, void *tensor_in,
 	img_in.height = data_param->img.height;
 	img_out.width  = tensor_param->dim[0].size[0];
 	img_out.height = tensor_param->dim[0].size[1];
-	yolo_in_width  = tensor_param->dim[0].size[0];
-	yolo_in_height = tensor_param->dim[0].size[1];
 
 	img_in.data   = (unsigned char *)data_in;
 	img_out.data   = (unsigned char *)tensor[0];
 	//printf("src %d %d, dst %d %d\n\r", img_in.width, img_in.height, img_out.width, img_out.height);
 	//printf("roi %d %d %d %d \n\r", roi->xmin, roi->ymin, roi->xmax, roi->ymax);
 
-	// resize src ROI area to dst
 	if (img_in.width == img_out.width && img_in.height == img_out.height) {
-		//memcpy(img_out.data, img_in.data, img_out.width * img_out.height * 3);
-		img_dma_copy(img_out.data, img_in.data, img_out.width * img_out.height * 3);
+		// return PP_USE_INPUT to use video RGB buffer to do inference
+		return PP_USE_INPUT;
 	} else {
+		// resize src ROI area to dst
 		img_resize_planar(&img_in, roi, &img_out);
+		dcache_clean_by_addr((uint32_t *)img_out.data, img_out.width * img_out.height * 3);
 	}
 
-	dcache_clean_by_addr((uint32_t *)img_out.data, img_out.width * img_out.height * 3);
-
-	return 0;
+	return PP_USE_RESULT;
 }
 
 typedef struct data_format_s {
@@ -298,7 +318,6 @@ static int __decode_yolo(data_format_t *fmt, void *out, int i, int j, int n, voi
 	return pass_cnt;
 }
 
-//static vipnn_res_t yolo_res;
 int yolo_postprocess(void *tensor_out, nn_tensor_param_t *param, void *res)
 {
 	void **tensor = (void **)tensor_out;
@@ -312,7 +331,7 @@ int yolo_postprocess(void *tensor_out, nn_tensor_param_t *param, void *res)
 	box_idx = 0;
 	memset(res_box, 0, sizeof(res_box));
 
-	// check anckor is set
+	// check anchor is set
 	if (pAnchor == NULL) {
 		return 0;
 	}
@@ -352,7 +371,6 @@ int yolo_postprocess(void *tensor_out, nn_tensor_param_t *param, void *res)
 	*/
 	// init start idx
 	int od_num = 0;
-	//yolo_res.od_res.obj_num  = 0;
 	for (int i = 0; i < box_idx; i++) {
 		box_t *obj = &res_box[i];
 
@@ -383,7 +401,8 @@ void yolo_set_nms_thresh(void *nms_thresh)
 }
 
 nnmodel_t yolov3_tiny = {
-	.nb 			= yolov3_get_network_filename_init,
+	.nb 			= yolov3_get_network_filename,
+	.set_init_info  = yolov3_set_network_init_info,
 	.preprocess 	= yolo_preprocess,
 	.postprocess 	= yolo_postprocess,
 	.model_src 		= MODEL_SRC_FILE,
@@ -394,7 +413,8 @@ nnmodel_t yolov3_tiny = {
 };
 
 nnmodel_t yolov4_tiny = {
-	.nb 			= yolov4_get_network_filename_init,
+	.nb 			= yolov4_get_network_filename,
+	.set_init_info  = yolov4_set_network_init_info,
 	.preprocess 	= yolo_preprocess,
 	.postprocess 	= yolo_postprocess,
 	.model_src 		= MODEL_SRC_FILE,
@@ -405,7 +425,8 @@ nnmodel_t yolov4_tiny = {
 };
 
 nnmodel_t yolov7_tiny = {
-	.nb 			= yolov7_get_network_filename_init,
+	.nb 			= yolov7_get_network_filename,
+	.set_init_info  = yolov7_set_network_init_info,
 	.preprocess 	= yolo_preprocess,
 	.postprocess 	= yolo_postprocess,
 	.model_src 		= MODEL_SRC_FILE,

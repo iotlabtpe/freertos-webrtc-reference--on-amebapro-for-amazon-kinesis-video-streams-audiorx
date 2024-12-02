@@ -7,7 +7,7 @@ set (repo_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 # root of realtek_amebapro2_webrtc_application
 set (prj_root "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 # root of SDK
-set (sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../../libraries/ambpro2_sdk")
+set (sdk_root "${repo_root}/libraries/ambpro2_sdk")
 set(bootloader bootloader)
 
 #set(freertos freertos_v202012.00)
@@ -24,6 +24,19 @@ endif()
 ADD_LIBRARY (hal_pmc_lib STATIC IMPORTED )
 SET_PROPERTY ( TARGET hal_pmc_lib PROPERTY IMPORTED_LOCATION ${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/lib/hal_pmc.a )
 
+if(DEFINED PS5270)
+list(
+    APPEND bootloader_sources
+	${sdk_root}/component/video/driver/RTL8735B/sensor_ps5270.c
+)
+endif()
+
+if(DEFINED PS5420)
+list(
+    APPEND bootloader_sources
+	${sdk_root}/component/video/driver/RTL8735B/sensor_ps5420.c
+)
+endif()
 
 #VIDEO
 list(
@@ -37,23 +50,36 @@ list(
 	${sdk_root}/component/soc/8735b/misc/platform/user_boot.c
 )
 
+list(
+	APPEND boot_flags
+	CONFIG_BUILD_BOOT=1
+	CONFIG_BUILD_RAM=1 
+	CONFIG_BUILD_LIB=1 
+	CONFIG_PLATFORM_8735B
+	CONFIG_RTL8735B_PLATFORM=1
+)
+
 add_library(bootfcs ${fcs_sources})
 target_compile_definitions(bootfcs PRIVATE ${boot_flags} )
 target_compile_options(bootfcs PRIVATE ${WARN_ERR_FLAGS})
 
+if(FCS_FB)
+add_library(fcs_fb_import OBJECT IMPORTED)
+set_target_properties(fcs_fb_import PROPERTIES IMPORTED_OBJECTS "${prj_root}/GCC-RELEASE/bootloader/output/fcs_fb.o")
+add_executable(
+	${bootloader}
+	${bootloader_sources}
+	$<TARGET_OBJECTS:bootfcs>
+	$<TARGET_OBJECTS:fcs_fb_import>
+)
+add_dependencies(${bootloader} fcs_fb_import)
+else()
 add_executable(
 	${bootloader}
 	${bootloader_sources}
 	$<TARGET_OBJECTS:bootfcs>
 )
-
-list(
-	APPEND boot_flags
-	CONFIG_BUILD_BOOT=1
-	CONFIG_BUILD_RAM=1 
-	CONFIG_PLATFORM_8735B
-	CONFIG_RTL8735B_PLATFORM=1
-)
+endif()
 
 target_compile_definitions(${bootloader} PRIVATE ${boot_flags} )
 target_compile_options(${bootloader} PRIVATE ${WARN_ERR_FLAGS})
@@ -62,9 +88,6 @@ include(../includepath.cmake)
 target_include_directories(
 	bootfcs
 	PUBLIC
-    
-	"${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/include/pub"
-    "${sdk_root}/component/soc/8735b/cmsis/rtl8735b/lib/include/pub"
 
 	${inc_path}
 	${sdk_root}/component/os/freertos/${freertos}/Source/portable/GCC/ARM_CM33_NTZ/non_secure
@@ -75,9 +98,6 @@ target_include_directories(
 target_include_directories(
 	${bootloader} 
 	PUBLIC
-    
-	"${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/include/pub"
-    "${sdk_root}/component/soc/8735b/cmsis/rtl8735b/lib/include/pub"
 
 	${inc_path}
 	${sdk_root}/component/os/freertos/${freertos}/Source/portable/GCC/ARM_CM33_NTZ/non_secure

@@ -17,10 +17,11 @@ git submodule update --init --recursive
    * Set `AWS_KVS_CHANNEL_NAME` to your signaling channel name.
    * Set `AWS_ACCESS_KEY_ID` to your access key.
    * Set `AWS_SECRET_ACCESS_KEY` to your secret access key.
+1. Download toolchain (based on your environment)
+   - https://github.com/Ameba-AIoT/ameba-toolchain/releases/tag/V10.3.0-amebe-rtos-pro2
 1. Setup toolchain:
    ```sh
-   cd libraries/ambpro2_sdk/tools
-   cat asdk-10.3.0-linux-newlib-build-3633-x86_64.tar.bz2.* | tar jxvf -
+   tar xvf asdk-10.3.0-*.tar.bz2
    pwd
    <!-- Copy this absolute path  -->
    export PATH=($COPIED_PATH)/asdk-10.3.0/linux/newlib/bin:$PATH

@@ -1119,8 +1119,7 @@ static SdpControllerResult_t PopulateCodecAttributesOpus( SdpControllerMediaDesc
             }
             else
             {
-                written = snprintf( pCurBuffer, remainSize, "%lu %.*s",
-                                    payload,
+                written = snprintf( pCurBuffer, remainSize, "%.*s",
                                     ( int ) pSourceAttribute->attributeValueLength, pSourceAttribute->pAttributeValue );
             }
 
@@ -1427,8 +1426,7 @@ static SdpControllerResult_t PopulateCodecAttributesH265( SdpControllerMediaDesc
             }
             else
             {
-                written = snprintf( pCurBuffer, remainSize, "%lu %.*s",
-                                    payload,
+                written = snprintf( pCurBuffer, remainSize, "%.*s",
                                     ( int ) pSourceAttribute->attributeValueLength, pSourceAttribute->pAttributeValue );
             }
 
@@ -2553,13 +2551,13 @@ SdpControllerResult_t SdpController_PopulateSingleMedia( SdpControllerMediaDescr
                     else if( ( pRemoteMediaDescription->attributes[i].attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SENDONLY_LENGTH ) &&
                              ( strncmp( pRemoteMediaDescription->attributes[i].pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SENDONLY, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_SENDONLY_LENGTH ) == 0 ) )
                     {
-                        targetDirection = TRANSCEIVER_TRACK_DIRECTION_SENDONLY;
+                        targetDirection = TRANSCEIVER_TRACK_DIRECTION_RECVONLY;
                         break;
                     }
                     else if( ( pRemoteMediaDescription->attributes[i].attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_RECVONLY_LENGTH ) &&
                              ( strncmp( pRemoteMediaDescription->attributes[i].pAttributeName, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_RECVONLY, SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_RECVONLY_LENGTH ) == 0 ) )
                     {
-                        targetDirection = TRANSCEIVER_TRACK_DIRECTION_RECVONLY;
+                        targetDirection = TRANSCEIVER_TRACK_DIRECTION_SENDONLY;
                         break;
                     }
                     else if( ( pRemoteMediaDescription->attributes[i].attributeNameLength == SDP_CONTROLLER_MEDIA_ATTRIBUTE_NAME_INACTIVE_LENGTH ) &&

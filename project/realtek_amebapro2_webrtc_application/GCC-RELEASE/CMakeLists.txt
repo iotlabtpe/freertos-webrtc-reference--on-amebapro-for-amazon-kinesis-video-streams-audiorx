@@ -46,7 +46,7 @@ set (repo_root "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
 # root of realtek_amebapro2_webrtc_application
 set (prj_root "${CMAKE_CURRENT_SOURCE_DIR}/..")
 # root of SDK
-set (sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../libraries/ambpro2_sdk")
+set (sdk_root "${repo_root}/libraries/ambpro2_sdk")
 
 include(./config.cmake)
 
@@ -88,7 +88,6 @@ set(symbols application/application.ntz.symbols)
 
 set(bttrace application/APP.trace)
 add_subdirectory (application)
-
 
 if(MPCHIP)
 add_custom_command(
@@ -245,7 +244,7 @@ add_custom_target(
 	COMMAND ${ELF2BIN} secure sign+dbg=cert key_private.json key_public.json certificate.bin certificate_signed.bin
 	COMMAND ${ELF2BIN} secure sign+hash+dbg=ptab key_private.json key_public.json partition.bin partition_signed.bin
 	COMMAND ${ELF2BIN} secure sign+enc+hash+dbg=boot key_private.json key_public.json ${POSTBUILD_ENC_BOOT}  boot.bin boot_signed_enc.bin
-	COMMAND ${ELF2BIN} secure sign+enc+hash+dbg=fw key_private.json key_public.json ${POSTBUILD_ENC_NTZ} firmware.bin firmware_signed_enc.bin
+	COMMAND ${ELF2BIN} secure sign+enc+hash+dbg=fw key_private.json key_public.json ${POSTBUILD_ENC_FW} firmware.bin firmware_signed_enc.bin
 	
 	
 	COMMAND ${ELF2BIN} combine amebapro2_partitiontable.json ${target}.bin PT_PT=partition_signed.bin,CER_TBL=certable.bin,KEY_CER1=certificate_signed.bin,PT_BL_PRI=boot_signed_enc.bin,PT_FW1=firmware_signed_enc.bin,PT_ISP_IQ=firmware_isp_iq.bin,PT_FCSDATA=boot_fcs.bin

@@ -1,6 +1,8 @@
 list (
     APPEND inc_path_re
 
+	${repo_root}/configs/lwip
+
     "${prj_root}/inc"
     "${sdk_root}/component/mbed/hal"
     "${sdk_root}/component/mbed/hal_ext"
@@ -112,9 +114,12 @@ list (
 	
 	"${sdk_root}/component/application/qr_code_scanner/inc"
 	"${sdk_root}/component/audio/3rdparty/speex/speex"
-    "${sdk_root}/component/audio/3rdparty/AEC/AEC"
-    "${sdk_root}/component/audio/3rdparty/opus-1.3.1/include"
-    "${sdk_root}/component/audio/3rdparty/libopusenc-0.2.1/include"
+	"${sdk_root}/component/audio/3rdparty/AEC/AEC"
+	"${sdk_root}/component/audio/3rdparty/opus-1.3.1/include"
+	"${sdk_root}/component/audio/3rdparty/libopusenc-0.2.1/include"
+	"${sdk_root}/component/audio/3rdparty/fdk-aac-2.0.2/libAACenc/include"
+	"${sdk_root}/component/audio/3rdparty/fdk-aac-2.0.2/libAACdec/include"
+	"${sdk_root}/component/audio/3rdparty/fdk-aac-2.0.2/libSYS/include"
 	
 	"${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/video"
 	"${sdk_root}/component/soc/8735b/fwlib/rtl8735b/lib/source/ram/video/semihost"

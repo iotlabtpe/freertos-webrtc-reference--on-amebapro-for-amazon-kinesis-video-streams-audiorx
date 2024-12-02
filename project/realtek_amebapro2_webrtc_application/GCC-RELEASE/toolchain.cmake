@@ -27,8 +27,8 @@ set(CMAKE_C_FLAGS "-march=armv8-m.main+dsp -mthumb -mcmse -mfpu=fpv5-sp-d16 -mfp
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Os -fstack-usage -fdata-sections -ffunction-sections  -fno-optimize-sibling-calls")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -gdwarf-3 -MMD -nostartfiles -nodefaultlibs -nostdlib ")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=gnu++11 -Wall -Wpointer-arith -Wundef -Wno-write-strings -Wno-maybe-uninitialized -fdiagnostics-color=always -fno-PIC")#-fPIC -fexceptions
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -Wall -Wpointer-arith -Wstrict-prototypes -Wundef -Wno-write-strings -Wno-maybe-uninitialized -fdiagnostics-color=always")
+#set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=gnu++11 -Wall -Wpointer-arith -Wundef -Wno-write-strings -Wno-maybe-uninitialized -fdiagnostics-color=always -fno-PIC")#-fPIC -fexceptions
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -Wall -Wpointer-arith -Wstrict-prototypes -Wundef -Wno-write-strings -Wno-maybe-uninitialized -fdiagnostics-color=always")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=gnu++11 -fdiagnostics-color=always -fno-PIC")#-fPIC -fexceptions
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -fdiagnostics-color=always")

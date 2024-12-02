@@ -6,13 +6,12 @@ set(REPO_ROOT_DIRECTORY ${repo_root})
 
 option(ENABLE_STREAMING_LOOPBACK "Loopback the received frames to the remote peer" OFF)
 
-include( ${REPO_ROOT_DIRECTORY}/patch/apply_patches.cmake )
-
 file(
   GLOB
   WEBRTC_APPLICATION_MASTER_SOURCE_FILES
   "${REPO_ROOT_DIRECTORY}/examples/master/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/peer_connection/*.c"
+  "${REPO_ROOT_DIRECTORY}/examples/peer_connection/peer_connection_codec_helper/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/signaling_controller/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/network_transport/*.c"
   "${REPO_ROOT_DIRECTORY}/examples/network_transport/tcp_sockets_wrapper/ports/lwip/*.c"
@@ -33,6 +32,8 @@ file(
 set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/master/"
      "${REPO_ROOT_DIRECTORY}/examples/peer_connection/"
+     "${REPO_ROOT_DIRECTORY}/examples/peer_connection/peer_connection_codec_helper/"
+     "${REPO_ROOT_DIRECTORY}/examples/peer_connection/peer_connection_codec_helper/include"
      "${REPO_ROOT_DIRECTORY}/examples/signaling_controller"
      "${REPO_ROOT_DIRECTORY}/examples/network_transport"
      "${REPO_ROOT_DIRECTORY}/examples/network_transport/tcp_sockets_wrapper/include"
@@ -72,15 +73,14 @@ file(
   WSLAY_SOURCE_FILES
   "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/*.c" )
 
-configure_file(${REPO_ROOT_DIRECTORY}/CMake/wslay/wslay_net.h.in
-               ${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/wslay_net.h @ONLY)
-
 configure_file(${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay/wslayver.h.in
                ${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay/wslayver.h @ONLY)
+
 set( WSLAY_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/"
      "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes"
-     "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay" )
+     "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay"
+     "${REPO_ROOT_DIRECTORY}/configs/wslay" )
 
 # Include SDP
 include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-sdp/sdpFilePaths.cmake )
@@ -104,6 +104,7 @@ list(
 	APPEND app_flags
      SDP_DO_NOT_USE_CUSTOM_CONFIG
      SIGV4_DO_NOT_USE_CUSTOM_CONFIG
+     HAVE_ARPA_INET_H
 )
 
 set( webrtc_master_demo_src

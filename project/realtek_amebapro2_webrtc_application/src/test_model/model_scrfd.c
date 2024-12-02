@@ -39,15 +39,22 @@
 static box_t face_box[MAX_FACE_CNT];
 static box_t *p_face_box[MAX_FACE_CNT];
 static int face_cnt = 0;
+static int face_in_width, face_in_height;
 
 void *scrfd_get_network_filename(void)
 {
 	return (void *)"NN_MDL/scrfd.nb";	// fix name for NN model binary
 }
 
+void scrfd_set_network_init_info(void *m)
+{
+	nnmodel_t *model = (nnmodel_t *)m;
+	face_in_width  = model->input_param.dim[0].size[0];
+	face_in_height = model->input_param.dim[0].size[1];
+}
+
 //--------PRE PROCESS-------------------------------------------
 
-static int face_in_width, face_in_height;
 static int scrfd_preprocess(void *data_in, nn_data_param_t *data_param, void *tensor_in, nn_tensor_param_t *tensor_param)
 {
 	void **tensor = (void **)tensor_in;
@@ -59,28 +66,25 @@ static int scrfd_preprocess(void *data_in, nn_data_param_t *data_param, void *te
 	img_in.height = data_param->img.height;
 	img_out.width  = tensor_param->dim[0].size[0];
 	img_out.height = tensor_param->dim[0].size[1];
-	face_in_width  = tensor_param->dim[0].size[0];
-	face_in_height = tensor_param->dim[0].size[1];
 
 	img_in.data = (uint8_t *)data_in;
 	img_out.data = (uint8_t *)tensor[0];
 	dprintf(LOG_INF, "[nn preprocess]src %d %d, dst %d %d\n\r", img_in.width, img_in.height, img_out.width, img_out.height);
 	dprintf(LOG_INF, "[nn preprocess]roi %d %d %d %d \n\r", roi->xmin, roi->ymin, roi->xmax, roi->ymax);
 
-	// resize src ROI area to dst
 	if (img_in.width == img_out.width && img_in.height == img_out.height) {
 		dprintf(LOG_INF, "[nn preprocess]same size, just copy!\n\r");
-		//memcpy(img_out.data, img_in.data, img_out.width * img_out.height * 3);
-		img_dma_copy(img_out.data, img_in.data, img_out.width * img_out.height * 3);
+		// return PP_USE_INPUT to use video RGB buffer to do inference
+		return PP_USE_INPUT;
 	} else {
+		// resize src ROI area to dst
 		dprintf(LOG_INF, "[nn preprocess]resize to NN input size!\n\r");
 		//img_resize_planar(&img_in, roi, &img_out);
 		img_scaled_into_letterbox(&img_in, &img_out);
+		dcache_clean_by_addr((uint32_t *)img_out.data, img_out.width * img_out.height * 3);
 	}
 
-	dcache_clean_by_addr((uint32_t *)img_out.data, img_out.width * img_out.height * 3);
-
-	return 0;
+	return PP_USE_RESULT;
 }
 
 static void facebox_dump(int log_level)
@@ -233,6 +237,7 @@ void scrfd_set_nms_thresh(void *nms_thresh)
 
 nnmodel_t scrfd_fwfs = {
 	.nb 			= scrfd_get_network_filename,
+	.set_init_info  = scrfd_set_network_init_info,
 	.preprocess 	= scrfd_preprocess,
 	.postprocess 	= scrfd_postprocess,
 	.model_src 		= MODEL_SRC_FILE,

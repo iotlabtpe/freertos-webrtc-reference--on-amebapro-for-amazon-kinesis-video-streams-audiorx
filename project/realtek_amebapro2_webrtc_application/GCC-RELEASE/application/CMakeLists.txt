@@ -7,7 +7,7 @@ set (repo_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 # root of realtek_amebapro2_webrtc_application
 set (prj_root "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 # root of SDK
-set (sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/../../../../libraries/ambpro2_sdk")
+set (sdk_root "${repo_root}/libraries/ambpro2_sdk")
 set(app_ntz application.ntz)
 
 message(STATUS "Build libraries ${BUILD_LIB}")
