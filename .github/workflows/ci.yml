@@ -31,8 +31,9 @@ jobs:
         echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
 
         sudo apt-get update -y
-        pushd libraries/ambpro2_sdk/tools
-        cat asdk-10.3.0-linux-newlib-build-3633-x86_64.tar.bz2.* | tar jxvf -
+        pushd Tools
+        wget https://github.com/Ameba-AIoT/ameba-toolchain/releases/download/V10.3.0-amebe-rtos-pro2/asdk-10.3.0-linux-newlib-build-3638-x86_64.tar.bz2
+        tar -xvf asdk-10.3.0-*.tar.bz2
         popd
 
         echo "::endgroup::"
@@ -54,7 +55,7 @@ jobs:
 
       run: |
         echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
-        export PATH=${{github.workspace}}/libraries/ambpro2_sdk/tools/asdk-10.3.0/linux/newlib/bin:$PATH
+        export PATH=${{github.workspace}}/Tools/asdk-10.3.0/linux/newlib/bin:$PATH
         echo -e "PATH: $PATH"
 
         rm -rf ${{github.workspace}}/project/realtek_amebapro2_webrtc_application/GCC-RELEASE/build
@@ -71,7 +72,7 @@ jobs:
 
       run: |
         echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
-        export PATH=${{github.workspace}}/libraries/ambpro2_sdk/tools/asdk-10.3.0/linux/newlib/bin:$PATH
+        export PATH=${{github.workspace}}/Tools/asdk-10.3.0/linux/newlib/bin:$PATH
         echo -e "PATH: $PATH"
         
         rm -rf ${{github.workspace}}/project/realtek_amebapro2_webrtc_application/GCC-RELEASE/build

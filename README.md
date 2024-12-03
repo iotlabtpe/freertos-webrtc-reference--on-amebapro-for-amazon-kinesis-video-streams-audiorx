@@ -21,7 +21,7 @@ git submodule update --init --recursive
    - https://github.com/Ameba-AIoT/ameba-toolchain/releases/tag/V10.3.0-amebe-rtos-pro2
 1. Setup toolchain:
    ```sh
-   tar xvf asdk-10.3.0-*.tar.bz2
+   tar -xvf asdk-10.3.0-*.tar.bz2
    pwd
    <!-- Copy this absolute path  -->
    export PATH=($COPIED_PATH)/asdk-10.3.0/linux/newlib/bin:$PATH
