@@ -8,6 +8,10 @@
 #include "metric.h"
 #include "core_json.h"
 
+#ifndef MIN
+#define MIN( a,b ) ( ( ( a ) < ( b ) ) ? ( a ) : ( b ) )
+#endif
+
 #if ( defined( SIGNALING_CONTROLLER_USING_LIBWEBSOCKETS ) && SIGNALING_CONTROLLER_USING_LIBWEBSOCKETS )
     #include "libwebsockets.h"
     #include "networkingLibwebsockets.h"
@@ -104,13 +108,13 @@ static WebsocketResult_t handleWssMessage( char * pMessage,
 
             case SIGNALING_TYPE_MESSAGE_STATUS_RESPONSE:
 
-                if( strcmp(wssRecvMessage.statusResponse.pStatusCode,"200")!= 0 )
+                if( strcmp( wssRecvMessage.statusResponse.pStatusCode,"200" ) != 0 )
                 {
-                    LogWarn(( "Failed to deliver message. Correlation ID: %s, Error Type: %s, Error Code: %s, Description: %s",
-                            wssRecvMessage.statusResponse.pCorrelationId,
-                            wssRecvMessage.statusResponse.pErrorType,
-                            wssRecvMessage.statusResponse.pStatusCode,
-                            wssRecvMessage.statusResponse.pDescription));
+                    LogWarn( ( "Failed to deliver message. Correlation ID: %s, Error Type: %s, Error Code: %s, Description: %s",
+                               wssRecvMessage.statusResponse.pCorrelationId,
+                               wssRecvMessage.statusResponse.pErrorType,
+                               wssRecvMessage.statusResponse.pStatusCode,
+                               wssRecvMessage.statusResponse.pDescription ) );
                 }
                 else
                 {
@@ -133,7 +137,7 @@ static WebsocketResult_t handleWssMessage( char * pMessage,
         receiveEvent.pDecodeMessage = pCtx->base64Buffer;
         receiveEvent.decodeMessageLength = pCtx->base64BufferLength;
 
-        if( (needCallback == true ) && ( pCtx->receiveMessageCallback != NULL ) )
+        if( ( needCallback == true ) && ( pCtx->receiveMessageCallback != NULL ) )
         {
             pCtx->receiveMessageCallback( &receiveEvent, pCtx->pReceiveMessageCallbackContext );
         }
@@ -402,7 +406,10 @@ static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerCo
                                                            size_t iceServerListNum )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
-    uint8_t i, j;
+    uint64_t iceServerConfigTimeSec;
+    uint64_t minTTL = UINT64_MAX;
+    uint8_t i;
+    uint8_t j;
 
     if( ( pCtx == NULL ) || ( pIceServerList == NULL ) )
     {
@@ -440,6 +447,8 @@ static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerCo
             pCtx->iceServerConfigs[i].passwordLength = pIceServerList[i].passwordLength;
             pCtx->iceServerConfigs[i].ttlSeconds = pIceServerList[i].messageTtlSeconds;
 
+            minTTL = MIN( minTTL, pCtx->iceServerConfigs[i].ttlSeconds );
+
             for( j = 0; j < pIceServerList[i].urisNum; j++ )
             {
                 if( j >= SIGNALING_CONTROLLER_ICE_SERVER_MAX_URIS_COUNT )
@@ -474,7 +483,17 @@ static SignalingControllerResult_t updateIceServerConfigs( SignalingControllerCo
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
+        /* Update context with latest ICE server configuration, including server count and expiration. */
         pCtx->iceServerConfigsCount = i;
+
+        iceServerConfigTimeSec = NetworkingUtils_GetCurrentTimeSec( NULL );
+
+        if( minTTL < ICE_CONFIGURATION_REFRESH_GRACE_PERIOD_SEC )
+        {
+            LogWarn( ( "Minimum TTL is less than Refresh Grace Period." ) );
+        }
+
+        pCtx->iceServerConfigExpirationSec = iceServerConfigTimeSec + ( minTTL - ICE_CONFIGURATION_REFRESH_GRACE_PERIOD_SEC );
     }
 
     return ret;
@@ -905,14 +924,14 @@ static SignalingControllerResult_t handleEvent( SignalingControllerContext_t * p
                 LogInfo( ( "Disconnected Websocket Server. " ) );
 
                 /* Change the State to Describe state and attempt Re-connection. */
-                ret = SignalingController_ConnectServers(pCtx);
+                ret = SignalingController_ConnectServers( pCtx );
             }
             if( ret != SIGNALING_CONTROLLER_RESULT_OK )
             {
                 LogInfo( ( "Reconnection Un-Succesfull. %d ",ret ) );
                 websocketRet = NETWORKING_WSLAY_RESULT_FAIL_CONNECT;
             }
-            if(ret == SIGNALING_CONTROLLER_RESULT_OK)
+            if( ret == SIGNALING_CONTROLLER_RESULT_OK )
             {
                 LogInfo( ( "Reconnection Succesfull. " ) );
             }
@@ -1019,46 +1038,46 @@ void SignalingController_Deinit( SignalingControllerContext_t * pCtx )
     }
 }
 
-SignalingControllerResult_t SignalingController_IceServerReconnection(SignalingControllerContext_t *pCtx)
+SignalingControllerResult_t SignalingController_IceServerReconnection( SignalingControllerContext_t * pCtx )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     WebsocketResult_t retWebsocket = WEBSOCKET_RESULT_OK;
 
-    if (pCtx == NULL)
+    if( pCtx == NULL )
     {
         ret = SIGNALING_CONTROLLER_RESULT_BAD_PARAMETER;
     }
 
-    if (ret == SIGNALING_CONTROLLER_RESULT_OK)
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
         /* Disconnect the Web-Socket Server. */
         retWebsocket = Websocket_Disconnect();
     }
     else
     {
-        LogWarn((" Web-Socket Disconnect Unsuccessfull. "));
+        LogWarn( ( " Web-Socket Disconnect Unsuccessfull. " ) );
     }
 
-    if (retWebsocket == WEBSOCKET_RESULT_OK)
+    if( retWebsocket == WEBSOCKET_RESULT_OK )
     {
-        LogDebug(("Disconnected Websocket Server."));
+        LogDebug( ( "Disconnected Websocket Server." ) );
 
         /* Change the State to Describe state and attempt Re-connection. */
-        ret = getIceServerList(pCtx);
+        ret = getIceServerList( pCtx );
     }
     else
     {
-        LogWarn((" Fetching ICE Server List Unsuccessfull. "));
+        LogWarn( ( " Fetching ICE Server List Unsuccessfull. " ) );
     }
 
-    if (ret == SIGNALING_CONTROLLER_RESULT_OK)
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
         /* Reconnect to the websocket secure endpoint. */
-        ret = connectWssEndpoint(pCtx);
+        ret = connectWssEndpoint( pCtx );
     }
     else
     {
-        LogWarn((" Reconnection WSS Endpoint Unsuccessfull. "));
+        LogWarn( ( " Reconnection WSS Endpoint Unsuccessfull. " ) );
     }
 
     return ret;
@@ -1067,6 +1086,8 @@ SignalingControllerResult_t SignalingController_IceServerReconnection(SignalingC
 SignalingControllerResult_t SignalingController_ConnectServers( SignalingControllerContext_t * pCtx )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
+    SignalingControllerIceServerConfig_t * pIceServerConfigs;
+    size_t iceServerConfigsCount;
 
     /* Check input parameters. */
     if( pCtx == NULL )
@@ -1099,9 +1120,7 @@ SignalingControllerResult_t SignalingController_ConnectServers( SignalingControl
     /* Query ICE server list with HTTPS endpoint. */
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        Metric_StartEvent( METRIC_EVENT_SIGNALING_GET_ICE_SERVER_LIST );
-        ret = getIceServerList( pCtx );
-        Metric_EndEvent( METRIC_EVENT_SIGNALING_GET_ICE_SERVER_LIST );
+        ret = SignalingController_QueryIceServerConfigs( pCtx, &pIceServerConfigs, &iceServerConfigsCount );
     }
 
     /* Connect websocket secure endpoint. */
@@ -1142,7 +1161,7 @@ SignalingControllerResult_t SignalingController_ProcessLoop( SignalingController
 
         messageQueueRet = MessageQueue_IsEmpty( &pCtx->sendMessageQueue );
 
-        while(messageQueueRet == MESSAGE_QUEUE_RESULT_MQ_HAVE_MESSAGE)
+        while( messageQueueRet == MESSAGE_QUEUE_RESULT_MQ_HAVE_MESSAGE )
         {
             /* Handle event. */
             eventMsgLength = sizeof( SignalingControllerEventMessage_t );
@@ -1195,6 +1214,7 @@ SignalingControllerResult_t SignalingController_QueryIceServerConfigs( Signaling
                                                                        size_t * pIceServerConfigsCount )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
+    uint64_t currentTimeSec;
 
     if( ( pCtx == NULL ) || ( ppIceServerConfigs == NULL ) || ( pIceServerConfigsCount == NULL ) )
     {
@@ -1203,7 +1223,17 @@ SignalingControllerResult_t SignalingController_QueryIceServerConfigs( Signaling
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        /* TODO: check if ICE server configs expire. */
+        currentTimeSec = NetworkingUtils_GetCurrentTimeSec( NULL );
+
+        if( ( pCtx->iceServerConfigsCount == 0 ) || ( pCtx->iceServerConfigExpirationSec < currentTimeSec ) )
+        {
+            LogInfo( ( "Ice server configs expired, Starting Refresing Configs." ) );
+
+            Metric_StartEvent( METRIC_EVENT_SIGNALING_GET_ICE_SERVER_LIST );
+            ret = getIceServerList( pCtx );
+            Metric_EndEvent( METRIC_EVENT_SIGNALING_GET_ICE_SERVER_LIST );
+        }
+
         *ppIceServerConfigs = pCtx->iceServerConfigs;
         *pIceServerConfigsCount = pCtx->iceServerConfigsCount;
     }
