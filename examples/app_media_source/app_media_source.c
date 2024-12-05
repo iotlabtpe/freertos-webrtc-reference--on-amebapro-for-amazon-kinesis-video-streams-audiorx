@@ -11,10 +11,10 @@
 
 // Considering 4 Mbps for 720p (which is what our samples use). This is for H.264.
 // The value could be different for other codecs.
-#define DEFAULT_TRANSCEIVER_VIDEO_BIT_RATE ( 4 * 1024 * 1024 )
+#define DEFAULT_TRANSCEIVER_VIDEO_BIT_RATE ( 2 * 1024 * 1024 )
 
 // For opus, the bitrate could be between 6 Kbps to 510 Kbps
-#define DEFAULT_TRANSCEIVER_AUDIO_BIT_RATE ( 510 * 1024 )
+#define DEFAULT_TRANSCEIVER_AUDIO_BIT_RATE ( 2 * 1024 * 1024 )
 
 #define DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID "myKvsVideoStream"
 #define DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID "myVideoTrack"
