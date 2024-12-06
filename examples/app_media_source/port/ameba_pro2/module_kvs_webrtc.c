@@ -660,10 +660,14 @@ void AppMediaSourcePort_Destroy( void )
     audio_ctx = mm_module_close( audio_ctx );
 #if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
     g711e_ctx = mm_module_close( g711e_ctx );
+#if ENABLE_AUDIO_RECV
     g711d_ctx = mm_module_close( g711d_ctx );
+#endif /* ENABLE_AUDIO_RECV */
 #elif AUDIO_OPUS
     opusc_ctx = mm_module_close( opusc_ctx );
+#if ENABLE_AUDIO_RECV
     opusd_ctx = mm_module_close( opusd_ctx );
+#endif /* ENABLE_AUDIO_RECV */
 #endif
 
     // Video Deinit
