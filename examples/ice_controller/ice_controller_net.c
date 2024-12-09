@@ -413,11 +413,9 @@ IceControllerResult_t IceControllerNet_SendPacket( IceControllerContext_t * pCtx
                 if( ( errno == EAGAIN ) || ( errno == EWOULDBLOCK ) )
                 {
                     /* Just retry for these kinds of errno. */
-                    LogWarn( ( "Sending data through networking have %d", errno ) );
                 }
                 else if( ( errno == ENOMEM ) || ( errno == ENOSPC ) || ( errno == ENOBUFS ) )
                 {
-                    LogWarn( ( "Sending data through networking have %d", errno ) );
                     vTaskDelay( pdMS_TO_TICKS( ICE_CONTROLLER_RESEND_DELAY_MS ) );
                     totalDelayMs += ICE_CONTROLLER_RESEND_DELAY_MS;
 
