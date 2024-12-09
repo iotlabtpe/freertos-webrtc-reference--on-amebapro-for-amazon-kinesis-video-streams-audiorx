@@ -4,6 +4,7 @@
 #include "logging.h"
 #include "sdp_controller.h"
 #include "string_utils.h"
+#include "peer_connection_sdp.h"
 
 #define PEER_CONNECTION_SDP_ORIGIN_DEFAULT_USER_NAME "-"
 #define PEER_CONNECTION_SDP_ORIGIN_DEFAULT_SESSION_VERSION ( 2 )
