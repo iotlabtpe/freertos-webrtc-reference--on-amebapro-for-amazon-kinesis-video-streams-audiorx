@@ -712,7 +712,7 @@ PeerConnectionResult_t PeerConnectionSrtp_HandleSrtcpPacket( PeerConnectionSessi
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        // LogInfo( ( "Receiving RTCP type: %d", rtcpPacket.header.packetType ) );
+        LogDebug( ( "Receiving RTCP type: %d", rtcpPacket.header.packetType ) );
         switch( rtcpPacket.header.packetType )
         {
             case RTCP_PACKET_FIR:
