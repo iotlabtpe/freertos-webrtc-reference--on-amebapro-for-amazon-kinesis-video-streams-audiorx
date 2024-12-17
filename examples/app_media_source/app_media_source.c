@@ -210,7 +210,7 @@ static int32_t InitializeVideoSource( AppMediaSourceContext_t * pVideoSource )
     if( ret == 0 )
     {
         /* Create task for video Tx. */
-        if( xTaskCreate( VideoTx_Task, ( ( const char * )"VideoTask" ), 2048, pVideoSource, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
+        if( xTaskCreate( VideoTx_Task, ( ( const char * )"VideoTask" ), 2048, pVideoSource, tskIDLE_PRIORITY + 2, NULL ) != pdPASS )
         {
             LogError( ( "xTaskCreate(VideoTask) failed" ) );
             ret = -1;
