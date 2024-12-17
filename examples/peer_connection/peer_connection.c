@@ -613,6 +613,7 @@ static PeerConnectionResult_t AllocateTransceiver( PeerConnectionSession_t * pSe
         {
             pSession->pTransceivers[ pSession->transceiverCount++ ] = pTransceiver;
             pTransceiver->ssrc = ( uint32_t ) rand();
+            pTransceiver->rtxSsrc = ( uint32_t ) rand();
         }
         else
         {

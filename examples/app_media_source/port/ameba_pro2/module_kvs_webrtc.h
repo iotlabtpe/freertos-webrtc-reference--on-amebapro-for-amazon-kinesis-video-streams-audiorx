@@ -8,6 +8,7 @@
 #define CMD_KVS_WEBRTC_GET_PARAMS       MM_MODULE_CMD( 0x01 )
 #define CMD_KVS_WEBRTC_SET_APPLY        MM_MODULE_CMD( 0x02 )
 #define CMD_KVS_WEBRTC_STOP             MM_MODULE_CMD( 0x03 )
+#define CMD_KVS_WEBRTC_START            MM_MODULE_CMD( 0x04 )
 
 typedef struct kvs_webrtc_ctx_s {
     void * pParent;

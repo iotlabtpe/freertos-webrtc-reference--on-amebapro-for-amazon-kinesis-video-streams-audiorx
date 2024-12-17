@@ -4,6 +4,7 @@
 *
 ******************************************************************************/
 #include "logging.h"
+#include "demo_config.h"
 #include "module_kvs_webrtc.h"
 #include "platform_opts.h"
 
@@ -29,11 +30,14 @@
 * Video type  : H264/HEVC
 *****************************************************************************/
 
+/* Audio sending is always enabled, but audio receiving is not tested. */
+#define ENABLE_AUDIO_RECV ( 0 )
+
 #define V1_CHANNEL 0
 #define V1_RESOLUTION VIDEO_HD
 #define V1_FPS 30
 #define V1_GOP 30
-#define V1_BPS 1024 * 1024
+#define V1_BPS 512 * 1024
 #define V1_RCMODE 2 // 1: CBR, 2: VBR
 
 #if USE_H265
@@ -58,13 +62,17 @@
 static mm_context_t * video_v1_ctx = NULL;
 static mm_context_t * audio_ctx = NULL;
 #if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
-static mm_context_t * g711e_ctx = NULL;
+#if ENABLE_AUDIO_RECV
 static mm_context_t * g711d_ctx = NULL;
-#endif
+#endif /* ENABLE_AUDIO_RECV */
+static mm_context_t * g711e_ctx = NULL;
+#endif /* ( AUDIO_G711_MULAW || AUDIO_G711_ALAW ) */
 #if ( AUDIO_OPUS )
 static mm_context_t * opusc_ctx = NULL;
+#if ENABLE_AUDIO_RECV
 static mm_context_t * opusd_ctx = NULL;
-#endif
+#endif /* ENABLE_AUDIO_RECV */
+#endif /* AUDIO_OPUS */
 static mm_context_t * kvs_webrtc_v1_a1_ctx = NULL;
 
 static mm_siso_t * siso_audio_a1 = NULL;
@@ -111,12 +119,14 @@ static g711_params_t g711e_params = {
     .mode = G711_ENCODE
 };
 
+#if ENABLE_AUDIO_RECV
 static g711_params_t g711d_params = {
     .codec_id = AV_CODEC_ID_PCMU,
     .buf_len = 2048,
     .mode = G711_DECODE
 };
-#endif
+#endif /* ENABLE_AUDIO_RECV */
+#endif /* ( AUDIO_G711_MULAW || AUDIO_G711_ALAW ) */
 
 #if ( AUDIO_OPUS )
 static opusc_params_t opusc_params = {
@@ -132,6 +142,7 @@ static opusc_params_t opusc_params = {
     .opus_application = OPUS_APPLICATION_AUDIO
 };
 
+#if ENABLE_AUDIO_RECV
 static opusd_params_t opusd_only_params = {
     .sample_rate = 8000, // 16000
     .channel = 1,
@@ -140,7 +151,8 @@ static opusd_params_t opusd_only_params = {
     .with_opus_enc = 1,       // enable semaphore if the application with opus encoder
     .opus_application = OPUS_APPLICATION_AUDIO
 };
-#endif
+#endif /* ENABLE_AUDIO_RECV */
+#endif /* AUDIO_OPUS */
 
 int kvs_webrtc_handle( void * p,
                        void * input,
@@ -226,7 +238,7 @@ int kvs_webrtc_control( void * p,
 
     switch( cmd )
     {
-        case CMD_KVS_WEBRTC_SET_APPLY:
+        case CMD_KVS_WEBRTC_START:
             /* If loopback is enabled, we don't need the camera to provide frames.
              * Instead, we loopback the received frames. */
 #ifdef ENABLE_STREAMING_LOOPBACK
@@ -242,7 +254,7 @@ int kvs_webrtc_control( void * p,
     return 0;
 }
 
-void *kvs_webrtc_destroy( void * p )
+void * kvs_webrtc_destroy( void * p )
 {
     kvs_webrtc_ctx_t * ctx = ( kvs_webrtc_ctx_t * )p;
     if( ctx )
@@ -252,7 +264,7 @@ void *kvs_webrtc_destroy( void * p )
     return NULL;
 }
 
-void *kvs_webrtc_create( void * parent )
+void * kvs_webrtc_create( void * parent )
 {
     kvs_webrtc_ctx_t * ctx = malloc( sizeof( kvs_webrtc_ctx_t ) );
     if( !ctx )
@@ -269,7 +281,7 @@ void *kvs_webrtc_create( void * parent )
     return ctx;
 }
 
-void *kvs_webrtc_new_item( void * p )
+void * kvs_webrtc_new_item( void * p )
 {
     kvs_webrtc_ctx_t * ctx = ( kvs_webrtc_ctx_t * )p;
     ( void )ctx;
@@ -278,8 +290,8 @@ void *kvs_webrtc_new_item( void * p )
     return NULL;
 }
 
-void *kvs_webrtc_del_item( void * p,
-                           void * d )
+void * kvs_webrtc_del_item( void * p,
+                            void * d )
 {
     ( void )p;
     // if (d) {
@@ -297,8 +309,8 @@ mm_module_t kvs_webrtc_module = {
     .new_item = kvs_webrtc_new_item,
     .del_item = kvs_webrtc_del_item,
 
-    .output_type = MM_TYPE_NONE, // output for video sink
-    .module_type = MM_TYPE_VDSP, // module type is video algorithm
+    .output_type = MM_TYPE_ASINK, // output for audio sink
+    .module_type = MM_TYPE_AVSINK, // module type is video algorithm
     .name = "KVS_WebRTC"
 };
 
@@ -324,6 +336,7 @@ int32_t AppMediaSourcePort_Init( OnFrameReadyToSend_t onVideoFrameReadyToSendFun
         mm_module_ctrl( kvs_webrtc_v1_a1_ctx,
                         MM_CMD_INIT_QUEUE_ITEMS,
                         MMQI_FLAG_STATIC );
+        mm_module_ctrl( kvs_webrtc_v1_a1_ctx, CMD_KVS_WEBRTC_SET_APPLY, 0 );
     }
     else
     {
@@ -356,7 +369,7 @@ int32_t AppMediaSourcePort_Init( OnFrameReadyToSend_t onVideoFrameReadyToSendFun
                             MMQI_FLAG_DYNAMIC );
             mm_module_ctrl( video_v1_ctx,
                             CMD_VIDEO_APPLY,
-                            V1_CHANNEL );                              // start channel 0
+                            V1_CHANNEL ); // start channel 0
         }
         else
         {
@@ -514,6 +527,7 @@ int32_t AppMediaSourcePort_Init( OnFrameReadyToSend_t onVideoFrameReadyToSendFun
         LogInfo( ( "miso_kvs_webrtc_v1_a1 started" ) );
     }
 
+#if ENABLE_AUDIO_RECV
     if( ret == 0 )
     {
 #if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
@@ -624,6 +638,7 @@ int32_t AppMediaSourcePort_Init( OnFrameReadyToSend_t onVideoFrameReadyToSendFun
             ret = -1;
         }
     }
+#endif /* ENABLE_AUDIO_RECV */
 
     return ret;
 }
@@ -660,10 +675,14 @@ void AppMediaSourcePort_Destroy( void )
     audio_ctx = mm_module_close( audio_ctx );
 #if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
     g711e_ctx = mm_module_close( g711e_ctx );
+#if ENABLE_AUDIO_RECV
     g711d_ctx = mm_module_close( g711d_ctx );
+#endif /* ENABLE_AUDIO_RECV */
 #elif AUDIO_OPUS
     opusc_ctx = mm_module_close( opusc_ctx );
+#if ENABLE_AUDIO_RECV
     opusd_ctx = mm_module_close( opusd_ctx );
+#endif /* ENABLE_AUDIO_RECV */
 #endif
 
     // Video Deinit
@@ -675,7 +694,7 @@ int32_t AppMediaSourcePort_Start( void )
     int32_t ret = 0;
 
     mm_module_ctrl( kvs_webrtc_v1_a1_ctx,
-                    CMD_KVS_WEBRTC_SET_APPLY,
+                    CMD_KVS_WEBRTC_START,
                     0 );
 
     return ret;
