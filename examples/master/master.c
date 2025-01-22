@@ -39,9 +39,8 @@
 #define DEMO_ICE_CANDIDATE_JSON_TEMPLATE          "{\"candidate\":\"%.*s\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0}"
 #define DEMO_ICE_CANDIDATE_JSON_MAX_LENGTH        ( 1024 )
 #define DEMO_ICE_CANDIDATE_JSON_IPV4_TEMPLATE     "candidate:%u 1 udp %lu %d.%d.%d.%d %d typ %s raddr 0.0.0.0 rport 0 generation 0 network-cost 999"
-#define DEMO_ICE_CANDIDATE_JSON_IPV6_TEMPLATE \
-        "candidate:%u 1 udp %lu %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X " \
-        "%d typ %s raddr ::/0 rport 0 generation 0 network-cost 999"
+#define DEMO_ICE_CANDIDATE_JSON_IPV6_TEMPLATE     "candidate:%u 1 udp %lu %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X " \
+                                                  "%d typ %s raddr ::/0 rport 0 generation 0 network-cost 999"
 
 #define ICE_SERVER_TYPE_STUN                      "stun:"
 #define ICE_SERVER_TYPE_STUN_LENGTH               ( 5 )
@@ -138,7 +137,7 @@ static int initializeApplication( DemoContext_t * pDemoContext )
 {
     int ret = 0;
     SignalingControllerResult_t signalingControllerReturn;
-    SignalingControllerCredential_t signalingControllerCred;
+    SignalingControllerCredentialInfo_t credentialInfo;
 
     if( pDemoContext == NULL )
     {
@@ -153,25 +152,51 @@ static int initializeApplication( DemoContext_t * pDemoContext )
                 sizeof( DemoContext_t ) );
 
         /* Initialize Signaling controller. */
-        memset( &signalingControllerCred,
+        memset( &credentialInfo,
                 0,
-                sizeof( SignalingControllerCredential_t ) );
-        signalingControllerCred.pRegion = AWS_REGION;
-        signalingControllerCred.regionLength = strlen( AWS_REGION );
-        signalingControllerCred.pChannelName = AWS_KVS_CHANNEL_NAME;
-        signalingControllerCred.channelNameLength = strlen( AWS_KVS_CHANNEL_NAME );
-        signalingControllerCred.pUserAgentName = AWS_KVS_AGENT_NAME;
-        signalingControllerCred.userAgentNameLength = strlen( AWS_KVS_AGENT_NAME );
-        signalingControllerCred.pAccessKeyId = AWS_ACCESS_KEY_ID;
-        signalingControllerCred.accessKeyIdLength = strlen( AWS_ACCESS_KEY_ID );
-        signalingControllerCred.pSecretAccessKey = AWS_SECRET_ACCESS_KEY;
-        signalingControllerCred.secretAccessKeyLength = strlen( AWS_SECRET_ACCESS_KEY );
-        signalingControllerCred.pCaCertPath = NULL;
-        signalingControllerCred.pCaCertPem = AWS_CA_CERT_PEM;
-        signalingControllerCred.caCertPemSize = sizeof( AWS_CA_CERT_PEM );
+                sizeof( SignalingControllerCredentialInfo_t ) );
+        credentialInfo.pRegion = AWS_REGION;
+        credentialInfo.regionLength = strlen( AWS_REGION );
+        credentialInfo.pChannelName = AWS_KVS_CHANNEL_NAME;
+        credentialInfo.channelNameLength = strlen( AWS_KVS_CHANNEL_NAME );
+        credentialInfo.pUserAgentName = AWS_KVS_AGENT_NAME;
+        credentialInfo.userAgentNameLength = strlen( AWS_KVS_AGENT_NAME );
 
-        signalingControllerReturn = SignalingController_Init( &pDemoContext->signalingControllerContext,
-                                                              &signalingControllerCred,
+        #if defined( AWS_CA_CERT_PATH )
+            credentialInfo.pCaCertPath = AWS_CA_CERT_PATH;
+        #endif /* #if defined( AWS_CA_CERT_PATH ) */
+        
+        #if defined( AWS_CA_CERT_PEM )
+            credentialInfo.pCaCertPem = AWS_CA_CERT_PEM;
+            credentialInfo.caCertPemSize = sizeof( AWS_CA_CERT_PEM );
+        #endif /* #if defined( AWS_CA_CERT_PEM ) */
+        
+        #if defined( AWS_ACCESS_KEY_ID )
+        credentialInfo.pAccessKeyId = AWS_ACCESS_KEY_ID;
+        credentialInfo.accessKeyIdLength = strlen( AWS_ACCESS_KEY_ID );
+        credentialInfo.pSecretAccessKey = AWS_SECRET_ACCESS_KEY;
+        credentialInfo.secretAccessKeyLength = strlen( AWS_SECRET_ACCESS_KEY );
+        #if defined( AWS_SESSION_TOKEN )
+        credentialInfo.pSessionToken = AWS_SESSION_TOKEN;
+        credentialInfo.sessionTokenLength = strlen( AWS_SESSION_TOKEN );
+        #endif /* #if defined( AWS_SESSION_TOKEN ) */
+        #endif /* #if defined( AWS_ACCESS_KEY_ID ) */
+
+        #if defined( AWS_IOT_THING_ROLE_ALIAS )
+        credentialInfo.pCredEndpoint = AWS_CREDENTIALS_ENDPOINT;
+        credentialInfo.credEndpointLength = strlen( AWS_CREDENTIALS_ENDPOINT );
+        credentialInfo.pIotThingName = AWS_IOT_THING_NAME;
+        credentialInfo.iotThingNameLength = strlen( AWS_IOT_THING_NAME );
+        credentialInfo.pIotThingRoleAlias = AWS_IOT_THING_ROLE_ALIAS;
+        credentialInfo.iotThingRoleAliasLength = strlen( AWS_IOT_THING_ROLE_ALIAS );
+        credentialInfo.pIotThingCert = AWS_IOT_THING_CERT;
+        credentialInfo.iotThingCertSize = sizeof( AWS_IOT_THING_CERT );
+        credentialInfo.pIotThingPrivateKey = AWS_IOT_THING_PRIVATE_KEY;
+        credentialInfo.iotThingPrivateKeySize = sizeof( AWS_IOT_THING_PRIVATE_KEY );
+        #endif /* #if defined( AWS_IOT_THING_ROLE_ALIAS ) */
+
+        signalingControllerReturn = SignalingController_Init( &demoContext.signalingControllerContext,
+                                                              &credentialInfo,
                                                               handleSignalingMessage,
                                                               NULL );
 
@@ -750,27 +775,27 @@ static PeerConnectionResult_t HandleRxVideoFrame( void * pCustomContext,
                                                   PeerConnectionFrame_t * pFrame )
 {
     #ifdef ENABLE_STREAMING_LOOPBACK
-        webrtc_frame_t frame;
+    webrtc_frame_t frame;
 
-        if( pFrame != NULL )
-        {
-            LogDebug( ( "Received video frame with length: %u", pFrame->dataLength ) );
+    if( pFrame != NULL )
+    {
+        LogDebug( ( "Received video frame with length: %u", pFrame->dataLength ) );
 
-            frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
-            frame.pData = pFrame->pData;
-            frame.size = pFrame->dataLength;
-            frame.freeData = 0U;
-            frame.timestampUs = pFrame->presentationUs;
-            ( void ) OnMediaSinkHook( pCustomContext,
-                                      &frame );
-        }
+        frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
+        frame.pData = pFrame->pData;
+        frame.size = pFrame->dataLength;
+        frame.freeData = 0U;
+        frame.timestampUs = pFrame->presentationUs;
+        ( void ) OnMediaSinkHook( pCustomContext,
+                                  &frame );
+    }
     #else /* ifdef ENABLE_STREAMING_LOOPBACK */
-        ( void ) pCustomContext;
+    ( void ) pCustomContext;
 
-        if( pFrame != NULL )
-        {
-            LogDebug( ( "Received video frame with length: %u", pFrame->dataLength ) );
-        }
+    if( pFrame != NULL )
+    {
+        LogDebug( ( "Received video frame with length: %u", pFrame->dataLength ) );
+    }
     #endif /* ifdef ENABLE_STREAMING_LOOPBACK */
 
     return PEER_CONNECTION_RESULT_OK;
@@ -916,7 +941,7 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
         }
     }
 
-     if( skipProcess == 0 )
+    if( skipProcess == 0 )
     {
         peerConnectionResult = PeerConnection_SetAudioOnFrame( &pPcSession->peerConnectionSession,
                                                                HandleRxAudioFrame,
@@ -1265,7 +1290,8 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEven
             break;
 
         case SIGNALING_TYPE_MESSAGE_RECONNECT_ICE_SERVER:
-            HandleIceServerReconnect( &demoContext, pEvent );
+            HandleIceServerReconnect( &demoContext,
+                                      pEvent );
             break;
 
         case SIGNALING_TYPE_MESSAGE_STATUS_RESPONSE:
@@ -1332,7 +1358,7 @@ void app_example( void )
     if( ret == 0 )
     {
         #ifdef BUILD_INFO
-            LogInfo( ( "\r\nBuild Info: %s\r\n", BUILD_INFO ) );
+        LogInfo( ( "\r\nBuild Info: %s\r\n", BUILD_INFO ) );
         #endif
     }
 

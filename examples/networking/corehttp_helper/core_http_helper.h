@@ -35,6 +35,7 @@ typedef enum NetworkingCorehttpResult
     NETWORKING_COREHTTP_RESULT_FAIL_HTTP_ADD_HEADER_USER_AGENT,
     NETWORKING_COREHTTP_RESULT_FAIL_HTTP_ADD_HEADER_DATE,
     NETWORKING_COREHTTP_RESULT_FAIL_HTTP_ADD_HEADER_CONTENT_TYPE,
+    NETWORKING_COREHTTP_RESULT_FAIL_HTTP_ADD_HEADER_IOT_THING_NAME,
     NETWORKING_COREHTTP_RESULT_FAIL_HTTP_ADD_HEADER_AUTH,
     NETWORKING_COREHTTP_RESULT_FAIL_HTTP_SEND,
     NETWORKING_COREHTTP_RESULT_FAIL_SIGV4_GENERATE_AUTH,
@@ -65,6 +66,18 @@ typedef struct NetworkingCorehttpCredentials
     /* Or CA PEM */
     const uint8_t * pRootCa;
     size_t rootCaSize;
+
+    /* IoT thing credentials for role alias. */
+    const uint8_t * pIotThingCert;
+    size_t iotThingCertSize;
+    const uint8_t * pIotThingPrivateKey;
+    size_t iotThingPrivateKeySize;
+    char * pIotThingName;
+    size_t iotThingNameLength;
+    char * pSessionToken;
+    size_t sessionTokenLength;
+
+    uint64_t expirationSeconds;
 } NetworkingCorehttpCredentials_t;
 
 typedef struct NetworkingCorehttpContext

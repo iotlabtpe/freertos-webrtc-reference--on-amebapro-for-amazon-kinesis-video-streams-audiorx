@@ -37,6 +37,7 @@ WebsocketResult_t Websocket_Send( char * pMessage,
                                   size_t messageLength );
 WebsocketResult_t Websocket_Recv( void );
 WebsocketResult_t Websocket_Signal( void );
+WebsocketResult_t Websocket_UpdateCredential( void * pCredential );
 
 #ifdef __cplusplus
 }

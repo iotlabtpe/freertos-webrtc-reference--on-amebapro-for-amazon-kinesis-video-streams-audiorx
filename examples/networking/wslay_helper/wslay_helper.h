@@ -76,6 +76,18 @@ typedef struct NetworkingWslayCredentials
     /* Or CA PEM */
     const uint8_t * pRootCa;
     size_t rootCaSize;
+
+    /* IoT thing credentials for role alias. */
+    const uint8_t * pIotThingCert;
+    size_t iotThingCertSize;
+    const uint8_t * pIotThingPrivateKey;
+    size_t iotThingPrivateKeySize;
+    char * pIotThingName;
+    size_t iotThingNameLength;
+    char * pSessionToken;
+    size_t sessionTokenLength;
+
+    uint64_t expirationSeconds;
 } NetworkingWslayCredentials_t;
 
 typedef enum NetworkingWslayHttpHeader

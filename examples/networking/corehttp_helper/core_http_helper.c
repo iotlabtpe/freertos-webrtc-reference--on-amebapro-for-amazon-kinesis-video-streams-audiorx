@@ -20,6 +20,7 @@
 #define NETWORKING_COREHTTP_STRING_CONTENT_TYPE "content-type"
 #define NETWORKING_COREHTTP_STRING_CONTENT_TYPE_VALUE "application/json"
 #define NETWORKING_COREHTTP_STRING_CONTENT_LENGTH "content-length"
+#define NETWORKING_COREHTTP_STRING_IOT_THINGNAME "x-amzn-iot-thingname"
 
 NetworkingCorehttpContext_t networkingCorehttpContext;
 
@@ -61,6 +62,18 @@ HttpResult_t Http_Init( void * pCredential )
 
         /* Set the pParams member of the network context with desired transport. */
         networkingCorehttpContext.xNetworkContext.pParams = &networkingCorehttpContext.xTlsTransportParams;
+
+        /* Set up network credentials */
+        networkingCorehttpContext.xNetworkCredientials.pRootCa = pNetworkingCorehttpCredentials->pRootCa;
+        networkingCorehttpContext.xNetworkCredientials.rootCaSize = pNetworkingCorehttpCredentials->rootCaSize;
+
+        if( networkingCorehttpContext.credentials.iotThingPrivateKeySize > 0 )
+        {
+            networkingCorehttpContext.xNetworkCredientials.pClientCert = pNetworkingCorehttpCredentials->pIotThingCert;
+            networkingCorehttpContext.xNetworkCredientials.clientCertSize = pNetworkingCorehttpCredentials->iotThingCertSize;
+            networkingCorehttpContext.xNetworkCredientials.pPrivateKey = pNetworkingCorehttpCredentials->pIotThingPrivateKey;
+            networkingCorehttpContext.xNetworkCredientials.privateKeySize = pNetworkingCorehttpCredentials->iotThingPrivateKeySize;
+        }
     }
 
     if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && !first )
@@ -135,7 +148,15 @@ HttpResult_t Http_Send( HttpRequest_t * pRequest,
         memset( &credentials, 0, sizeof( NetworkCredentials_t ) );
         credentials.pRootCa = networkingCorehttpContext.credentials.pRootCa;
         credentials.rootCaSize = networkingCorehttpContext.credentials.rootCaSize;
-
+        
+        if( networkingCorehttpContext.credentials.iotThingCertSize > 0 )
+        {
+            credentials.pClientCert = networkingCorehttpContext.credentials.pIotThingCert; 
+            credentials.clientCertSize = networkingCorehttpContext.credentials.iotThingCertSize;
+            credentials.pPrivateKey =  networkingCorehttpContext.credentials.pIotThingPrivateKey;
+            credentials.privateKeySize = networkingCorehttpContext.credentials.iotThingPrivateKeySize;
+        }
+        
         retUtils = NetworkingUtils_ConnectToServer( &networkingCorehttpContext.xNetworkContext,
                                                     networkingCorehttpContext.hostName,
                                                     443,
@@ -157,8 +178,17 @@ HttpResult_t Http_Send( HttpRequest_t * pRequest,
         xRequestHeaders.bufferLen = NETWORKING_COREHTTP_BUFFER_LENGTH;
 
         /* Set HTTP request parameters to get temporary AWS IoT credentials. */
-        xRequestInfo.pMethod = HTTP_METHOD_POST;
-        xRequestInfo.methodLen = sizeof( HTTP_METHOD_POST ) - 1;
+        if( pRequest->isFetchingCredential != 0U )
+        {
+            xRequestInfo.pMethod = HTTP_METHOD_GET;
+            xRequestInfo.methodLen = sizeof( HTTP_METHOD_GET ) - 1;
+        }
+        else
+        {
+            xRequestInfo.pMethod = HTTP_METHOD_POST;
+            xRequestInfo.methodLen = sizeof( HTTP_METHOD_POST ) - 1;
+        }
+
         xRequestInfo.pPath = pPath;
         xRequestInfo.pathLen = pathLength;
         xRequestInfo.pHost = pHost;
@@ -204,6 +234,41 @@ HttpResult_t Http_Send( HttpRequest_t * pRequest,
         }
     }
 
+    /* While fetching credential, append IoT Thing Name and use HTTP GET. */
+    if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && ( pRequest->isFetchingCredential != 0U )  && ( networkingCorehttpContext.credentials.iotThingNameLength > 0))
+    {
+
+        xHttpStatus = HTTPClient_AddHeader( &xRequestHeaders,
+                                            NETWORKING_COREHTTP_STRING_IOT_THINGNAME,
+                                            strlen( NETWORKING_COREHTTP_STRING_IOT_THINGNAME ),
+                                            networkingCorehttpContext.credentials.pIotThingName,
+                                            networkingCorehttpContext.credentials.iotThingNameLength );
+
+        if( xHttpStatus != HTTPSuccess )
+        {
+            LogError( ( "Failed to add x-amzn-iot-thingname header to request headers: Error=%s.",
+                        HTTPClient_strerror( xHttpStatus ) ) );
+            ret = NETWORKING_COREHTTP_RESULT_FAIL_HTTP_ADD_HEADER_IOT_THING_NAME;
+        }
+    }
+
+    /* While fetching credential, append IoT Thing Name and use HTTP GET. */
+    if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && ( networkingCorehttpContext.credentials.sessionTokenLength > 0 ) )
+    {
+        xHttpStatus = HTTPClient_AddHeader( &xRequestHeaders,
+                                            SIGV4_HTTP_X_AMZ_SECURITY_TOKEN_HEADER,
+                                            strlen( SIGV4_HTTP_X_AMZ_SECURITY_TOKEN_HEADER ),
+                                            networkingCorehttpContext.credentials.pSessionToken,
+                                            networkingCorehttpContext.credentials.sessionTokenLength );
+
+        if( xHttpStatus != HTTPSuccess )
+        {
+            LogError( ( "Failed to add x-amzn-iot-thingname header to request headers: Error=%s.",
+                        HTTPClient_strerror( xHttpStatus ) ) );
+            ret = NETWORKING_COREHTTP_RESULT_FAIL_HTTP_ADD_HEADER_IOT_THING_NAME;
+        }
+    }
+
     if( ret == NETWORKING_COREHTTP_RESULT_OK )
     {
         xHttpStatus = HTTPClient_AddHeader( &xRequestHeaders,
@@ -221,7 +286,8 @@ HttpResult_t Http_Send( HttpRequest_t * pRequest,
     }
 
     /* Sign the HTTP request. */
-    if( ret == NETWORKING_COREHTTP_RESULT_OK )
+    /* While fetching credential, we don't need to generate authorization header and we don't have the key pair at this moment. */
+    if( ret == NETWORKING_COREHTTP_RESULT_OK && ( pRequest->isFetchingCredential == 0U ) )
     {
         /* Find the start key-value pairs for sigv4 signing. */
         NetworkingUtils_GetHeaderStartLocFromHttpRequest( &xRequestHeaders, &pcHeaderStart, &xHeadersLen );
@@ -250,7 +316,7 @@ HttpResult_t Http_Send( HttpRequest_t * pRequest,
         }
     }
 
-    if( ret == NETWORKING_COREHTTP_RESULT_OK )
+    if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && ( pRequest->isFetchingCredential == 0U ) )
     {
         /* Add the authorization header to the HTTP request headers. */
         xHttpStatus = HTTPClient_AddHeader( &xRequestHeaders,
@@ -267,7 +333,7 @@ HttpResult_t Http_Send( HttpRequest_t * pRequest,
         }
     }
 
-    if( ret == NETWORKING_COREHTTP_RESULT_OK )
+    if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && ( pRequest->isFetchingCredential == 0U ) )
     {
         contentLengthLength = snprintf( contentLengthBuffer, sizeof( contentLengthBuffer ), "%u", pRequest->bodyLength );
         xHttpStatus = HTTPClient_AddHeader( &xRequestHeaders,
@@ -337,6 +403,33 @@ HttpResult_t Http_Send( HttpRequest_t * pRequest,
     }
 
     NetworkingUtils_CloseConnection( &networkingCorehttpContext.xNetworkContext );
+
+    return ret;
+}
+
+HttpResult_t Http_UpdateCredential( void * pCredential )
+{
+    NetworkingCorehttpResult_t ret = NETWORKING_COREHTTP_RESULT_OK;
+    NetworkingCorehttpCredentials_t * pNetworkingCorehttpCredentials = ( NetworkingCorehttpCredentials_t * )pCredential;
+
+    if( pCredential == NULL )
+    {
+        ret = NETWORKING_COREHTTP_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == NETWORKING_COREHTTP_RESULT_OK )
+    {
+        memcpy( &networkingCorehttpContext.credentials, pNetworkingCorehttpCredentials, sizeof( NetworkingCorehttpCredentials_t ) );
+        networkingCorehttpContext.sigv4Credential.pAccessKeyId = pNetworkingCorehttpCredentials->pAccessKeyId;
+        networkingCorehttpContext.sigv4Credential.accessKeyIdLen = pNetworkingCorehttpCredentials->accessKeyIdLength;
+        networkingCorehttpContext.sigv4Credential.pSecretAccessKey = pNetworkingCorehttpCredentials->pSecretAccessKey;
+        networkingCorehttpContext.sigv4Credential.secretAccessKeyLen = pNetworkingCorehttpCredentials->secretAccessKeyLength;
+
+        if( networkingCorehttpContext.credentials.userAgentLength > NETWORKING_COREHTTP_USER_AGENT_NAME_MAX_LENGTH )
+        {
+            ret = NETWORKING_COREHTTP_RESULT_USER_AGENT_NAME_TOO_LONG;
+        }
+    }
 
     return ret;
 }

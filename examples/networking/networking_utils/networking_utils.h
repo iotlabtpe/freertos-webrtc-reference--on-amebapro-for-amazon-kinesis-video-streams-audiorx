@@ -32,6 +32,7 @@ typedef enum NetworkingHttpVerb
     NETWORKING_UTILS_HTTP_VERB_NONE = 0,
     NETWORKING_UTILS_HTTP_VERB_GET,
     NETWORKING_UTILS_HTTP_VERB_POST,
+    NETWORKING_UTILS_HTTP_VERB_WSS,
 } NetworkingHttpVerb_t;
 
 /* Refer to https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html
@@ -86,6 +87,8 @@ NetworkingUtilsResult_t NetworkingUtils_GetIso8601CurrentTime( char * pDate,
 
 uint64_t NetworkingUtils_GetCurrentTimeSec( void * pTick );
 uint64_t NetworkingUtils_GetCurrentTimeUs( void * pTick );
+uint64_t NetworkingUtils_GetTimeFromIso8601( const char * pDate,
+                                             size_t dateLength );
 
 #ifdef __cplusplus
 }

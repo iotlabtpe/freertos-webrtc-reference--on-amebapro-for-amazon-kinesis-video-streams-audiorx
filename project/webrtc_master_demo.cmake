@@ -43,7 +43,8 @@ set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/networking/wslay_helper"
      "${REPO_ROOT_DIRECTORY}/examples/networking/networking_utils"
      "${REPO_ROOT_DIRECTORY}/examples/logging"
-     "${REPO_ROOT_DIRECTORY}/examples/sigv4"
+     "${REPO_ROOT_DIRECTORY}/configs/mbedtls"
+     "${REPO_ROOT_DIRECTORY}/configs/sigv4"
      "${REPO_ROOT_DIRECTORY}/examples/message_queue"
      "${REPO_ROOT_DIRECTORY}/examples/base64"
      "${REPO_ROOT_DIRECTORY}/examples/sdp_controller"
@@ -100,10 +101,12 @@ include( ${REPO_ROOT_DIRECTORY}/CMake/ice.cmake )
 # Include libsrtp
 include( ${REPO_ROOT_DIRECTORY}/CMake/libsrtp.cmake )
 
+## Include sigV4
+include( ${REPO_ROOT_DIRECTORY}/CMake/sigV4.cmake )
+
 list(
 	APPEND app_flags
      SDP_DO_NOT_USE_CUSTOM_CONFIG
-     SIGV4_DO_NOT_USE_CUSTOM_CONFIG
      HAVE_ARPA_INET_H
 )
 

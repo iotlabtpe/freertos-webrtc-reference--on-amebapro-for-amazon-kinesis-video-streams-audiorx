@@ -1,4 +1,5 @@
 #include <time.h>
+#include <string.h>
 
 #include "FreeRTOS_POSIX/time.h"
 #include "sntp/sntp.h" // SNTP series APIs
@@ -11,12 +12,13 @@
 #include "mbedtls/version.h"
 
 #define NETWORKING_UTILS_STRING_SCHEMA_DELIMITER "://"
+#define NETWORKING_ISO8601_TIME_STRING_LENGTH ( 20 ) /* length of ISO8601 format (e.g. 2024-12-31T03:27:52Z). */
 
-static int32_t sha256Init( void * hashContext );
-static int32_t sha256Update( void * hashContext,
+static int32_t Sha256Init( void * hashContext );
+static int32_t Sha256Update( void * hashContext,
                              const uint8_t * pInput,
                              size_t inputLen );
-static int32_t sha256Final( void * hashContext,
+static int32_t Sha256Final( void * hashContext,
                             uint8_t * pOutput,
                             size_t outputLen );
 
@@ -30,9 +32,9 @@ static mbedtls_sha256_context xHashContext = { 0 };
  */
 static SigV4CryptoInterface_t cryptoInterface =
 {
-    .hashInit = sha256Init,
-    .hashUpdate = sha256Update,
-    .hashFinal = sha256Final,
+    .hashInit = Sha256Init,
+    .hashUpdate = Sha256Update,
+    .hashFinal = Sha256Final,
     .pHashContext = &xHashContext,
     .hashBlockLen = 64,
     .hashDigestLen = 32,
@@ -50,7 +52,7 @@ static SigV4Parameters_t sigv4Params =
     .pHttpParameters = NULL
 };
 
-static int32_t sha256Init( void * hashContext )
+static int32_t Sha256Init( void * hashContext )
 {
     mbedtls_sha256_init( ( mbedtls_sha256_context * ) hashContext );
     mbedtls_sha256_starts( hashContext, 0 );
@@ -58,7 +60,7 @@ static int32_t sha256Init( void * hashContext )
     return 0;
 }
 
-static int32_t sha256Update( void * hashContext,
+static int32_t Sha256Update( void * hashContext,
                              const uint8_t * pInput,
                              size_t inputLen )
 {
@@ -67,7 +69,7 @@ static int32_t sha256Update( void * hashContext,
     return 0;
 }
 
-static int32_t sha256Final( void * hashContext,
+static int32_t Sha256Final( void * hashContext,
                             uint8_t * pOutput,
                             size_t outputLen )
 {
@@ -432,4 +434,49 @@ uint64_t NetworkingUtils_GetCurrentTimeUs( void * pTick )
     // LogDebug( ( "pTick: %p, tickDiff: %u, sec: %lld, usec: %lld, tick: %u", pTick, tickDiff, sec, usec, tick ) );
 
     return ( ( uint64_t )sec * 1000000 ) + usec;
+}
+
+uint64_t NetworkingUtils_GetTimeFromIso8601( const char * pDate, size_t dateLength )
+{
+    uint64_t ret = 0;
+    char isoTimeBuffer[NETWORKING_ISO8601_TIME_STRING_LENGTH + 1];
+    int year, month, day, hour, minute, second;
+
+    if( ( dateLength == NETWORKING_ISO8601_TIME_STRING_LENGTH ) && ( pDate != NULL ) )
+    {
+        memcpy( isoTimeBuffer, pDate, dateLength );
+        isoTimeBuffer[dateLength] = '\0';
+
+        if( sscanf( isoTimeBuffer, "%d-%d-%dT%d:%d:%dZ", &year, &month, &day, &hour, &minute, &second ) == 6 )
+        {
+            /* Convert the date and time fields to seconds since the epoch. */
+            year -= 1900; /* tm_year is years since 1900. */
+            month -= 1;   /* tm_mon is zero-based. */
+
+            /* Days since epoch (1970-01-01) to the given date. */
+            uint64_t daysSinceEpoch = 0;
+            for( int y = 1970; y < 1900 + year; y++ )
+            {
+                daysSinceEpoch += ( ( y % 4 == 0 && y % 100 != 0 ) || ( y % 400 == 0 ) ) ? 366 : 365;
+            }
+
+            /* Add days for the current year. */
+            static const int daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+            for( int m = 0; m < month; m++ )
+            {
+                daysSinceEpoch += daysInMonth[m];
+                if( m == 1 && ( ( year % 4 == 0 && year % 100 != 0 ) || ( year % 400 == 0 ) ) )
+                {
+                    daysSinceEpoch += 1; /* Add a day for leap years. */
+                }
+            }
+
+            daysSinceEpoch += day - 1; /* Add days in the current month. */
+
+            /* Calculate total seconds since epoch. */
+            ret = ( daysSinceEpoch * 24 * 3600 ) + ( hour * 3600 ) + ( minute * 60 ) + second;
+        }
+    }
+
+    return ret;
 }

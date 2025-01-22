@@ -26,6 +26,7 @@ NetworkingWslayContext_t networkingWslayContext;
 #define NETWORKING_WSLAY_STRING_DATE_PARAM_NAME "X-Amz-Date"
 #define NETWORKING_WSLAY_STRING_EXPIRES_PARAM_NAME "X-Amz-Expires"
 #define NETWORKING_WSLAY_STRING_SIGNED_HEADERS_PARAM_NAME "X-Amz-SignedHeaders"
+#define NETWORKING_WSLAY_STRING_SECURITY_TOKEN_PARAM_NAME "X-Amz-Security-Token"
 #define NETWORKING_WSLAY_STRING_SIGNATURE_PARAM_NAME "X-Amz-Signature"
 #define NETWORKING_WSLAY_STRING_SIGNED_HEADERS_VALUE "host"
 #define NETWORKING_WSLAY_STRING_RFC6455_UUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -240,7 +241,7 @@ static NetworkingWslayResult_t uriEncodedString( char * pSrc,
     return ret;
 }
 
-static NetworkingWslayResult_t writeUriEncodedAlgorithm( char ** ppBuffer,
+static NetworkingWslayResult_t WriteUriEncodedAlgorithm( char ** ppBuffer,
                                                          size_t * pBufferLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
@@ -265,7 +266,7 @@ static NetworkingWslayResult_t writeUriEncodedAlgorithm( char ** ppBuffer,
     return ret;
 }
 
-static NetworkingWslayResult_t writeUriEncodedChannelArn( char ** ppBuffer,
+static NetworkingWslayResult_t WriteUriEncodedChannelArn( char ** ppBuffer,
                                                           size_t * pBufferLength,
                                                           char * pChannelArn,
                                                           size_t channelArnLength )
@@ -329,7 +330,7 @@ static NetworkingWslayResult_t writeUriEncodedChannelArn( char ** ppBuffer,
     return ret;
 }
 
-static NetworkingWslayResult_t writeUriEncodedCredential( char ** ppBuffer,
+static NetworkingWslayResult_t WriteUriEncodedCredential( char ** ppBuffer,
                                                           size_t * pBufferLength,
                                                           const char * pDate )
 {
@@ -394,7 +395,7 @@ static NetworkingWslayResult_t writeUriEncodedCredential( char ** ppBuffer,
     return ret;
 }
 
-static NetworkingWslayResult_t writeUriEncodedDate( char ** ppBuffer,
+static NetworkingWslayResult_t WriteUriEncodedDate( char ** ppBuffer,
                                                     size_t * pBufferLength,
                                                     const char * pDate,
                                                     size_t dateLength )
@@ -458,7 +459,7 @@ static NetworkingWslayResult_t writeUriEncodedDate( char ** ppBuffer,
     return ret;
 }
 
-static NetworkingWslayResult_t writeUriEncodedExpires( char ** ppBuffer,
+static NetworkingWslayResult_t WriteUriEncodedExpires( char ** ppBuffer,
                                                        size_t * pBufferLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
@@ -519,7 +520,7 @@ static NetworkingWslayResult_t writeUriEncodedExpires( char ** ppBuffer,
     return ret;
 }
 
-static NetworkingWslayResult_t writeUriEncodedSignedHeaders( char ** ppBuffer,
+static NetworkingWslayResult_t WriteUriEncodedSignedHeaders( char ** ppBuffer,
                                                              size_t * pBufferLength )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
@@ -546,6 +547,74 @@ static NetworkingWslayResult_t writeUriEncodedSignedHeaders( char ** ppBuffer,
     }
 
     return ret;
+}
+
+static NetworkingWslayResult_t WriteUriEncodeSecurityToken( char ** ppBuffer,
+                                                                    size_t * pBufferLength )
+{
+    NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
+    size_t writtenLength;
+    size_t encodedLength;
+
+    /* X-Amz-Security-Token query parameter. */
+    if( ret == NETWORKING_WSLAY_RESULT_OK )
+    {
+        writtenLength = snprintf( *ppBuffer, *pBufferLength, "&" NETWORKING_WSLAY_STRING_SECURITY_TOKEN_PARAM_NAME "=" );
+
+
+        if( writtenLength < 0 )
+        {
+            ret = NETWORKING_WSLAY_RESULT_FAIL_SNPRINTF;
+        }
+        else if( writtenLength == *pBufferLength )
+        {
+            ret = NETWORKING_WSLAY_RESULT_QUERY_PARAM_BUFFER_TOO_SMALL;
+        }
+        else
+        {
+            *ppBuffer += writtenLength;
+            *pBufferLength -= writtenLength;
+        }
+    }
+
+    /* X-Amz-Security-Token value (plaintext). */
+    if( ret == NETWORKING_WSLAY_RESULT_OK )
+    {
+
+        writtenLength = snprintf( *ppBuffer, *pBufferLength, "%.*s",
+                                  ( int ) networkingWslayContext.credentials.sessionTokenLength, networkingWslayContext.credentials.pSessionToken );
+
+        if( writtenLength < 0 )
+        {
+            ret = NETWORKING_WSLAY_RESULT_FAIL_SNPRINTF;
+        }
+        else if( writtenLength == *pBufferLength )
+        {
+            ret = NETWORKING_WSLAY_RESULT_QUERY_PARAM_BUFFER_TOO_SMALL;
+        }
+        else
+        {
+            /* Keep the pointer and pBufferLength for URI encoded. */
+        }
+    }
+
+    /* X-Amz-Security-Token value (URI encoded) */
+    if( ret == NETWORKING_WSLAY_RESULT_OK )
+    {
+        encodedLength = *pBufferLength - writtenLength;
+        ret = uriEncodedString( *ppBuffer, writtenLength, *ppBuffer + writtenLength, &encodedLength );
+
+        /* Move and update pointer/remain length. */
+        if( ret == NETWORKING_WSLAY_RESULT_OK )
+        {
+            memmove( *ppBuffer, *ppBuffer + writtenLength, encodedLength );
+            *ppBuffer += encodedLength;
+            *pBufferLength -= encodedLength;
+        }
+    }
+
+    return ret;
+
 }
 
 static WebsocketResult_t generateQueryParameters( const char * pUrl,
@@ -624,37 +693,43 @@ static WebsocketResult_t generateQueryParameters( const char * pUrl,
     {
         remainLength = *pOutputLength;
 
-        ret = writeUriEncodedAlgorithm( &pCurrentWrite, &remainLength );
+        ret = WriteUriEncodedAlgorithm( &pCurrentWrite, &remainLength );
     }
 
     /* X-Amz-ChannelARN query parameter. */
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = writeUriEncodedChannelArn( &pCurrentWrite, &remainLength, pChannelArnValue, channelArnValueLength );
+        ret = WriteUriEncodedChannelArn( &pCurrentWrite, &remainLength, pChannelArnValue, channelArnValueLength );
     }
 
     /* X-Amz-Credential query parameter. */
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = writeUriEncodedCredential( &pCurrentWrite, &remainLength, dateBuffer );
+        ret = WriteUriEncodedCredential( &pCurrentWrite, &remainLength, dateBuffer );
     }
 
     /* X-Amz-Date query parameter. */
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = writeUriEncodedDate( &pCurrentWrite, &remainLength, dateBuffer, NETWORKING_UTILS_TIME_BUFFER_LENGTH - 1 );
+        ret = WriteUriEncodedDate( &pCurrentWrite, &remainLength, dateBuffer, NETWORKING_UTILS_TIME_BUFFER_LENGTH - 1 );
     }
 
     /* X-Amz-Expires query parameter. */
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = writeUriEncodedExpires( &pCurrentWrite, &remainLength );
+        ret = WriteUriEncodedExpires( &pCurrentWrite, &remainLength );
+    }
+
+    // /* X-Amz-Security-Token query parameter. */
+    if( ( ret == NETWORKING_WSLAY_RESULT_OK ) && ( networkingWslayContext.credentials.sessionTokenLength > 0U ) )
+    {
+        ret = WriteUriEncodeSecurityToken( &pCurrentWrite, &remainLength );
     }
 
     /* X-Amz-SignedHeaders query parameter. */
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = writeUriEncodedSignedHeaders( &pCurrentWrite, &remainLength );
+        ret = WriteUriEncodedSignedHeaders( &pCurrentWrite, &remainLength );
     }
 
     /* Follow https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html to create canonical headers.
@@ -736,7 +811,7 @@ static WebsocketResult_t generateQueryParameters( const char * pUrl,
     return ret;
 }
 
-static WebsocketResult_t addHeader( HTTPRequestHeaders_t * pxRequestHeaders,
+static WebsocketResult_t AddHeader( HTTPRequestHeaders_t * pxRequestHeaders,
                                     const char * pName,
                                     size_t nameLength,
                                     const char * pValue,
@@ -1248,7 +1323,15 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
         memset( &credentials, 0, sizeof( NetworkCredentials_t ) );
         credentials.pRootCa = networkingWslayContext.credentials.pRootCa;
         credentials.rootCaSize = networkingWslayContext.credentials.rootCaSize;
-
+        
+        if(networkingWslayContext.credentials.iotThingCertSize > 0)
+        {
+            credentials.pClientCert = networkingWslayContext.credentials.pIotThingCert;
+            credentials.clientCertSize = networkingWslayContext.credentials.iotThingCertSize;
+            credentials.pPrivateKey = networkingWslayContext.credentials.pIotThingPrivateKey;
+            credentials.privateKeySize = networkingWslayContext.credentials.iotThingPrivateKeySize;
+        }
+        
         retUtils = NetworkingUtils_ConnectToServer( &networkingWslayContext.xNetworkContext,
                                                     host,
                                                     443,
@@ -1317,7 +1400,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = addHeader( &xRequestHeaders,
+        ret = AddHeader( &xRequestHeaders,
                          "Pragma",
                          strlen( "Pragma" ),
                          "no-cache",
@@ -1326,7 +1409,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = addHeader( &xRequestHeaders,
+        ret = AddHeader( &xRequestHeaders,
                          "Cache-Control",
                          strlen( "Cache-Control" ),
                          "no-cache",
@@ -1335,7 +1418,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = addHeader( &xRequestHeaders,
+        ret = AddHeader( &xRequestHeaders,
                          "upgrade",
                          strlen( "upgrade" ),
                          "WebSocket",
@@ -1344,7 +1427,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = addHeader( &xRequestHeaders,
+        ret = AddHeader( &xRequestHeaders,
                          "connection",
                          strlen( "connection" ),
                          "Upgrade",
@@ -1353,7 +1436,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = addHeader( &xRequestHeaders,
+        ret = AddHeader( &xRequestHeaders,
                          "Sec-WebSocket-Key",
                          strlen( "Sec-WebSocket-Key" ),
                          clientKey,
@@ -1362,7 +1445,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = addHeader( &xRequestHeaders,
+        ret = AddHeader( &xRequestHeaders,
                          "Sec-WebSocket-Protocol",
                          strlen( "Sec-WebSocket-Protocol" ),
                          "wss",
@@ -1371,7 +1454,7 @@ WebsocketResult_t Websocket_Connect( WebsocketServerInfo_t * pServerInfo )
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = addHeader( &xRequestHeaders,
+        ret = AddHeader( &xRequestHeaders,
                          "Sec-WebSocket-Version",
                          strlen( "Sec-WebSocket-Version" ),
                          "13",
@@ -1581,6 +1664,33 @@ WebsocketResult_t Websocket_Signal( void )
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
 
     TriggerWakeUpSocket();
+
+    return ret;
+}
+
+WebsocketResult_t Websocket_UpdateCredential( void * pCredential )
+{
+    NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
+    NetworkingWslayCredentials_t * pNetworkingWslayCredentials = ( NetworkingWslayCredentials_t * )pCredential;
+
+    if( pCredential == NULL )
+    {
+        ret = NETWORKING_WSLAY_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == NETWORKING_WSLAY_RESULT_OK )
+    {
+        memcpy( &networkingWslayContext.credentials, pCredential, sizeof( NetworkingWslayCredentials_t ) );
+        networkingWslayContext.sigv4Credential.pAccessKeyId = pNetworkingWslayCredentials->pAccessKeyId;
+        networkingWslayContext.sigv4Credential.accessKeyIdLen = pNetworkingWslayCredentials->accessKeyIdLength;
+        networkingWslayContext.sigv4Credential.pSecretAccessKey = pNetworkingWslayCredentials->pSecretAccessKey;
+        networkingWslayContext.sigv4Credential.secretAccessKeyLen = pNetworkingWslayCredentials->secretAccessKeyLength;
+
+        if( networkingWslayContext.credentials.userAgentLength > NETWORKING_WSLAY_USER_AGENT_NAME_MAX_LENGTH )
+        {
+            ret = NETWORKING_WSLAY_RESULT_USER_AGENT_NAME_LENGTH_TOO_LONG;
+        }
+    }
 
     return ret;
 }
