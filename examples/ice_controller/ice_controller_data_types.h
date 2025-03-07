@@ -70,20 +70,13 @@ typedef struct IceControllerLocalCandidateReadyMsg
     size_t localCandidateIndex;
 } IceControllerLocalCandidateReadyMsg_t;
 
-typedef struct IceControllerPeerToPeerConnectionFoundMsg
-{
-    int socketFd;
-    IceCandidate_t * pLocalCandidate;
-    IceCandidate_t * pRemoteCandidate;
-} IceControllerPeerToPeerConnectionFoundMsg_t;
-
 typedef struct IceControllerCallbackContent
 {
     union
     {
         IceControllerLocalCandidateReadyMsg_t localCandidateReadyMsg; /* ICE_CONTROLLER_CB_EVENT_LOCAL_CANDIDATE_READY */
         /* NULL for ICE_CONTROLLER_CB_EVENT_CONNECTIVITY_CHECK_TIMEOUT */
-        IceControllerPeerToPeerConnectionFoundMsg_t peerTopeerConnectionFoundMsg; /* ICE_CONTROLLER_CB_EVENT_PEER_TO_PEER_CONNECTION_FOUND */
+        /* NULL for ICE_CONTROLLER_CB_EVENT_PEER_TO_PEER_CONNECTION_FOUND */
     } iceControllerCallbackContent;
 } IceControllerCallbackContent_t;
 
@@ -91,7 +84,7 @@ typedef int32_t (* OnIceEventCallback_t)( void * pCustomContext,
                                           IceControllerCallbackEvent_t event,
                                           IceControllerCallbackContent_t * pEventMsg );
 
-typedef int32_t (* OnRecvRtpRtcpPacketCallback_t)( void * pCustomContext,
+typedef int32_t (* OnRecvNonStunPacketCallback_t)( void * pCustomContext,
                                                    uint8_t * pBuffer,
                                                    size_t bufferLength );
 
@@ -159,7 +152,7 @@ typedef enum IceControllerSocketContextState
     ICE_CONTROLLER_SOCKET_CONTEXT_STATE_NONE = 0,
     ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CREATE,
     ICE_CONTROLLER_SOCKET_CONTEXT_STATE_READY,
-    ICE_CONTROLLER_SOCKET_CONTEXT_STATE_PASS_HANDSHAKE,
+    ICE_CONTROLLER_SOCKET_CONTEXT_STATE_SELECTED,
 } IceControllerSocketContextState_t;
 
 typedef struct IceControllerMetrics
@@ -209,8 +202,8 @@ typedef struct IceControllerStunMsgHeader
 typedef struct IceControllerSocketListenerContext
 {
     volatile uint8_t executeSocketListener;
-    OnRecvRtpRtcpPacketCallback_t onRecvRtpRtcpPacketCallbackFunc;
-    void * pOnRecvRtpRtcpPacketCallbackCustomContext;
+    OnRecvNonStunPacketCallback_t onRecvNonStunPacketFunc;
+    void * pOnRecvNonStunPacketCallbackContext;
 } IceControllerSocketListenerContext_t;
 
 typedef struct IceControllerContext

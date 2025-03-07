@@ -22,9 +22,9 @@ PeerConnectionResult_t PeerConnectionSrtp_HandleSrtcpPacket( PeerConnectionSessi
                                                              uint8_t * pBuffer,
                                                              size_t bufferLength );
 PeerConnectionResult_t PeerConnectionSrtp_ConstructSrtpPacket( PeerConnectionSession_t * pSession,
-                                                   RtpPacket_t * pPacketRtp,
-                                                   uint8_t * pOutputSrtpPacket,
-                                                   size_t * pOutputSrtpPacketLength );
+                                                               RtpPacket_t * pPacketRtp,
+                                                               uint8_t * pOutputSrtpPacket,
+                                                               size_t * pOutputSrtpPacketLength );
 
 #ifdef __cplusplus
 }
