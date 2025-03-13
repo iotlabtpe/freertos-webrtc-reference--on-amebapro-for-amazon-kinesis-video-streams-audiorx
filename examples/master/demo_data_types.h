@@ -13,19 +13,23 @@ extern "C" {
 #include "peer_connection.h"
 #include "app_media_source.h"
 
+#define DEMO_SDP_BUFFER_MAX_LENGTH ( 10000 )
+#define DEMO_TRANSCEIVER_MEDIA_INDEX_VIDEO ( 0 )
+#define DEMO_TRANSCEIVER_MEDIA_INDEX_AUDIO ( 1 )
+#define REMOTE_ID_MAX_LENGTH    ( 256 )
 
 typedef struct DemoPeerConnectionSession
 {
     /* The remote client ID, representing the remote peer, from signaling message. */
-    char remoteClientId[ SIGNALING_CONTROLLER_REMOTE_ID_MAX_LENGTH ];
+    char remoteClientId[ REMOTE_ID_MAX_LENGTH ];
     size_t remoteClientIdLength;
 
     /* Configuration. */
-    uint8_t isInUse;
     uint8_t canTrickleIce;
 
     /* Peer connection session. */
     PeerConnectionSession_t peerConnectionSession;
+    Transceiver_t transceivers[ PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ];
 } DemoPeerConnectionSession_t;
 
 typedef struct DemoContext

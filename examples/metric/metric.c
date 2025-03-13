@@ -168,5 +168,6 @@ void Metric_PrintMetrics( void )
         LogInfo( ( "================================ Print Metrics End ================================" ) );
 
         xSemaphoreGive( context.mutex );
+        fflush( stdout );
     }
 }

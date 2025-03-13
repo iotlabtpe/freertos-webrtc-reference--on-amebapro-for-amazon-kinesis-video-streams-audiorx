@@ -59,12 +59,6 @@
 /* Include header that defines log levels. */
 #include "logging.h"
 
-/* UDP Sockets Wrapper include.*/
-#include "udp_sockets_wrapper.h"
-
-/* Transport interface include. */
-#include "transport_interface.h"
-
 /* SRTP */
 #define CERTIFICATE_FINGERPRINT_LENGTH 160
 #define MAX_SRTP_MASTER_KEY_LEN 16
@@ -152,7 +146,6 @@ typedef struct DtlsRetransmissionParams
  */
 typedef struct DtlsTransportParams
 {
-    Socket_t udpSocket;
     DtlsSSLContext_t dtlsSslContext;
     mbedtls_timing_delay_context mbedtlsTimer;
     OnTransportDtlsSendHook_t onDtlsSendHook;
@@ -197,7 +190,7 @@ typedef struct
     uint8_t key_length;
 
     KVS_SRTP_PROFILE srtpProfile;
-} DtlsKeyingMaterial, * pDtlsKeyingMaterial_t;
+} DtlsKeyingMaterial, *pDtlsKeyingMaterial_t;
 
 
 /**
@@ -218,7 +211,7 @@ typedef struct DtlsNetworkCredentials
     /**
      * @brief Disable server name indication (SNI) for a (D)TLS session.
      */
-    BaseType_t disableSni;
+    int disableSni;
 
     const uint8_t * pRootCa;     /**< @brief String representing a trusted server root certificate. */
     size_t rootCaSize;          /**< @brief Size associated with #NetworkCredentials.pRootCa. */
@@ -271,6 +264,7 @@ typedef enum DtlsTransportStatus
     /* User info. */
     DTLS_HANDSHAKE_COMPLETE, /**< Just complete the DTLS handshaking. */
     DTLS_HANDSHAKE_ALREADY_COMPLETE, /**< DTLS handshaking is done before calling. */
+    DTLS_CONNECTION_HAS_BEEN_CLOSED, /**< The DTLS connection has been closed. */
 } DtlsTransportStatus_t;
 
 #define DTLS_RSA_F4 0x10001L

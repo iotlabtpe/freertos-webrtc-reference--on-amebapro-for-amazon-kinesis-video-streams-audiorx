@@ -25,6 +25,12 @@
 #include "FreeRTOS.h"
 #include "networking_utils.h"
 
+/* used to monitor skb resource */
+extern int skbbuf_used_num;
+extern int skbdata_used_num;
+extern int max_local_skb_num;
+extern int max_skb_buf_num;
+
 /*****************************************************************************
 * ISP channel : 0
 * Video type  : H264/HEVC
@@ -158,76 +164,89 @@ int kvs_webrtc_handle( void * p,
                        void * input,
                        void * output )
 {
+    int ret = 0;
     kvs_webrtc_ctx_t * pCtx = ( kvs_webrtc_ctx_t * )p;
     webrtc_frame_t frame;
     mm_queue_item_t * input_item = ( mm_queue_item_t * )input;
 
     if( pCtx->mediaStart != 0 )
     {
-        frame.size = input_item->size;
-        frame.pData = ( uint8_t * )pvPortMalloc( frame.size );
-        if( !frame.pData )
+        do
         {
-            LogWarn( ( "fail to allocate memory for webrtc media frame" ) );
-            return -1;
-        }
-        memcpy( frame.pData,
-                ( uint8_t * )input_item->data_addr,
-                frame.size );
-        frame.freeData = 1;
-        frame.timestampUs = NetworkingUtils_GetCurrentTimeUs( &input_item->timestamp );
+            /* wait for skb resource release */
+            if( ( skbdata_used_num > ( max_skb_buf_num - 64 ) ) || ( skbbuf_used_num > ( max_local_skb_num - 64 ) ) )
+            {
+                ret = -1;
+                break; //skip this frame and wait for skb resource release.
+            }
 
-        if( input_item->type == AV_CODEC_ID_H264 )
-        {
-            if( gOnVideoFrameReadyToSendFunc )
+            frame.size = input_item->size;
+            frame.pData = ( uint8_t * )pvPortMalloc( frame.size );
+            if( !frame.pData )
             {
-                frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
-                ( void )gOnVideoFrameReadyToSendFunc( gpOnVideoFrameReadyToSendCustomContext,
-                                                      &frame );
+                LogWarn( ( "fail to allocate memory for webrtc media frame" ) );
+                ret = -1;
+                break;
+            }
+
+            memcpy( frame.pData,
+                    ( uint8_t * )input_item->data_addr,
+                    frame.size );
+            frame.freeData = 1;
+            frame.timestampUs = NetworkingUtils_GetCurrentTimeUs( &input_item->timestamp );
+    
+            if( input_item->type == AV_CODEC_ID_H264 )
+            {
+                if( gOnVideoFrameReadyToSendFunc )
+                {
+                    frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
+                    ( void )gOnVideoFrameReadyToSendFunc( gpOnVideoFrameReadyToSendCustomContext,
+                                                          &frame );
+                }
+                else
+                {
+                    LogError( ( "No available ready to send callback function pointer." ) );
+                    vPortFree( frame.pData );
+                }
+            }
+            else if( input_item->type == AV_CODEC_ID_OPUS )
+            {
+                LogInfo( ( "Opus packets, size: %lu", frame.size ) );
+                if( gOnAudioFrameReadyToSendFunc )
+                {
+                    frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
+                    ( void )gOnAudioFrameReadyToSendFunc( gpOnAudioFrameReadyToSendCustomContext,
+                                                          &frame );
+                }
+                else
+                {
+                    LogError( ( "No available ready to send callback function pointer for audio." ) );
+                    vPortFree( frame.pData );
+                }
+            }
+            else if( input_item->type == AV_CODEC_ID_PCMU )
+            {
+                if( gOnAudioFrameReadyToSendFunc )
+                {
+                    frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
+                    ( void )gOnAudioFrameReadyToSendFunc( gpOnAudioFrameReadyToSendCustomContext,
+                                                          &frame );
+                }
+                else
+                {
+                    LogError( ( "No available ready to send callback function pointer for audio." ) );
+                    vPortFree( frame.pData );
+                }
             }
             else
             {
-                LogError( ( "No available ready to send callback function pointer." ) );
+                LogWarn( ( "[KVS WebRTC module]: input type cannot be handled:%ld", input_item->type ) );
                 vPortFree( frame.pData );
             }
-        }
-        else if( input_item->type == AV_CODEC_ID_OPUS )
-        {
-            LogInfo( ( "Opus packets, size: %lu", frame.size ) );
-            if( gOnAudioFrameReadyToSendFunc )
-            {
-                frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
-                ( void )gOnAudioFrameReadyToSendFunc( gpOnAudioFrameReadyToSendCustomContext,
-                                                      &frame );
-            }
-            else
-            {
-                LogError( ( "No available ready to send callback function pointer for audio." ) );
-                vPortFree( frame.pData );
-            }
-        }
-        else if( input_item->type == AV_CODEC_ID_PCMU )
-        {
-            if( gOnAudioFrameReadyToSendFunc )
-            {
-                frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
-                ( void )gOnAudioFrameReadyToSendFunc( gpOnAudioFrameReadyToSendCustomContext,
-                                                      &frame );
-            }
-            else
-            {
-                LogError( ( "No available ready to send callback function pointer for audio." ) );
-                vPortFree( frame.pData );
-            }
-        }
-        else
-        {
-            LogWarn( ( "[KVS WebRTC module]: input type cannot be handled:%ld", input_item->type ) );
-            vPortFree( frame.pData );
-        }
+        } while( pdFALSE );
     }
 
-    return 0;
+    return ret;
 }
 
 int kvs_webrtc_control( void * p,

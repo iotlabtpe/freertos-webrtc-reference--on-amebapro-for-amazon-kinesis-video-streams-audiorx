@@ -55,7 +55,8 @@ static void VideoTx_Task( void * pParameter )
             LogVerbose( ( "Video Tx frame(%ld), trackKind: %d, timestamp: %llu, payload: 0x%x 0x%x 0x%x 0x%x", frame.size, frame.trackKind, frame.timestampUs, frame.pData[0], frame.pData[1], frame.pData[2], frame.pData[3] ) );
             if( pVideoContext->pSourcesContext->onMediaSinkHookFunc )
             {
-                ( void ) pVideoContext->pSourcesContext->onMediaSinkHookFunc( pVideoContext->pSourcesContext->pOnMediaSinkHookCustom, &frame );
+                ( void ) pVideoContext->pSourcesContext->onMediaSinkHookFunc( pVideoContext->pSourcesContext->pOnMediaSinkHookCustom,
+                                                                              &frame );
             }
 
             if( frame.freeData )
@@ -99,7 +100,8 @@ static void AudioTx_Task( void * pParameter )
             LogVerbose( ( "Audio Tx frame(%ld), track kind: %d, timestampUs: %llu", frame.size, frame.trackKind, frame.timestampUs ) );
             if( pAudioContext->pSourcesContext->onMediaSinkHookFunc )
             {
-                ( void ) pAudioContext->pSourcesContext->onMediaSinkHookFunc( pAudioContext->pSourcesContext->pOnMediaSinkHookCustom, &frame );
+                ( void ) pAudioContext->pSourcesContext->onMediaSinkHookFunc( pAudioContext->pSourcesContext->pOnMediaSinkHookCustom,
+                                                                              &frame );
             }
             if( frame.freeData )
             {
@@ -124,13 +126,70 @@ static int32_t OnPcEventRemotePeerReady( AppMediaSourceContext_t * pMediaSource 
         ret = -1;
     }
 
-    if( ( ret == 0 ) && ( pMediaSource->pSourcesContext->isPortStarted == 0 ) )
+    if( ret == 0 )
     {
-        /* Start media transmission. */
-        ret = AppMediaSourcePort_Start();
-        if( ret == 0 )
+        if( xSemaphoreTake( pMediaSource->mediaMutex,
+                            portMAX_DELAY ) == pdTRUE )
         {
-            pMediaSource->pSourcesContext->isPortStarted = 1;
+            if( pMediaSource->numReadyPeer < AWS_MAX_VIEWER_NUM )
+            {
+                pMediaSource->numReadyPeer++;
+            }
+
+            if( pMediaSource->numReadyPeer == 1U )
+            {
+                /* Start media transmission. */
+                ret = AppMediaSourcePort_Start();
+            }
+
+            /* We have finished accessing the shared resource.  Release the mutex. */
+            xSemaphoreGive( pMediaSource->mediaMutex );
+            LogInfo( ( "Starting track kind(%d) media, value=%u", pMediaSource->trackKind, pMediaSource->numReadyPeer ) );
+        }
+        else
+        {
+            LogError( ( "Failed to lock media mutex, track kind=%d.", pMediaSource->trackKind ) );
+            ret = -1;
+        }
+    }
+
+    return ret;
+}
+
+static int32_t OnPcEventRemotePeerClosed( AppMediaSourceContext_t * pMediaSource )
+{
+    int32_t ret = 0;
+
+    if( pMediaSource == NULL )
+    {
+        LogError( ( "Invalid input, pMediaSource: %p", pMediaSource ) );
+        ret = -1;
+    }
+
+    if( ret == 0 )
+    {
+        if( xSemaphoreTake( pMediaSource->mediaMutex,
+                            portMAX_DELAY ) == pdTRUE )
+        {
+            if( pMediaSource->numReadyPeer > 0U )
+            {
+                pMediaSource->numReadyPeer--;
+            }
+
+            if( pMediaSource->numReadyPeer == 0U )
+            {
+                /* Stop media transmission. */
+                AppMediaSourcePort_Stop();
+            }
+
+            /* We have finished accessing the shared resource.  Release the mutex. */
+            xSemaphoreGive( pMediaSource->mediaMutex );
+            LogInfo( ( "Stopping track kind(%d) media, value=%u", pMediaSource->trackKind, pMediaSource->numReadyPeer ) );
+        }
+        else
+        {
+            LogError( ( "Failed to lock media mutex, track kind=%d.", pMediaSource->trackKind ) );
+            ret = -1;
         }
     }
 
@@ -157,6 +216,9 @@ static int32_t HandlePcEventCallback( void * pCustomContext,
         {
             case TRANSCEIVER_CB_EVENT_REMOTE_PEER_READY:
                 ret = OnPcEventRemotePeerReady( pMediaSource );
+                break;
+            case TRANSCEIVER_CB_EVENT_REMOTE_PEER_CLOSED:
+                ret = OnPcEventRemotePeerClosed( pMediaSource );
                 break;
             default:
                 LogWarn( ( "Unknown event: 0x%x", event ) );
@@ -193,24 +255,30 @@ static int32_t InitializeVideoSource( AppMediaSourceContext_t * pVideoSource )
 
     if( ret == 0 )
     {
+        /* Mutex can only be created in executing scheduler. */
+        pVideoSource->mediaMutex = xSemaphoreCreateMutex();
+        if( pVideoSource->mediaMutex == NULL )
+        {
+            LogError( ( "Fail to create mutex for Video source." ) );
+            ret = -1;
+        }
+    }
+
+    if( ret == 0 )
+    {
         /* Initialize video transceiver. */
-        pVideoSource->transceiver.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
-        pVideoSource->transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
-        TRANSCEIVER_ENABLE_CODEC( pVideoSource->transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT );
-        pVideoSource->transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
-        pVideoSource->transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_VIDEO_BIT_RATE;
-        strncpy( pVideoSource->transceiver.streamId, DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID, sizeof( pVideoSource->transceiver.streamId ) );
-        pVideoSource->transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
-        strncpy( pVideoSource->transceiver.trackId, DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID, sizeof( pVideoSource->transceiver.trackId ) );
-        pVideoSource->transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID );
-        pVideoSource->transceiver.onPcEventCallbackFunc = HandlePcEventCallback;
-        pVideoSource->transceiver.pOnPcEventCustomContext = pVideoSource;
+        pVideoSource->trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
     }
 
     if( ret == 0 )
     {
         /* Create task for video Tx. */
-        if( xTaskCreate( VideoTx_Task, ( ( const char * )"VideoTask" ), 2048, pVideoSource, tskIDLE_PRIORITY + 2, NULL ) != pdPASS )
+        if( xTaskCreate( VideoTx_Task,
+                         ( ( const char * )"VideoTask" ),
+                         2048,
+                         pVideoSource,
+                         tskIDLE_PRIORITY + 2,
+                         NULL ) != pdPASS )
         {
             LogError( ( "xTaskCreate(VideoTask) failed" ) );
             ret = -1;
@@ -246,29 +314,30 @@ static int32_t InitializeAudioSource( AppMediaSourceContext_t * pAudioSource )
 
     if( ret == 0 )
     {
+        /* Mutex can only be created in executing scheduler. */
+        pAudioSource->mediaMutex = xSemaphoreCreateMutex();
+        if( pAudioSource->mediaMutex == NULL )
+        {
+            LogError( ( "Fail to create mutex for Audio source." ) );
+            ret = -1;
+        }
+    }
+
+    if( ret == 0 )
+    {
         /* Initialize audio transceiver. */
-        pAudioSource->transceiver.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
-        pAudioSource->transceiver.direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
-        #if ( AUDIO_OPUS )
-        TRANSCEIVER_ENABLE_CODEC( pAudioSource->transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_OPUS_BIT );
-        #else
-        TRANSCEIVER_ENABLE_CODEC( pAudioSource->transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_ALAW_BIT );
-        TRANSCEIVER_ENABLE_CODEC( pAudioSource->transceiver.codecBitMap, TRANSCEIVER_RTC_CODEC_MULAW_BIT );
-        #endif
-        pAudioSource->transceiver.rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
-        pAudioSource->transceiver.rollingbufferBitRate = DEFAULT_TRANSCEIVER_AUDIO_BIT_RATE;
-        strncpy( pAudioSource->transceiver.streamId, DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID, sizeof( pAudioSource->transceiver.streamId ) );
-        pAudioSource->transceiver.streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
-        strncpy( pAudioSource->transceiver.trackId, DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID, sizeof( pAudioSource->transceiver.trackId ) );
-        pAudioSource->transceiver.trackIdLength = strlen( DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID );
-        pAudioSource->transceiver.onPcEventCallbackFunc = HandlePcEventCallback;
-        pAudioSource->transceiver.pOnPcEventCustomContext = pAudioSource;
+        pAudioSource->trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
     }
 
     if( ret == 0 )
     {
         /* Create task for audio Tx. */
-        if( xTaskCreate( AudioTx_Task, ( ( const char * )"AudioTask" ), 2048, pAudioSource, tskIDLE_PRIORITY + 1, NULL ) != pdPASS )
+        if( xTaskCreate( AudioTx_Task,
+                         ( ( const char * )"AudioTask" ),
+                         2048,
+                         pAudioSource,
+                         tskIDLE_PRIORITY + 1,
+                         NULL ) != pdPASS )
         {
             LogError( ( "xTaskCreate(AudioTask) failed" ) );
             ret = -1;
@@ -300,7 +369,9 @@ static int32_t OnFrameReadyToSend( void * pCtx,
         if( retMessageQueue == MESSAGE_QUEUE_RESULT_MQ_IS_FULL )
         {
             dropFrameSize = sizeof( webrtc_frame_t );
-            ( void ) MessageQueue_Recv( &pMediaSource->dataQueue, &dropFrame, &dropFrameSize );
+            ( void ) MessageQueue_Recv( &pMediaSource->dataQueue,
+                                        &dropFrame,
+                                        &dropFrameSize );
 
             if( dropFrame.freeData )
             {
@@ -338,7 +409,9 @@ int32_t AppMediaSource_Init( AppMediaSourcesContext_t * pCtx,
 
     if( ret == 0 )
     {
-        memset( pCtx, 0, sizeof( AppMediaSourcesContext_t ) );
+        memset( pCtx,
+                0,
+                sizeof( AppMediaSourcesContext_t ) );
         ret = InitializeVideoSource( &pCtx->videoContext );
     }
 
@@ -357,45 +430,93 @@ int32_t AppMediaSource_Init( AppMediaSourcesContext_t * pCtx,
 
     if( ret == 0 )
     {
-        ret = AppMediaSourcePort_Init( OnFrameReadyToSend, &pCtx->videoContext, OnFrameReadyToSend, &pCtx->audioContext );
+        ret = AppMediaSourcePort_Init( OnFrameReadyToSend,
+                                       &pCtx->videoContext,
+                                       OnFrameReadyToSend,
+                                       &pCtx->audioContext );
     }
 
     return ret;
 }
 
-int32_t AppMediaSource_GetVideoTransceiver( AppMediaSourcesContext_t * pCtx,
-                                            Transceiver_t ** ppVideoTranceiver )
+int32_t AppMediaSource_InitVideoTransceiver( AppMediaSourcesContext_t * pCtx,
+                                             Transceiver_t * pVideoTranceiver )
 {
     int32_t ret = 0;
 
-    if( ( pCtx == NULL ) || ( ppVideoTranceiver == NULL ) )
+    if( ( pCtx == NULL ) || ( pVideoTranceiver == NULL ) )
     {
-        LogError( ( "Invalid input, pCtx: %p, ppVideoTranceiver: %p", pCtx, ppVideoTranceiver ) );
+        LogError( ( "Invalid input, pCtx: %p, pVideoTranceiver: %p", pCtx, pVideoTranceiver ) );
         ret = -1;
     }
 
     if( ret == 0 )
     {
-        *ppVideoTranceiver = &pCtx->videoContext.transceiver;
+        /* Initialize video transceiver. */
+        memset( pVideoTranceiver,
+                0,
+                sizeof( Transceiver_t ) );
+        pVideoTranceiver->trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
+        pVideoTranceiver->direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
+        TRANSCEIVER_ENABLE_CODEC( pVideoTranceiver->codecBitMap,
+                                  TRANSCEIVER_RTC_CODEC_H264_PROFILE_42E01F_LEVEL_ASYMMETRY_ALLOWED_PACKETIZATION_BIT );
+        pVideoTranceiver->rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
+        pVideoTranceiver->rollingbufferBitRate = DEFAULT_TRANSCEIVER_VIDEO_BIT_RATE;
+        strncpy( pVideoTranceiver->streamId,
+                 DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID,
+                 sizeof( pVideoTranceiver->streamId ) );
+        pVideoTranceiver->streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
+        strncpy( pVideoTranceiver->trackId,
+                 DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID,
+                 sizeof( pVideoTranceiver->trackId ) );
+        pVideoTranceiver->trackIdLength = strlen( DEFAULT_TRANSCEIVER_VIDEO_TRACK_ID );
+        pVideoTranceiver->onPcEventCallbackFunc = HandlePcEventCallback;
+        pVideoTranceiver->pOnPcEventCustomContext = &pCtx->videoContext;
     }
 
     return ret;
 }
 
-int32_t AppMediaSource_GetAudioTransceiver( AppMediaSourcesContext_t * pCtx,
-                                            Transceiver_t ** ppAudioTranceiver )
+int32_t AppMediaSource_InitAudioTransceiver( AppMediaSourcesContext_t * pCtx,
+                                             Transceiver_t * pAudioTranceiver )
 {
     int32_t ret = 0;
 
-    if( ( pCtx == NULL ) || ( ppAudioTranceiver == NULL ) )
+    if( ( pCtx == NULL ) || ( pAudioTranceiver == NULL ) )
     {
-        LogError( ( "Invalid input, pCtx: %p, pAudioTranceiver: %p", pCtx, ppAudioTranceiver ) );
+        LogError( ( "Invalid input, pCtx: %p, pAudioTranceiver: %p", pCtx, pAudioTranceiver ) );
         ret = -1;
     }
 
     if( ret == 0 )
     {
-        *ppAudioTranceiver = &pCtx->audioContext.transceiver;
+        /* Initialize audio transceiver. */
+        memset( pAudioTranceiver,
+                0,
+                sizeof( Transceiver_t ) );
+        pAudioTranceiver->trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
+        pAudioTranceiver->direction = TRANSCEIVER_TRACK_DIRECTION_SENDRECV;
+        #if ( AUDIO_OPUS )
+        TRANSCEIVER_ENABLE_CODEC( pAudioTranceiver->codecBitMap,
+                                  TRANSCEIVER_RTC_CODEC_OPUS_BIT );
+        #else
+        TRANSCEIVER_ENABLE_CODEC( pAudioTranceiver->codecBitMap,
+                                  TRANSCEIVER_RTC_CODEC_MULAW_BIT );
+        TRANSCEIVER_ENABLE_CODEC( pAudioTranceiver->codecBitMap,
+                                  TRANSCEIVER_RTC_CODEC_ALAW_BIT );
+        #endif
+        pAudioTranceiver->rollingbufferDurationSec = DEFAULT_TRANSCEIVER_ROLLING_BUFFER_DURACTION_SECOND;
+        pAudioTranceiver->rollingbufferBitRate = DEFAULT_TRANSCEIVER_AUDIO_BIT_RATE;
+        strncpy( pAudioTranceiver->streamId,
+                 DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID,
+                 sizeof( pAudioTranceiver->streamId ) );
+        pAudioTranceiver->streamIdLength = strlen( DEFAULT_TRANSCEIVER_MEDIA_STREAM_ID );
+        strncpy( pAudioTranceiver->trackId,
+                 DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID,
+                 sizeof( pAudioTranceiver->trackId ) );
+        pAudioTranceiver->trackIdLength = strlen( DEFAULT_TRANSCEIVER_AUDIO_TRACK_ID );
+        pAudioTranceiver->onPcEventCallbackFunc = HandlePcEventCallback;
+        pAudioTranceiver->pOnPcEventCustomContext = &pCtx->audioContext;
     }
 
     return ret;

@@ -36,6 +36,7 @@
 /* Standard includes. */
 #include <string.h>
 
+#include "FreeRTOS.h"
 #include "mbedtls/config.h"
 #include "mbedtls/pem.h"
 #include "mbedtls/sha256.h"
@@ -52,15 +53,11 @@
 #include "mbedtls/debug.h"
 #endif /* MBEDTLS_DTLS_DEBUG_C */
 
-/* MBedTLS Bio UDP sockets wrapper include. */
-#include "mbedtls_bio_udp_sockets_wrapper.h"
-
 /* DTLS transport header. */
 #include "transport_dtls_mbedtls.h"
 
 /* OS specific port header. */
 #include "transport_dtls_mbedtls_port.h"
-
 
 /*-----------------------------------------------------------*/
 
@@ -521,14 +518,14 @@ static DtlsTransportStatus_t initMbedtls( mbedtls_entropy_context * pEntropyCont
 
 void DTLS_Disconnect( DtlsNetworkContext_t * pNetworkContext )
 {
-    DtlsTransportParams_t * pTlsTransportParams = NULL;
+    DtlsTransportParams_t * pDtlsTransportParams = NULL;
     BaseType_t dtlsStatus = 0;
 
     if( ( pNetworkContext != NULL ) && ( pNetworkContext->pParams != NULL ) )
     {
-        pTlsTransportParams = pNetworkContext->pParams;
+        pDtlsTransportParams = pNetworkContext->pParams;
         /* Attempting to terminate DTLS connection. */
-        dtlsStatus = ( BaseType_t )mbedtls_ssl_close_notify( &( pTlsTransportParams->dtlsSslContext.context ) );
+        dtlsStatus = ( BaseType_t )mbedtls_ssl_close_notify( &( pDtlsTransportParams->dtlsSslContext.context ) );
 
         /* Ignore the WANT_READ and WANT_WRITE return values. */
         if( ( dtlsStatus != ( BaseType_t )MBEDTLS_ERR_SSL_WANT_READ ) && ( dtlsStatus != ( BaseType_t )MBEDTLS_ERR_SSL_WANT_WRITE ) )
@@ -556,7 +553,7 @@ void DTLS_Disconnect( DtlsNetworkContext_t * pNetworkContext )
         }
 
         /* Free mbed DTLS contexts. */
-        DtlsSslContextFree( &( pTlsTransportParams->dtlsSslContext ) );
+        DtlsSslContextFree( &( pDtlsTransportParams->dtlsSslContext ) );
     }
 }
 /*-----------------------------------------------------------*/
@@ -1012,7 +1009,8 @@ int32_t DTLS_CreateCertificateAndKey( int32_t certificateBits,
                                 LogDebug( ( "mbedtls_mpi_read_binary successful" ) );
                                 struct timespec nowTime;
                                 time_t timeT;
-                                clock_gettime( CLOCK_REALTIME, &nowTime );
+                                clock_gettime( CLOCK_REALTIME,
+                                               &nowTime );
                                 timeT = nowTime.tv_sec;
 
                                 if( strftime( notBeforeBuf,
@@ -1040,12 +1038,12 @@ int32_t DTLS_CreateCertificateAndKey( int32_t certificateBits,
                                                 if( mbedtls_x509write_crt_set_subject_name( pWriteCert,
                                                                                             "O"
                                                                                             "=" GENERATED_CERTIFICATE_NAME ",CN"
-                                                                                                                           "=" GENERATED_CERTIFICATE_NAME ) == 0 )
+                                                                                            "=" GENERATED_CERTIFICATE_NAME ) == 0 )
                                                 {
                                                     if( mbedtls_x509write_crt_set_issuer_name( pWriteCert,
                                                                                                "O"
                                                                                                "=" GENERATED_CERTIFICATE_NAME ",CN"
-                                                                                                                              "=" GENERATED_CERTIFICATE_NAME ) != 0 )
+                                                                                               "=" GENERATED_CERTIFICATE_NAME ) != 0 )
                                                     {
                                                         retStatus = DTLS_SET_CERT_ISSUER_NAME_FAILURE;
                                                         LogError( ( "mbedtls_x509write_crt_set_issuer_name failed" ) );
@@ -1348,9 +1346,17 @@ DtlsTransportStatus_t DTLS_ProcessPacket( DtlsNetworkContext_t * pNetworkContext
                             mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
                             mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
             }
+            else if( mbedtlsError == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY )
+            {
+                LogInfo( ( "DTLS connection has been closed. mbedTLSError=-0x%lx %s : %s.",
+                           -mbedtlsError,
+                           mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
+                           mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
+                returnStatus = DTLS_CONNECTION_HAS_BEEN_CLOSED;
+            }
             else if( mbedtlsError < 0 )
             {
-                LogError( ( "Failed to read data: mbedTLSError=-0x%lx %s : %s.", -mbedtlsError, mbedtlsHighLevelCodeOrDefault( mbedtlsError ), mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
+                LogWarn( ( "Failed to read data: mbedTLSError=-0x%lx %s : %s.", -mbedtlsError, mbedtlsHighLevelCodeOrDefault( mbedtlsError ), mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
                 returnStatus = DTLS_TRANSPORT_PROCESS_FAILURE;
             }
             else
