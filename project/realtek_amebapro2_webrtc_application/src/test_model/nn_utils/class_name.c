@@ -13,14 +13,6 @@ static const char *coco_names[80] = {"person", "bicycle", "car", "motorbike", "a
 									 "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
 									};
 
-static const char *voc_names_21[21] = {"__background__",
-									   "aeroplane", "bicycle", "bird", "boat",
-									   "bottle", "bus", "car", "cat", "chair",
-									   "cow", "diningtable", "dog", "horse",
-									   "motorbike", "person", "pottedplant",
-									   "sheep", "sofa", "train", "tvmonitor"
-									  };
-
 
 static const char *voc_names_20[20] = {"aeroplane", "bicycle", "bird", "boat",
 									   "bottle", "bus", "car", "cat", "chair",

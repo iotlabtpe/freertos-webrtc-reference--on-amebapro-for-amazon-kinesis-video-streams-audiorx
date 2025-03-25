@@ -185,26 +185,26 @@ static int argmax_fp16(float *array, int count)
 	return index;
 }
 
-static void dump_prob(float *prob, int count)
-{
-	for (int i = 0; i < count; i++) {
-		printf("%f ", prob[i]);
-	}
-	printf("\r\n");
-}
+// static void dump_prob(float *prob, int count)
+// {
+// 	for (int i = 0; i < count; i++) {
+// 		printf("%f ", prob[i]);
+// 	}
+// 	printf("\r\n");
+// }
 
-static int prob_comparator(const void *pa, const void *pb)
-{
-	yamnet_res_t *a = (yamnet_res_t *)pa;
-	yamnet_res_t *b = (yamnet_res_t *)pb;
-	float diff = a->prob - b->prob;
-	if (diff < 0) {
-		return 1;
-	} else if (diff > 0) {
-		return -1;
-	}
-	return 0;
-}
+// static int prob_comparator(const void *pa, const void *pb)
+// {
+// 	yamnet_res_t *a = (yamnet_res_t *)pa;
+// 	yamnet_res_t *b = (yamnet_res_t *)pb;
+// 	float diff = a->prob - b->prob;
+// 	if (diff < 0) {
+// 		return 1;
+// 	} else if (diff > 0) {
+// 		return -1;
+// 	}
+// 	return 0;
+// }
 
 static float final_scores[3];
 static void compute_final_scores(float *weights)
@@ -389,7 +389,7 @@ static float svm_predict_seq(char *line)
 {
 	int total = 0;
 	int i = 0;
-	double target_label, predict_label;
+	// double target_label;
 	char *idx, *val, *label, *endptr;
 	int inst_max_index = -1; // strtol gives 0 if wrong format, and precomputed kernel has <index> start from 0
 
@@ -398,7 +398,7 @@ static float svm_predict_seq(char *line)
 		exit_input_error(total + 1);
 	}
 
-	target_label = strtol(label, &endptr, 10);
+	// target_label = strtol(label, &endptr, 10);
 	if (endptr == label || *endptr != '\0') {
 		exit_input_error(total + 1);
 	}

@@ -53,6 +53,7 @@ static void VideoTx_Task( void * pParameter )
         {
             /* Received a media frame. */
             LogVerbose( ( "Video Tx frame(%ld), trackKind: %d, timestamp: %llu, payload: 0x%x 0x%x 0x%x 0x%x", frame.size, frame.trackKind, frame.timestampUs, frame.pData[0], frame.pData[1], frame.pData[2], frame.pData[3] ) );
+
             if( pVideoContext->pSourcesContext->onMediaSinkHookFunc )
             {
                 ( void ) pVideoContext->pSourcesContext->onMediaSinkHookFunc( pVideoContext->pSourcesContext->pOnMediaSinkHookCustom,
@@ -63,6 +64,10 @@ static void VideoTx_Task( void * pParameter )
             {
                 vPortFree( frame.pData );
             }
+        }
+        else
+        {
+            LogError( (" VideoTx_Task: MessageQueue_Recv failed with error %d", retMessageQueue) );
         }
     }
 
@@ -98,6 +103,7 @@ static void AudioTx_Task( void * pParameter )
         {
             /* Received a media frame. */
             LogVerbose( ( "Audio Tx frame(%ld), track kind: %d, timestampUs: %llu", frame.size, frame.trackKind, frame.timestampUs ) );
+
             if( pAudioContext->pSourcesContext->onMediaSinkHookFunc )
             {
                 ( void ) pAudioContext->pSourcesContext->onMediaSinkHookFunc( pAudioContext->pSourcesContext->pOnMediaSinkHookCustom,
@@ -107,6 +113,10 @@ static void AudioTx_Task( void * pParameter )
             {
                 vPortFree( frame.pData );
             }
+        }
+        else
+        {
+            LogError( (" AudioTx_Task: MessageQueue_Recv failed with error %d", retMessageQueue) );
         }
     }
 

@@ -41,15 +41,13 @@ Choose ONE of the following authentication options:
 1. Setup toolchain:
    ```sh
    tar -xvf asdk-10.3.0-*.tar.bz2
-   pwd
-   <!-- Copy this absolute path  -->
 
    <!-- if The environment is Linux :  -->
-   export PATH=($COPIED_PATH)/asdk-10.3.0/linux/newlib/bin:$PATH
+   export PATH=`pwd`/asdk-10.3.0/linux/newlib/bin:$PATH
 
    <!-- else if The environment is Darwin : -->
-   chmod +x ($COPIED_PATH)/project/realtek_amebapro2_webrtc_application/GCC-RELEASE/mp/* 
-   export PATH=($COPIED_PATH)/asdk-10.3.0/darwin/newlib/bin:$PATH
+   chmod +x `pwd`/project/realtek_amebapro2_webrtc_application/GCC-RELEASE/mp/* 
+   export PATH=`pwd`/asdk-10.3.0/darwin/newlib/bin:$PATH
    ```
 1. Connect the board to the PC using the CH340 micro USB port (marked as "Serial
    Output" in the above image).

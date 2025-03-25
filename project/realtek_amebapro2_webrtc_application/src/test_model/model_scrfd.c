@@ -112,9 +112,7 @@ static void generate_bboxes_kps_single_stride(float thres, int stride, int pic_w
 	int num_anchors = 2;
 	int num_grid_w = pic_width / stride;
 	int num_grid_h = pic_height  / stride;
-	int num_points = num_grid_w * num_grid_h * num_anchors;	// 2 = num of anchor
 
-	//for (unsigned int i = 0; i < num_points; ++i)
 	for (int cy = 0; cy < num_grid_h; cy++) {
 		for (int cx = 0; cx < num_grid_w; cx++) {
 			for (int a = 0; a < num_anchors; a++) {
@@ -157,7 +155,6 @@ static void generate_bboxes_kps_single_stride(float thres, int stride, int pic_w
 
 static int scrfd_postprocess(void *tensor_out, nn_tensor_param_t *param, void *res)
 {
-	int tensor_cnt = param->count;
 	void **tensor = (void **)tensor_out;
 
 	void *score_8 = (void *)tensor[0];

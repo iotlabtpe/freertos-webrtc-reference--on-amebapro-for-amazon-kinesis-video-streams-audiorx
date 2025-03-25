@@ -50,7 +50,7 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
 {
     uint8_t skipProcess = 0;
     int readBytes;
-    struct sockaddr srcAddress;
+    struct sockaddr_storage srcAddress;
     socklen_t srcAddressLength = sizeof( srcAddress );
     struct sockaddr_in * pIpv4Address;
     struct sockaddr_in6 * pIpv6Address;
@@ -74,7 +74,7 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
                               receiveBuffer,
                               RX_BUFFER_SIZE,
                               0,
-                              &srcAddress,
+                              ( struct sockaddr * ) &srcAddress,
                               &srcAddressLength );
         if( readBytes < 0 )
         {
@@ -101,7 +101,7 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
         }
 
         /* Received data, handle this STUN message. */
-        if( srcAddress.sa_family == AF_INET )
+        if( srcAddress.ss_family == AF_INET )
         {
             pIpv4Address = ( struct sockaddr_in * ) &srcAddress;
 
@@ -111,7 +111,7 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
                     &pIpv4Address->sin_addr,
                     STUN_IPV4_ADDRESS_SIZE );
         }
-        else if( srcAddress.sa_family == AF_INET6 )
+        else if( srcAddress.ss_family == AF_INET6 )
         {
             pIpv6Address = ( struct sockaddr_in6 * ) &srcAddress;
 
@@ -124,7 +124,7 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
         else
         {
             /* Unknown IP type, drop packet. */
-            LogWarn( ( "Unknown IP type: %d", srcAddress.sa_family ) );
+            LogWarn( ( "Unknown IP type: %d", srcAddress.ss_family ) );
             skipProcess = 1;
             break;
         }

@@ -53,7 +53,7 @@ int palm_detection_preprocess(void *data_in, nn_data_param_t *data_param, void *
 		return PP_USE_INPUT;
 	} else {
 		//only support image in = out size
-		printf("[%s] error: only support %dx%d\r\n", __func__, palm_detect_in_width, palm_detect_in_height);
+		printf("[%s] error: only support %ldx%ld\r\n", __func__, palm_detect_in_width, palm_detect_in_height);
 		return PP_ERROR;
 		//img_scaled_into_letterbox(&img_in, &img_out);
 		//dcache_clean_by_addr((uint32_t *)img_out.data, img_out.width * img_out.height * 3);

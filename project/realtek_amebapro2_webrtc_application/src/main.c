@@ -88,9 +88,10 @@ void log_uart_port_init(int log_uart_tx, int log_uart_rx, uint32_t baud_rate)
 	baud_rate = 115200;  //115200, 1500000, 3000000
 
 	hal_status_t ret;
-	uint8_t uart_idx;
 
 #if defined(CONFIG_BUILD_NONSECURE) && (CONFIG_BUILD_NONSECURE == 1)
+	uint8_t uart_idx;
+
 	/* prevent pin confliction */
 	uart_idx = hal_uart_pin_to_idx(log_uart_rx, UART_Pin_RX);
 	hal_pinmux_unregister(log_uart_rx, (PID_UART0 + uart_idx));
@@ -157,9 +158,9 @@ void set_initial_tick_count(void)
 /**
   * @brief  Main program.
   * @param  None
-  * @retval None
+  * @retval int
   */
-void main(void)
+int main(void)
 {
 	/* for debug, protect rodata*/
 	//mpu_rodata_protect_init();
@@ -176,4 +177,5 @@ void main(void)
 	set_initial_tick_count();
 	vTaskStartScheduler();
 	while (1);
+	return 0;
 }

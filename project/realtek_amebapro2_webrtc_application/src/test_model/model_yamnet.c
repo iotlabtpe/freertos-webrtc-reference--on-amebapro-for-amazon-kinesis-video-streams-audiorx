@@ -22,8 +22,6 @@ static short *src_temp = NULL;
 static int src_temp_cnt = 0;
 static int tensor_in_cnt = 0;
 static int overlap_cnt = -1;
-static void *class_score = NULL;
-static int class_update_idx = 0;
 
 static int yamnet_preprocess(void *data_in, nn_data_param_t *data_param, void *tensor_in, nn_tensor_param_t *tensor_param)
 {

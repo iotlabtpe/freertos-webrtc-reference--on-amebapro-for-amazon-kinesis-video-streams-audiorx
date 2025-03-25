@@ -46,11 +46,11 @@ static float anchor_yolov3v4_2layer[6][2] = {
 
 // yolov4-tiny-3l (3 output layer)
 // https://github.com/AlexeyAB/darknet/blob/master/cfg/yolov4-tiny-3l.cfg
-static float anchor_yolo_3layer[9][2] = {
-	{142, 110}, {192, 243}, {459, 401},		// 13x13
-	{36, 75}, {76, 55}, {72, 146},			// 26x26
-	{12, 16}, {19, 36}, {40, 28},			// 52x52
-};
+// static float anchor_yolo_3layer[9][2] = {
+// 	{142, 110}, {192, 243}, {459, 401},		// 13x13
+// 	{36, 75}, {76, 55}, {72, 146},			// 26x26
+// 	{12, 16}, {19, 36}, {40, 28},			// 52x52
+// };
 
 // yolov7-tiny-3l (3 output layer)
 // https://github.com/AlexeyAB/darknet/blob/master/cfg/yolov7-tiny.cfg
