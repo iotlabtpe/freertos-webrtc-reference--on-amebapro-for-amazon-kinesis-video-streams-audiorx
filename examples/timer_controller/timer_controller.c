@@ -83,7 +83,7 @@ TimerControllerResult_t TimerController_SetTimer( TimerHandler_t * pTimerHandler
     return ret;
 }
 
-void TimerController_ResetTimer( TimerHandler_t * pTimerHandler )
+void TimerController_Reset( TimerHandler_t * pTimerHandler )
 {
     if( pTimerHandler != NULL )
     {
@@ -91,6 +91,18 @@ void TimerController_ResetTimer( TimerHandler_t * pTimerHandler )
         if( xTimerStop( pTimerHandler->timer, 0 ) != pdPASS )
         {
             LogError( ( "Fail to reset timer" ) );
+        }
+    }
+}
+
+void TimerController_Delete( TimerHandler_t * pTimerHandler )
+{
+    if( pTimerHandler != NULL )
+    {
+        // Delete the timer
+        if( xTimerDelete( pTimerHandler->timer, 0 ) != pdPASS )
+        {
+            LogError( ( "Fail to delete timer" ) );
         }
     }
 }
