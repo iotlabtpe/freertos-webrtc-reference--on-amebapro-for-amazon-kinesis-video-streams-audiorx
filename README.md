@@ -66,6 +66,7 @@ Choose ONE of the following authentication options:
    ```sh
    cmake .. -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=../toolchain.cmake
    ```
+   **Note**: `BUILD_USRSCTP_LIBRARY` flag can be used to disable data channel and the build of `usrsctp` and `dcep` library. It can be used like: `cmake .. -G"Unix Makefiles" -DBUILD_USRSCTP_LIBRARY=OFF -DCMAKE_TOOLCHAIN_FILE=../toolchain.cmake`
 1. Run the following command to build:
    ```sh
    cmake --build . --target flash

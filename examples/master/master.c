@@ -19,6 +19,10 @@
 #include "string_utils.h"
 #include "metric.h"
 
+#if ENABLE_SCTP_DATA_CHANNEL
+    #include "peer_connection_sctp.h"
+#endif /* ENABLE_SCTP_DATA_CHANNEL */
+
 #define AWS_DEFAULT_STUN_SERVER_URL_POSTFIX       "amazonaws.com"
 #define AWS_DEFAULT_STUN_SERVER_URL_POSTFIX_CN    "amazonaws.com.cn"
 #define AWS_DEFAULT_STUN_SERVER_URL               "stun.kinesisvideo.%s.%s"
@@ -115,6 +119,11 @@ static void platform_init( void )
 
     /* init srtp library. */
     srtp_init();
+
+#if ENABLE_SCTP_DATA_CHANNEL
+    SCTP_InitSCTPSession();
+#endif /* ENABLE_SCTP_DATA_CHANNEL */
+
 }
 
 static void wifi_common_init( void )
@@ -1329,6 +1338,64 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEven
     return 0;
 }
 
+#if ENABLE_SCTP_DATA_CHANNEL
+
+#if ( DATACHANNEL_CUSTOM_CALLBACK_HOOK != 0 )
+
+static void OnDataChannelMessage( PeerConnectionDataChannel_t * pDataChannel,
+                                  uint8_t isBinary,
+                                  uint8_t * pMessage,
+                                  uint32_t pMessageLen )
+{
+    char ucSendMessage[DEFAULT_DATA_CHANNEL_ON_MESSAGE_BUFFER_SIZE];
+    PeerConnectionResult_t retStatus = PEER_CONNECTION_RESULT_OK;
+    if( ( pMessage == NULL ) || ( pDataChannel == NULL ) )
+    {
+        LogError( ( "No message or pDataChannel received in OnDataChannelMessage" ) );
+        return;
+    }
+
+    if( isBinary )
+    {
+        LogWarn( ( "[VIEWER] [Peer: %s Channel Name: %s ID: %d] >>> DataChannel Binary Message",
+            pDataChannel->pPeerConnection->combinedName,
+            pDataChannel->ucDataChannelName,
+            ( int ) pDataChannel->channelId ) );
+    }
+    else {
+        LogWarn( ( "[VIEWER] [Peer: %s Channel Name: %s ID: %d] >>> DataChannel String Message: %.*s\n",
+            pDataChannel->pPeerConnection->combinedName,
+            pDataChannel->ucDataChannelName, ( int ) pDataChannel->channelId,
+            ( int ) pMessageLen, pMessage ) );
+
+        sprintf( ucSendMessage, "Received %ld bytes, ECHO: %.*s", ( long int ) pMessageLen, ( int ) ( pMessageLen > ( DEFAULT_DATA_CHANNEL_ON_MESSAGE_BUFFER_SIZE - 128 ) ? ( DEFAULT_DATA_CHANNEL_ON_MESSAGE_BUFFER_SIZE - 128 ) : pMessageLen ), pMessage );
+        retStatus = PeerConnectionSCTP_DataChannelSend( pDataChannel, 0U, ( uint8_t * ) ucSendMessage, strlen( ucSendMessage ) );
+    }
+
+    if( retStatus != PEER_CONNECTION_RESULT_OK )
+    {
+        LogWarn( ( "[KVS Master] OnDataChannelMessage(): operation returned status code: 0x%08x \n", ( unsigned int ) retStatus ) );
+    }
+
+}
+
+OnDataChannelMessageReceived_t PeerConnectionSCTP_SetChannelOneMessageCallbackHook( PeerConnectionSession_t * pPeerConnectionSession,
+    uint32_t ulChannelId,
+    const uint8_t * pucName,
+    uint32_t ulNameLen )
+{
+    ( void ) pPeerConnectionSession;
+    ( void ) ulChannelId;
+    ( void ) pucName;
+    ( void ) ulNameLen;
+
+    return OnDataChannelMessage;
+}
+
+#endif /* (DATACHANNEL_CUSTOM_CALLBACK_HOOK != 0) */
+
+#endif /* ENABLE_SCTP_DATA_CHANNEL */
+
 static void Master_Task( void * pParameter )
 {
     int32_t ret = 0;
@@ -1384,6 +1451,11 @@ static void Master_Task( void * pParameter )
             ret = -1;
         }
     }
+
+    #if ENABLE_SCTP_DATA_CHANNEL
+        /* TODO_SCTP: Move to a common shutdown function? */
+        SCTP_DeInitSCTPSession();
+    #endif /* ENABLE_SCTP_DATA_CHANNEL */
 
     for( ;; )
     {

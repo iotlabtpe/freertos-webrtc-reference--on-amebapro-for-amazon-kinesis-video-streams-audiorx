@@ -1038,12 +1038,12 @@ int32_t DTLS_CreateCertificateAndKey( int32_t certificateBits,
                                                 if( mbedtls_x509write_crt_set_subject_name( pWriteCert,
                                                                                             "O"
                                                                                             "=" GENERATED_CERTIFICATE_NAME ",CN"
-                                                                                            "=" GENERATED_CERTIFICATE_NAME ) == 0 )
+                                                                                                                           "=" GENERATED_CERTIFICATE_NAME ) == 0 )
                                                 {
                                                     if( mbedtls_x509write_crt_set_issuer_name( pWriteCert,
                                                                                                "O"
                                                                                                "=" GENERATED_CERTIFICATE_NAME ",CN"
-                                                                                               "=" GENERATED_CERTIFICATE_NAME ) != 0 )
+                                                                                                                              "=" GENERATED_CERTIFICATE_NAME ) != 0 )
                                                     {
                                                         retStatus = DTLS_SET_CERT_ISSUER_NAME_FAILURE;
                                                         LogError( ( "mbedtls_x509write_crt_set_issuer_name failed" ) );

@@ -12,6 +12,8 @@ extern "C" {
 #include <string.h>
 #include "log_service.h"
 
+#include "FreeRTOS.h"
+
 #define LOG_NONE     0
 #define LOG_ERROR    1
 #define LOG_WARN     2
@@ -25,11 +27,11 @@ extern "C" {
 
 /* Metadata information to prepend to every log message. */
 #ifndef LOG_METADATA_FORMAT
-    #define LOG_METADATA_FORMAT    "[%s: %d] "            /**< @brief Format of metadata prefix in log messages. */
+    #define LOG_METADATA_FORMAT    "[%s: %s: %d] "            /**< @brief Format of metadata prefix in log messages. */
 #endif
 
 #ifndef LOG_METADATA_ARGS
-    #define LOG_METADATA_ARGS    __FUNCTION__, __LINE__  /**< @brief Arguments into the metadata logging prefix format. */
+    #define LOG_METADATA_ARGS    pcTaskGetName(xTaskGetCurrentTaskHandle()), __FUNCTION__, __LINE__  /**< @brief Arguments into the metadata logging prefix format. */
 #endif
 
 #ifndef SdkLog

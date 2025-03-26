@@ -34,3 +34,9 @@
 [submodule "libraries/ambpro2_sdk"]
 	path = libraries/ambpro2_sdk
 	url = https://github.com/Freertos-kvs-LTS/freertos-kvs-LTS
+[submodule "libraries/usrsctp"]
+	path = libraries/usrsctp
+	url = https://github.com/ambiot-mini/usrsctp.git
+[submodule "libraries/components/amazon-kinesis-video-streams-dcep"]
+	path = libraries/components/amazon-kinesis-video-streams-dcep
+	url = https://github.com/awslabs/amazon-kinesis-video-streams-dcep.git

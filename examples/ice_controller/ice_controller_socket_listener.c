@@ -5,6 +5,11 @@
 #include "task.h"
 #include "stun_deserializer.h"
 
+#if ENABLE_SCTP_DATA_CHANNEL
+    #include "sctp_utils.h"
+    #include "peer_connection_sctp.h"
+#endif /* ENABLE_SCTP_DATA_CHANNEL */
+
 #define ICE_CONTROLLER_SOCKET_LISTENER_QUEUE_NAME "/WebrtcApplicationIceControllerSocketListener"
 #define MAX_QUEUE_MSG_NUM ( 10 )
 #define ICE_CONTROLLER_SOCKET_LISTENER_SELECT_BLOCK_TIME_MS ( 50 )
