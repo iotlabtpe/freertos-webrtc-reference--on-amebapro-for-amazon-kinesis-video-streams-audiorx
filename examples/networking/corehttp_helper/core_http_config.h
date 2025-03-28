@@ -6,11 +6,11 @@
 
 /* Logging configuration for the HTTP library. */
 #ifndef LIBRARY_LOG_NAME
-    #define LIBRARY_LOG_NAME    "HTTP"
+#define LIBRARY_LOG_NAME    "HTTP"
 #endif
 
 #ifndef LIBRARY_LOG_LEVEL
-    #define LIBRARY_LOG_LEVEL    LOG_INFO
+#define LIBRARY_LOG_LEVEL    LOG_INFO
 #endif
 
 #define HTTP_USER_AGENT_VALUE AWS_KVS_AGENT_NAME

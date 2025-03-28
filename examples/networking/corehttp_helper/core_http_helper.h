@@ -8,7 +8,6 @@ extern "C" {
 #endif
 
 #include <stdio.h>
-#include "http.h"
 
 #include "sigv4.h"
 #include "networking_utils.h"
@@ -80,24 +79,6 @@ typedef struct NetworkingCorehttpCredentials
     uint64_t expirationSeconds;
 } NetworkingCorehttpCredentials_t;
 
-typedef struct NetworkingCorehttpContext
-{
-    NetworkingCorehttpCredentials_t credentials;
-    SigV4Credentials_t sigv4Credential;
-
-    /* The transport layer interface used by the HTTP Client library. */
-    TransportInterface_t xTransportInterface;
-    /* The network context for the transport layer interface. */
-    NetworkContext_t xNetworkContext;
-    TlsTransportParams_t xTlsTransportParams;
-    NetworkCredentials_t xNetworkCredientials;
-
-    char hostName[ NETWORKING_COREHTTP_HOST_NAME_MAX_LENGTH ];
-
-    uint8_t requestBuffer[ NETWORKING_COREHTTP_BUFFER_LENGTH ];
-    char sigv4AuthBuffer[ NETWORKING_COREHTTP_SIGV4_METADATA_BUFFER_LENGTH ];
-    size_t sigv4AuthBufferLength;
-} NetworkingCorehttpContext_t;
 
 #ifdef __cplusplus
 }

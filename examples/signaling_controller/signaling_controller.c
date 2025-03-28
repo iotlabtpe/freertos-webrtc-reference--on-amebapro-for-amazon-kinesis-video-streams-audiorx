@@ -102,7 +102,7 @@ static WebsocketResult_t HandleWssMessage( char * pMessage,
                 if( ret == WEBSOCKET_RESULT_OK )
                 {
                     /* Wake the running thread up to handle event. */
-                    ( void ) Websocket_Signal();
+                    ( void ) Websocket_Signal( &( pCtx->websocketContext ) );
                 }
                 break;
 
@@ -173,7 +173,7 @@ static SignalingControllerResult_t HttpLibwebsockets_Init( SignalingControllerCo
     libwebsocketsCred.sessionTokenLength = pCtx->credential.sessionTokenLength;
     libwebsocketsCred.expirationSeconds = 0LU;
 
-    retHttp = Http_Init( &libwebsocketsCred );
+    retHttp = Http_Init( &( pCtx->httpContext ), &libwebsocketsCred );
 
     if( retHttp != HTTP_RESULT_OK )
     {
@@ -183,7 +183,8 @@ static SignalingControllerResult_t HttpLibwebsockets_Init( SignalingControllerCo
     return ret;
 }
 
-static SignalingControllerResult_t SignalingController_HttpUpdateCred( SignalingControllerCredential_t * pCredential )
+static SignalingControllerResult_t SignalingController_HttpUpdateCred( SignalingControllerContext_t * pCtx,
+                                                                       SignalingControllerCredential_t * pCredential )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     HttpResult_t retHttp;
@@ -208,7 +209,7 @@ static SignalingControllerResult_t SignalingController_HttpUpdateCred( Signaling
     libwebsocketsCred.sessionTokenLength = pCredential->sessionTokenLength;
     libwebsocketsCred.expirationSeconds = pCredential->expirationSeconds;
 
-    retHttp = Http_UpdateCredential( &libwebsocketsCred );
+    retHttp = Http_UpdateCredential( &( pCtx->httpContext ), &libwebsocketsCred );
 
     if( retHttp != HTTP_RESULT_OK )
     {
@@ -235,7 +236,7 @@ static SignalingControllerResult_t SignalingController_WebsocketInit( SignalingC
     libwebsocketsCred.pCaCert = pCtx->credential.caCert;
     libwebsocketsCred.expirationSeconds = 0LU;
 
-    retWebsocket = Websocket_Init( &libwebsocketsCred, HandleWssMessage, pCtx );
+    retWebsocket = Websocket_Init( &( pCtx->websocketContext ), &libwebsocketsCred, HandleWssMessage, pCtx );
 
     if( retWebsocket != WEBSOCKET_RESULT_OK )
     {
@@ -245,7 +246,8 @@ static SignalingControllerResult_t SignalingController_WebsocketInit( SignalingC
     return ret;
 }
 
-static SignalingControllerResult_t SignalingController_WebsocketUpdateCred( SignalingControllerCredential_t * pCredential )
+static SignalingControllerResult_t SignalingController_WebsocketUpdateCred( SignalingControllerContext_t * pCtx,
+                                                                            SignalingControllerCredential_t * pCredential )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     WebsocketResult_t retWebsocket;
@@ -270,7 +272,7 @@ static SignalingControllerResult_t SignalingController_WebsocketUpdateCred( Sign
     libwebsocketsCred.sessionTokenLength = pCredential->sessionTokenLength;
     libwebsocketsCred.expirationSeconds = pCredential->expirationSeconds;
 
-    retWebsocket = Websocket_UpdateCredential( &libwebsocketsCred );
+    retWebsocket = Websocket_UpdateCredential( &( pCtx->websocketContext ), &libwebsocketsCred );
 
     if( retWebsocket != WEBSOCKET_RESULT_OK )
     {
@@ -291,7 +293,7 @@ static SignalingControllerResult_t SignalingController_HttpPerform( SignalingCon
 
     for( i = 0; i < HTTPS_PERFORM_RETRY_TIMES; i++ )
     {
-        retHttp = Http_Send( pRequest, timeoutMs, pResponse );
+        retHttp = Http_Send( &( pCtx->httpContext ), pRequest, timeoutMs, pResponse );
 
         if( retHttp == HTTP_RESULT_OK )
         {
@@ -308,7 +310,8 @@ static SignalingControllerResult_t SignalingController_HttpPerform( SignalingCon
     return ret;
 }
 
-static SignalingControllerResult_t SignalingController_WebsocketConnect( WebsocketServerInfo_t * pServerInfo )
+static SignalingControllerResult_t SignalingController_WebsocketConnect( SignalingControllerContext_t * pCtx,
+                                                                         WebsocketServerInfo_t * pServerInfo )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     WebsocketResult_t retWebsocket;
@@ -316,7 +319,7 @@ static SignalingControllerResult_t SignalingController_WebsocketConnect( Websock
 
     for( i = 0; i < HTTPS_PERFORM_RETRY_TIMES; i++ )
     {
-        retWebsocket = Websocket_Connect( pServerInfo );
+        retWebsocket = Websocket_Connect( &( pCtx->websocketContext ), pServerInfo );
 
         if( retWebsocket == WEBSOCKET_RESULT_OK )
         {
@@ -362,7 +365,7 @@ static SignalingControllerResult_t SignalingController_HttpInit( SignalingContro
     coreHttpCred.sessionTokenLength = pCtx->credential.sessionTokenLength;
     coreHttpCred.expirationSeconds = 0LU;
 
-    retHttp = Http_Init( &coreHttpCred );
+    retHttp = Http_Init( &( pCtx->httpContext ), &coreHttpCred );
 
     if( retHttp != HTTP_RESULT_OK )
     {
@@ -373,7 +376,8 @@ static SignalingControllerResult_t SignalingController_HttpInit( SignalingContro
     return ret;
 }
 
-static SignalingControllerResult_t SignalingController_HttpUpdateCred( SignalingControllerCredential_t * pCredential )
+static SignalingControllerResult_t SignalingController_HttpUpdateCred( SignalingControllerContext_t * pCtx,
+                                                                       SignalingControllerCredential_t * pCredential )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     HttpResult_t retHttp;
@@ -400,7 +404,7 @@ static SignalingControllerResult_t SignalingController_HttpUpdateCred( Signaling
     coreHttpCred.sessionTokenLength = pCredential->sessionTokenLength;
     coreHttpCred.expirationSeconds = pCredential->expirationSeconds;
 
-    retHttp = Http_UpdateCredential( &coreHttpCred );
+    retHttp = Http_UpdateCredential( &( pCtx->httpContext ), &coreHttpCred );
 
     if( retHttp != HTTP_RESULT_OK )
     {
@@ -421,7 +425,7 @@ static SignalingControllerResult_t SignalingController_HttpPerform( SignalingCon
 
     for( i = 0; i < HTTPS_PERFORM_RETRY_TIMES; i++ )
     {
-        retHttp = Http_Send( pRequest, timeoutMs, pResponse );
+        retHttp = Http_Send( &( pCtx->httpContext ), pRequest, timeoutMs, pResponse );
 
         if( retHttp == HTTP_RESULT_OK )
         {
@@ -459,7 +463,7 @@ static SignalingControllerResult_t SignalingController_WebsocketInit( SignalingC
     credential.rootCaSize = pCtx->credential.caCertPemSize;
     credential.expirationSeconds = 0LU;
 
-    retWebsocket = Websocket_Init( &credential, HandleWssMessage, pCtx );
+    retWebsocket = Websocket_Init( &( pCtx->websocketContext ), &credential, HandleWssMessage, pCtx );
 
     if( retWebsocket != WEBSOCKET_RESULT_OK )
     {
@@ -470,7 +474,8 @@ static SignalingControllerResult_t SignalingController_WebsocketInit( SignalingC
     return ret;
 }
 
-static SignalingControllerResult_t SignalingController_WebsocketUpdateCred( SignalingControllerCredential_t * pCredential )
+static SignalingControllerResult_t SignalingController_WebsocketUpdateCred( SignalingControllerContext_t * pCtx,
+                                                                            SignalingControllerCredential_t * pCredential )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     WebsocketResult_t retWebsocket;
@@ -497,7 +502,7 @@ static SignalingControllerResult_t SignalingController_WebsocketUpdateCred( Sign
     credential.sessionTokenLength = pCredential->sessionTokenLength;
     credential.expirationSeconds = pCredential->expirationSeconds;
 
-    retWebsocket = Websocket_UpdateCredential( &credential );
+    retWebsocket = Websocket_UpdateCredential( &( pCtx->websocketContext ), &credential );
 
     if( retWebsocket != WEBSOCKET_RESULT_OK )
     {
@@ -507,7 +512,8 @@ static SignalingControllerResult_t SignalingController_WebsocketUpdateCred( Sign
     return ret;
 }
 
-static SignalingControllerResult_t SignalingController_WebsocketConnect( WebsocketServerInfo_t * pServerInfo )
+static SignalingControllerResult_t SignalingController_WebsocketConnect( SignalingControllerContext_t * pCtx,
+                                                                         WebsocketServerInfo_t * pServerInfo )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     WebsocketResult_t retWebsocket;
@@ -515,7 +521,7 @@ static SignalingControllerResult_t SignalingController_WebsocketConnect( Websock
 
     for( i = 0; i < HTTPS_PERFORM_RETRY_TIMES; i++ )
     {
-        retWebsocket = Websocket_Connect( pServerInfo );
+        retWebsocket = Websocket_Connect( &( pCtx->websocketContext ), pServerInfo );
 
         if( retWebsocket == WEBSOCKET_RESULT_OK )
         {
@@ -684,10 +690,10 @@ static SignalingControllerResult_t FetchTemporaryCredentials( SignalingControlle
     }
 
     retSignal = Signaling_ConstructFetchTempCredsRequestForAwsIot( pCredential->credEndpoint,
-                                                                    pCredential->credEndpointLength,
-                                                                    pCredential->iotThingRoleAlias,
-                                                                    pCredential->iotThingRoleAliasLength,
-                                                                    &signalRequest );
+                                                                   pCredential->credEndpointLength,
+                                                                   pCredential->iotThingRoleAlias,
+                                                                   pCredential->iotThingRoleAliasLength,
+                                                                   &signalRequest );
 
     if( retSignal != SIGNALING_RESULT_OK )
     {
@@ -711,10 +717,10 @@ static SignalingControllerResult_t FetchTemporaryCredentials( SignalingControlle
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        
+
         retSignal = Signaling_ParseFetchTempCredsResponseFromAwsIot( response.pBuffer,
-                                                                      response.bufferLength,
-                                                                      &retCredentials );
+                                                                     response.bufferLength,
+                                                                     &retCredentials );
 
         if( retSignal != SIGNALING_RESULT_OK )
         {
@@ -1132,7 +1138,7 @@ static SignalingControllerResult_t connectWssEndpoint( SignalingControllerContex
         serverInfo.pUrl = signalRequest.pUrl;
         serverInfo.urlLength = signalRequest.urlLength;
         serverInfo.port = WEBSOCKET_ENDPOINT_PORT;
-        ret = SignalingController_WebsocketConnect( &serverInfo );
+        ret = SignalingController_WebsocketConnect( pCtx, &serverInfo );
 
         if( ret != SIGNALING_CONTROLLER_RESULT_OK )
         {
@@ -1205,7 +1211,7 @@ static SignalingControllerResult_t handleEvent( SignalingControllerContext_t * p
                               ( int ) pCtx->constructedSignalingBufferLength, pCtx->constructedSignalingBuffer ) );
 
                 /* Finally, sent it to websocket layer. */
-                websocketRet = Websocket_Send( pCtx->constructedSignalingBuffer, pCtx->constructedSignalingBufferLength );
+                websocketRet = Websocket_Send( &( pCtx->websocketContext ), pCtx->constructedSignalingBuffer, pCtx->constructedSignalingBufferLength );
                 if( websocketRet != WEBSOCKET_RESULT_OK )
                 {
                     LogError( ( "Fail to construct Wss message, result: %d", retSignal ) );
@@ -1222,7 +1228,7 @@ static SignalingControllerResult_t handleEvent( SignalingControllerContext_t * p
         case SIGNALING_CONTROLLER_EVENT_RECONNECT_WSS:
 
             /* Disconnect the Web-Socket Server. */
-            websocketRet = Websocket_Disconnect();
+            websocketRet = Websocket_Disconnect( &( pCtx->websocketContext ) );
 
             if( websocketRet == WEBSOCKET_RESULT_OK )
             {
@@ -1437,7 +1443,7 @@ SignalingControllerResult_t SignalingController_IceServerReconnection( Signaling
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
         /* Disconnect the Web-Socket Server. */
-        retWebsocket = Websocket_Disconnect();
+        retWebsocket = Websocket_Disconnect( &( pCtx->websocketContext ) );
     }
     else
     {
@@ -1506,12 +1512,12 @@ SignalingControllerResult_t SignalingController_ConnectServers( SignalingControl
 
     if( ( ret == SIGNALING_CONTROLLER_RESULT_OK ) && ( needFetchCredential != 0U ) )
     {
-        ret = SignalingController_HttpUpdateCred( &pCtx->credential );
+        ret = SignalingController_HttpUpdateCred( pCtx, &pCtx->credential );
     }
 
     if( ( ret == SIGNALING_CONTROLLER_RESULT_OK ) && ( needFetchCredential != 0U ) )
     {
-        ret = SignalingController_WebsocketUpdateCred( &pCtx->credential );
+        ret = SignalingController_WebsocketUpdateCred( pCtx, &pCtx->credential );
     }
 
     /* Execute describe channel if no channel ARN. */
@@ -1563,7 +1569,7 @@ SignalingControllerResult_t SignalingController_ProcessLoop( SignalingController
 
     for( ;; )
     {
-        websocketRet = Websocket_Recv();
+        websocketRet = Websocket_Recv( &( pCtx->websocketContext ) );
 
         if( websocketRet != WEBSOCKET_RESULT_OK )
         {
@@ -1616,7 +1622,7 @@ SignalingControllerResult_t SignalingController_SendMessage( SignalingController
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
         /* Wake the running thread up to handle event. */
-        ( void ) Websocket_Signal();
+        ( void ) Websocket_Signal( &( pCtx->websocketContext ) );
     }
 
     return ret;

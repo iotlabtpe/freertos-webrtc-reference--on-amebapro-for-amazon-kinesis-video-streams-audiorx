@@ -9,7 +9,6 @@ extern "C" {
 
 #include <stdio.h>
 
-#include "websocket.h"
 #include "sigv4.h"
 #include "transport_mbedtls.h"
 #include "networking_utils.h"
@@ -107,36 +106,6 @@ typedef struct NetworkingWslayConnectResponseContext
     uint16_t statusCode; //bitmap with NetworkingWslayHttpHeader_t value.
 } NetworkingWslayConnectResponseContext_t;
 
-typedef struct NetworkingWslayContext
-{
-    NetworkingWslayCredentials_t credentials;
-    SigV4Credentials_t sigv4Credential;
-
-    /* The transport layer interface used by the HTTP Client library. */
-    TransportInterface_t xTransportInterface;
-    /* The network context for the transport layer interface. */
-    NetworkContext_t xNetworkContext;
-    TlsTransportParams_t xTlsTransportParams;
-    NetworkCredentials_t xNetworkCredientials;
-
-    /* Rx path: callback user to handle received message. */
-    WebsocketMessageCallback_t websocketRxCallback;
-    void * pWebsocketRxCallbackContext;
-    char websocketTxBuffer[ NETWORKING_WEBSOCKET_BUFFER_LENGTH ];
-    size_t websocketTxBufferLength;
-    char websocketRxBuffer[ NETWORKING_WEBSOCKET_BUFFER_LENGTH ];
-    size_t websocketRxBufferLength;
-    char metaBuffer[ NETWORKING_META_BUFFER_LENGTH ];
-    size_t metaBufferLength;
-    char sigv4AuthBuffer[ NETWORKING_META_BUFFER_LENGTH ];
-    size_t sigv4AuthBufferLength;
-
-    wslay_event_context_ptr wslayContext;
-
-    TickType_t lastPingTick;
-    int socketWakeUp;
-    struct sockaddr_in socketWakeUpAddr;
-} NetworkingWslayContext_t;
 
 #ifdef __cplusplus
 }

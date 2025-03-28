@@ -436,7 +436,8 @@ uint64_t NetworkingUtils_GetCurrentTimeUs( void * pTick )
     return ( ( uint64_t )sec * 1000000 ) + usec;
 }
 
-uint64_t NetworkingUtils_GetTimeFromIso8601( const char * pDate, size_t dateLength )
+uint64_t NetworkingUtils_GetTimeFromIso8601( const char * pDate,
+                                             size_t dateLength )
 {
     uint64_t ret = 0;
     char isoTimeBuffer[NETWORKING_ISO8601_TIME_STRING_LENGTH + 1];
@@ -465,7 +466,7 @@ uint64_t NetworkingUtils_GetTimeFromIso8601( const char * pDate, size_t dateLeng
             for( int m = 0; m < month; m++ )
             {
                 daysSinceEpoch += daysInMonth[m];
-                if( m == 1 && ( ( year % 4 == 0 && year % 100 != 0 ) || ( year % 400 == 0 ) ) )
+                if( ( m == 1 ) && ( ( ( year % 4 == 0 ) && ( year % 100 != 0 ) ) || ( year % 400 == 0 ) ) )
                 {
                     daysSinceEpoch += 1; /* Add a day for leap years. */
                 }
