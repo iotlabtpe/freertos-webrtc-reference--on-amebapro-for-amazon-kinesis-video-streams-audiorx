@@ -16,17 +16,18 @@ extern "C" {
 #define DATACHANNEL_CUSTOM_CALLBACK_HOOK  ( 1U )
 #endif
 
-#define DEFAULT_DATA_CHANNEL_ON_MESSAGE_BUFFER_SIZE     ( 512U )
+#define DEFAULT_DATA_CHANNEL_ON_MESSAGE_BUFFER_SIZE ( 512U )
+
 
 #define MASTER_DATA_CHANNEL_MESSAGE "This message is from the FreeRTOS-WebRTC-Application KVS Master"
 
-PeerConnectionDataChannel_t * PeerConnectionSCTP_AllocateDataChannel(void);
+PeerConnectionDataChannel_t * PeerConnectionSCTP_AllocateDataChannel( void );
 
 PeerConnectionResult_t PeerConnectionSCTP_DeallocateDataChannel( PeerConnectionDataChannel_t * pChannel );
 
 PeerConnectionResult_t PeerConnectionSCTP_CreateDataChannel( PeerConnectionSession_t * pSession,
                                                              char * pcDataChannelName,
-                                                             DataChannelInit_t * pDataChannelInit,
+                                                             SctpDataChannelInitInfo_t * pDataChannelInitInfo,
                                                              PeerConnectionDataChannel_t ** ppChannel );
 
 PeerConnectionResult_t PeerConnectionSCTP_CloseDataChannel( PeerConnectionDataChannel_t * pChannel );
@@ -45,10 +46,10 @@ void PeerConnectionSCTP_ProcessSCTPData( PeerConnectionSession_t * pSession,
                                          int readBytes );
 
 #if ( DATACHANNEL_CUSTOM_CALLBACK_HOOK != 0 )
-OnDataChannelMessageReceived_t PeerConnectionSCTP_SetChannelOneMessageCallbackHook( PeerConnectionSession_t * pPeerConnectionSession,
-                                                                                    uint32_t ulChannelId,
-                                                                                    const uint8_t * pucName,
-                                                                                    uint32_t ulNameLen );
+OnDataChannelMessageReceived_t PeerConnectionSCTP_SetChannelOnMessageCallbackHook( PeerConnectionSession_t * pPeerConnectionSession,
+                                                                                   uint32_t ulChannelId,
+                                                                                   const uint8_t * pucName,
+                                                                                   uint32_t ulNameLen );
 #endif
 
 #ifdef __cplusplus

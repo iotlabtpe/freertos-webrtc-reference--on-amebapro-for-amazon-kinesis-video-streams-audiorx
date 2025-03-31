@@ -120,9 +120,9 @@ static void platform_init( void )
     /* init srtp library. */
     srtp_init();
 
-#if ENABLE_SCTP_DATA_CHANNEL
-    SCTP_InitSCTPSession();
-#endif /* ENABLE_SCTP_DATA_CHANNEL */
+    #if ENABLE_SCTP_DATA_CHANNEL
+    Sctp_Init();
+    #endif /* ENABLE_SCTP_DATA_CHANNEL */
 
 }
 
@@ -1357,16 +1357,15 @@ static void OnDataChannelMessage( PeerConnectionDataChannel_t * pDataChannel,
 
     if( isBinary )
     {
-        LogWarn( ( "[VIEWER] [Peer: %s Channel Name: %s ID: %d] >>> DataChannel Binary Message",
-            pDataChannel->pPeerConnection->combinedName,
-            pDataChannel->ucDataChannelName,
-            ( int ) pDataChannel->channelId ) );
+        LogWarn( ( "[VIEWER] [Peer: %s Channel Name: %s] >>> DataChannel Binary Message",
+                   pDataChannel->pPeerConnection->combinedName,
+                   pDataChannel->ucDataChannelName ) );
     }
     else {
-        LogWarn( ( "[VIEWER] [Peer: %s Channel Name: %s ID: %d] >>> DataChannel String Message: %.*s\n",
-            pDataChannel->pPeerConnection->combinedName,
-            pDataChannel->ucDataChannelName, ( int ) pDataChannel->channelId,
-            ( int ) pMessageLen, pMessage ) );
+        LogWarn( ( "[VIEWER] [Peer: %s Channel Name: %s] >>> DataChannel String Message: %.*s\n",
+                   pDataChannel->pPeerConnection->combinedName,
+                   pDataChannel->ucDataChannelName,
+                   ( int ) pMessageLen, pMessage ) );
 
         sprintf( ucSendMessage, "Received %ld bytes, ECHO: %.*s", ( long int ) pMessageLen, ( int ) ( pMessageLen > ( DEFAULT_DATA_CHANNEL_ON_MESSAGE_BUFFER_SIZE - 128 ) ? ( DEFAULT_DATA_CHANNEL_ON_MESSAGE_BUFFER_SIZE - 128 ) : pMessageLen ), pMessage );
         retStatus = PeerConnectionSCTP_DataChannelSend( pDataChannel, 0U, ( uint8_t * ) ucSendMessage, strlen( ucSendMessage ) );
@@ -1379,7 +1378,7 @@ static void OnDataChannelMessage( PeerConnectionDataChannel_t * pDataChannel,
 
 }
 
-OnDataChannelMessageReceived_t PeerConnectionSCTP_SetChannelOneMessageCallbackHook( PeerConnectionSession_t * pPeerConnectionSession,
+OnDataChannelMessageReceived_t PeerConnectionSCTP_SetChannelOnMessageCallbackHook( PeerConnectionSession_t * pPeerConnectionSession,
     uint32_t ulChannelId,
     const uint8_t * pucName,
     uint32_t ulNameLen )
@@ -1454,7 +1453,7 @@ static void Master_Task( void * pParameter )
 
     #if ENABLE_SCTP_DATA_CHANNEL
         /* TODO_SCTP: Move to a common shutdown function? */
-        SCTP_DeInitSCTPSession();
+        Sctp_DeInit();
     #endif /* ENABLE_SCTP_DATA_CHANNEL */
 
     for( ;; )

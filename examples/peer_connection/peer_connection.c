@@ -1382,6 +1382,11 @@ PeerConnectionResult_t PeerConnection_CloseSession( PeerConnectionSession_t * pS
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
         PeerConnectionResult_t xSCTPRet;
+
+        /* Clear enable remote data channel */
+        pSession->ucEnableDataChannelRemote = 0;
+        pSession->uKvsDataChannelCount = 0;
+
         /* Close and deallocate all data channels along with terminating
          * SCTP session. */
         xSCTPRet = PeerConnectionSCTP_DeallocateSCTP( pSession );
