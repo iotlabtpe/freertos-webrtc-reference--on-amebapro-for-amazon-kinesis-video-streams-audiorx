@@ -55,15 +55,11 @@ if(BUILD_LIB)
 	message(STATUS "build libraries")
 else()
 	message(STATUS "use released libraries")
-	link_directories(${prj_root}/GCC-RELEASE/application/output)
+	link_directories(${sdk_prj_example_root}/GCC-RELEASE/application/output)
 endif()
 
 ADD_LIBRARY (bt_upperstack_lib STATIC IMPORTED )
 SET_PROPERTY ( TARGET bt_upperstack_lib PROPERTY IMPORTED_LOCATION ${sdk_root}/component/bluetooth/rtk_stack/platform/amebapro2/lib/btgap.a )
-
-# FACEALIGNMENT NK
-ADD_LIBRARY (libface STATIC IMPORTED )
-SET_PROPERTY ( TARGET libface PROPERTY IMPORTED_LOCATION ${prj_root}/src/test_model/face_alignment/libface.a )
 
 if(NOT BUILD_TZ)
 ADD_LIBRARY (hal_pmc_lib STATIC IMPORTED )
@@ -911,7 +907,6 @@ list(
 	usbd
 	qrcode
 	nn
-	libface
 	ispfeature
 	md
 	eap	

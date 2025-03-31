@@ -1,14 +1,5 @@
-/******************************************************************************
-  *
-  * This module is a confidential and proprietary property of RealTek and
-  * possession or use of this module requires written permission of RealTek.
-  *
-  * Copyright(c) 2016, Realtek Semiconductor Corporation. All rights reserved.
-  *
-******************************************************************************/
-
-#ifndef LWIP_HDR_LWIPOPTS_H
-#define LWIP_HDR_LWIPOPTS_H
+#ifndef LWIPOPTS_H
+#define LWIPOPTS_H
 
 #include <platform_stdlib.h>
 #include "platform_opts.h"
@@ -573,4 +564,4 @@ Certain platform allows computing and verifying the IP, UDP, TCP and ICMP checks
 #define LWIP_SOCKET_SET_ERRNO           1
 #endif
 
-#endif /* LWIP_HDR_LWIPOPTS_H */
+#endif /* LWIPOPTS_H */

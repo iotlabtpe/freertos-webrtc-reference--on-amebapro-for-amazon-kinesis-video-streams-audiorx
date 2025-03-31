@@ -32,7 +32,7 @@ static void VideoTx_Task( void * pParameter )
     AppMediaSourceContext_t * pVideoContext = ( AppMediaSourceContext_t * )pParameter;
     MessageQueueResult_t retMessageQueue;
     uint8_t skipProcess = 0;
-    webrtc_frame_t frame;
+    MediaFrame_t frame;
     size_t frameLength;
 
     if( pVideoContext == NULL )
@@ -45,7 +45,7 @@ static void VideoTx_Task( void * pParameter )
     while( skipProcess == 0 )
     {
         /* Recevied message from data queue. */
-        frameLength = sizeof( webrtc_frame_t );
+        frameLength = sizeof( MediaFrame_t );
         retMessageQueue = MessageQueue_Recv( &pVideoContext->dataQueue,
                                              &frame,
                                              &frameLength );
@@ -67,7 +67,7 @@ static void VideoTx_Task( void * pParameter )
         }
         else
         {
-            LogError( (" VideoTx_Task: MessageQueue_Recv failed with error %d", retMessageQueue) );
+            LogError( ( " VideoTx_Task: MessageQueue_Recv failed with error %d", retMessageQueue ) );
         }
     }
 
@@ -82,7 +82,7 @@ static void AudioTx_Task( void * pParameter )
     AppMediaSourceContext_t * pAudioContext = ( AppMediaSourceContext_t * )pParameter;
     MessageQueueResult_t retMessageQueue;
     uint8_t skipProcess = 0;
-    webrtc_frame_t frame;
+    MediaFrame_t frame;
     size_t frameLength;
 
     if( pAudioContext == NULL )
@@ -95,7 +95,7 @@ static void AudioTx_Task( void * pParameter )
     while( skipProcess == 0 )
     {
         /* Recevied message from data queue. */
-        frameLength = sizeof( webrtc_frame_t );
+        frameLength = sizeof( MediaFrame_t );
         retMessageQueue = MessageQueue_Recv( &pAudioContext->dataQueue,
                                              &frame,
                                              &frameLength );
@@ -116,7 +116,7 @@ static void AudioTx_Task( void * pParameter )
         }
         else
         {
-            LogError( (" AudioTx_Task: MessageQueue_Recv failed with error %d", retMessageQueue) );
+            LogError( ( " AudioTx_Task: MessageQueue_Recv failed with error %d", retMessageQueue ) );
         }
     }
 
@@ -254,7 +254,7 @@ static int32_t InitializeVideoSource( AppMediaSourceContext_t * pVideoSource )
     {
         retMessageQueue = MessageQueue_Create( &pVideoSource->dataQueue,
                                                DEMO_TRANSCEIVER_VIDEO_DATA_QUEUE_NAME,
-                                               sizeof( webrtc_frame_t ),
+                                               sizeof( MediaFrame_t ),
                                                DEMO_TRANSCEIVER_MAX_QUEUE_MSG_NUM );
         if( retMessageQueue != MESSAGE_QUEUE_RESULT_OK )
         {
@@ -313,7 +313,7 @@ static int32_t InitializeAudioSource( AppMediaSourceContext_t * pAudioSource )
     {
         retMessageQueue = MessageQueue_Create( &pAudioSource->dataQueue,
                                                DEMO_TRANSCEIVER_AUDIO_DATA_QUEUE_NAME,
-                                               sizeof( webrtc_frame_t ),
+                                               sizeof( MediaFrame_t ),
                                                DEMO_TRANSCEIVER_MAX_QUEUE_MSG_NUM );
         if( retMessageQueue != MESSAGE_QUEUE_RESULT_OK )
         {
@@ -358,12 +358,12 @@ static int32_t InitializeAudioSource( AppMediaSourceContext_t * pAudioSource )
 }
 
 static int32_t OnFrameReadyToSend( void * pCtx,
-                                   webrtc_frame_t * pFrame )
+                                   MediaFrame_t * pFrame )
 {
     int32_t ret = 0;
     AppMediaSourceContext_t * pMediaSource = ( AppMediaSourceContext_t * )pCtx;
     MessageQueueResult_t retMessageQueue;
-    webrtc_frame_t dropFrame;
+    MediaFrame_t dropFrame;
     size_t dropFrameSize;
 
     if( ( pCtx == NULL ) || ( pFrame == NULL ) )
@@ -378,7 +378,7 @@ static int32_t OnFrameReadyToSend( void * pCtx,
         /* Drop oldest packet if full. */
         if( retMessageQueue == MESSAGE_QUEUE_RESULT_MQ_IS_FULL )
         {
-            dropFrameSize = sizeof( webrtc_frame_t );
+            dropFrameSize = sizeof( MediaFrame_t );
             ( void ) MessageQueue_Recv( &pMediaSource->dataQueue,
                                         &dropFrame,
                                         &dropFrameSize );
@@ -394,7 +394,7 @@ static int32_t OnFrameReadyToSend( void * pCtx,
     {
         retMessageQueue = MessageQueue_Send( &pMediaSource->dataQueue,
                                              pFrame,
-                                             sizeof( webrtc_frame_t ) );
+                                             sizeof( MediaFrame_t ) );
         if( retMessageQueue != MESSAGE_QUEUE_RESULT_OK )
         {
             LogError( ( "Fail to send frame ready message to queue, error: %d", retMessageQueue ) );

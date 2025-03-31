@@ -17,7 +17,7 @@ extern "C" {
 
 typedef struct AppMediaSourcesContext AppMediaSourcesContext_t;
 typedef int32_t (* AppMediaSourceOnMediaSinkHook)( void * pCustom,
-                                                   webrtc_frame_t * pFrame );
+                                                   MediaFrame_t * pFrame );
 
 typedef struct AppMediaSourceContext
 {

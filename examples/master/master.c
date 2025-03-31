@@ -86,8 +86,8 @@ static int32_t OnSendIceCandidateComplete( SignalingControllerEventStatus_t stat
                                            void * pUserContext );
 
 extern int crypto_init( void );
-extern int platform_set_malloc_free( void * ( *malloc_func ) ( size_t ),
-                                     void ( * free_func ) ( void * ) );
+extern int platform_set_malloc_free( void * ( *malloc_func )( size_t ),
+                                     void ( * free_func )( void * ) );
 
 static void platform_init( void )
 {
@@ -95,8 +95,8 @@ static void platform_init( void )
 
     /* mbedtls init */
     crypto_init();
-    platform_set_malloc_free( ( void ( * ) ) calloc,
-                              ( void ( * ) ( void * ) ) free );
+    platform_set_malloc_free( ( void ( * ) )calloc,
+                              ( void ( * )( void * ) )free );
 
     /* Show backtrace if exception. */
     sys_backtrace_enable();
@@ -176,21 +176,21 @@ static int initializeApplication( DemoContext_t * pDemoContext )
         #if defined( AWS_CA_CERT_PATH )
             credentialInfo.pCaCertPath = AWS_CA_CERT_PATH;
         #endif /* #if defined( AWS_CA_CERT_PATH ) */
-        
+
         #if defined( AWS_CA_CERT_PEM )
             credentialInfo.pCaCertPem = AWS_CA_CERT_PEM;
             credentialInfo.caCertPemSize = sizeof( AWS_CA_CERT_PEM );
         #endif /* #if defined( AWS_CA_CERT_PEM ) */
-        
+
         #if defined( AWS_ACCESS_KEY_ID )
-        credentialInfo.pAccessKeyId = AWS_ACCESS_KEY_ID;
-        credentialInfo.accessKeyIdLength = strlen( AWS_ACCESS_KEY_ID );
-        credentialInfo.pSecretAccessKey = AWS_SECRET_ACCESS_KEY;
-        credentialInfo.secretAccessKeyLength = strlen( AWS_SECRET_ACCESS_KEY );
-        #if defined( AWS_SESSION_TOKEN )
-        credentialInfo.pSessionToken = AWS_SESSION_TOKEN;
-        credentialInfo.sessionTokenLength = strlen( AWS_SESSION_TOKEN );
-        #endif /* #if defined( AWS_SESSION_TOKEN ) */
+            credentialInfo.pAccessKeyId = AWS_ACCESS_KEY_ID;
+            credentialInfo.accessKeyIdLength = strlen( AWS_ACCESS_KEY_ID );
+            credentialInfo.pSecretAccessKey = AWS_SECRET_ACCESS_KEY;
+            credentialInfo.secretAccessKeyLength = strlen( AWS_SECRET_ACCESS_KEY );
+            #if defined( AWS_SESSION_TOKEN )
+                credentialInfo.pSessionToken = AWS_SESSION_TOKEN;
+                credentialInfo.sessionTokenLength = strlen( AWS_SESSION_TOKEN );
+            #endif /* #if defined( AWS_SESSION_TOKEN ) */
         #endif /* #if defined( AWS_ACCESS_KEY_ID ) */
 
         #if defined( AWS_IOT_THING_ROLE_ALIAS )
@@ -228,7 +228,7 @@ static int initializeApplication( DemoContext_t * pDemoContext )
 }
 
 static int32_t OnMediaSinkHook( void * pCustom,
-                                webrtc_frame_t * pFrame )
+                                MediaFrame_t * pFrame )
 {
     int32_t ret = 0;
     DemoContext_t * pDemoContext = ( DemoContext_t * ) pCustom;
@@ -809,7 +809,7 @@ static PeerConnectionResult_t HandleRxVideoFrame( void * pCustomContext,
                                                   PeerConnectionFrame_t * pFrame )
 {
     #ifdef ENABLE_STREAMING_LOOPBACK
-    webrtc_frame_t frame;
+    MediaFrame_t frame;
 
     if( pFrame != NULL )
     {
@@ -839,7 +839,7 @@ static PeerConnectionResult_t HandleRxAudioFrame( void * pCustomContext,
                                                   PeerConnectionFrame_t * pFrame )
 {
     #ifdef ENABLE_STREAMING_LOOPBACK
-    webrtc_frame_t frame;
+    MediaFrame_t frame;
 
     if( pFrame != NULL )
     {
@@ -1379,9 +1379,9 @@ static void OnDataChannelMessage( PeerConnectionDataChannel_t * pDataChannel,
 }
 
 OnDataChannelMessageReceived_t PeerConnectionSCTP_SetChannelOnMessageCallbackHook( PeerConnectionSession_t * pPeerConnectionSession,
-    uint32_t ulChannelId,
-    const uint8_t * pucName,
-    uint32_t ulNameLen )
+                                                                                   uint32_t ulChannelId,
+                                                                                   const uint8_t * pucName,
+                                                                                   uint32_t ulNameLen )
 {
     ( void ) pPeerConnectionSession;
     ( void ) ulChannelId;

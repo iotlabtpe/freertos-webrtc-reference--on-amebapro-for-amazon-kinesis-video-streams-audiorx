@@ -16,6 +16,8 @@ set (repo_root "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
 set (prj_root "${CMAKE_CURRENT_SOURCE_DIR}/..")
 # root of SDK
 set (sdk_root "${repo_root}/libraries/ambpro2_sdk")
+# root of SDK example
+set (sdk_prj_example_root "${repo_root}/libraries/ambpro2_sdk/project/realtek_amebapro2_v0_example")
 
 include(./config.cmake)
 

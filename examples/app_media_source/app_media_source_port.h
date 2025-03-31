@@ -10,16 +10,16 @@ extern "C" {
 #include <stdio.h>
 #include "transceiver_data_types.h"
 
-typedef struct {
+typedef struct MediaFrame {
     uint8_t * pData;
     uint32_t size;
     uint64_t timestampUs;
     TransceiverTrackKind_t trackKind;
     uint8_t freeData;  /* indicate user need to free pData after using it */
-} webrtc_frame_t;
+} MediaFrame_t;
 
 typedef int32_t (* OnFrameReadyToSend_t)( void * pCtx,
-                                          webrtc_frame_t * pFrame );
+                                          MediaFrame_t * pFrame );
 
 int32_t AppMediaSourcePort_Init( OnFrameReadyToSend_t onVideoFrameReadyToSendFunc,
                                  void * pOnVideoFrameReadyToSendCustomContext,
