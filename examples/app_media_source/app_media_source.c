@@ -26,6 +26,8 @@
 
 static void VideoTx_Task( void * pParameter );
 static void AudioTx_Task( void * pParameter );
+static int32_t OnFrameReadyToSend( void * pCtx,
+                                   MediaFrame_t * pFrame );
 
 static void VideoTx_Task( void * pParameter )
 {
@@ -138,22 +140,26 @@ static int32_t OnPcEventRemotePeerReady( AppMediaSourceContext_t * pMediaSource 
 
     if( ret == 0 )
     {
-        if( xSemaphoreTake( pMediaSource->mediaMutex,
+        if( xSemaphoreTake( pMediaSource->pSourcesContext->mediaMutex,
                             portMAX_DELAY ) == pdTRUE )
         {
             if( pMediaSource->numReadyPeer < AWS_MAX_VIEWER_NUM )
             {
                 pMediaSource->numReadyPeer++;
+                pMediaSource->pSourcesContext->totalNumReadyPeer++;
             }
 
-            if( pMediaSource->numReadyPeer == 1U )
+            if( pMediaSource->pSourcesContext->totalNumReadyPeer == 1U )
             {
                 /* Start media transmission. */
-                ret = AppMediaSourcePort_Start();
+                ret = AppMediaSourcePort_Start( OnFrameReadyToSend,
+                                                &pMediaSource->pSourcesContext->videoContext,
+                                                OnFrameReadyToSend,
+                                                &pMediaSource->pSourcesContext->audioContext );
             }
 
             /* We have finished accessing the shared resource.  Release the mutex. */
-            xSemaphoreGive( pMediaSource->mediaMutex );
+            xSemaphoreGive( pMediaSource->pSourcesContext->mediaMutex );
             LogInfo( ( "Starting track kind(%d) media, value=%u", pMediaSource->trackKind, pMediaSource->numReadyPeer ) );
         }
         else
@@ -178,22 +184,23 @@ static int32_t OnPcEventRemotePeerClosed( AppMediaSourceContext_t * pMediaSource
 
     if( ret == 0 )
     {
-        if( xSemaphoreTake( pMediaSource->mediaMutex,
+        if( xSemaphoreTake( pMediaSource->pSourcesContext->mediaMutex,
                             portMAX_DELAY ) == pdTRUE )
         {
             if( pMediaSource->numReadyPeer > 0U )
             {
                 pMediaSource->numReadyPeer--;
+                pMediaSource->pSourcesContext->totalNumReadyPeer--;
             }
 
-            if( pMediaSource->numReadyPeer == 0U )
+            if( pMediaSource->pSourcesContext->totalNumReadyPeer == 0U )
             {
                 /* Stop media transmission. */
                 AppMediaSourcePort_Stop();
             }
 
             /* We have finished accessing the shared resource.  Release the mutex. */
-            xSemaphoreGive( pMediaSource->mediaMutex );
+            xSemaphoreGive( pMediaSource->pSourcesContext->mediaMutex );
             LogInfo( ( "Stopping track kind(%d) media, value=%u", pMediaSource->trackKind, pMediaSource->numReadyPeer ) );
         }
         else
@@ -265,17 +272,6 @@ static int32_t InitializeVideoSource( AppMediaSourceContext_t * pVideoSource )
 
     if( ret == 0 )
     {
-        /* Mutex can only be created in executing scheduler. */
-        pVideoSource->mediaMutex = xSemaphoreCreateMutex();
-        if( pVideoSource->mediaMutex == NULL )
-        {
-            LogError( ( "Fail to create mutex for Video source." ) );
-            ret = -1;
-        }
-    }
-
-    if( ret == 0 )
-    {
         /* Initialize video transceiver. */
         pVideoSource->trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
     }
@@ -318,17 +314,6 @@ static int32_t InitializeAudioSource( AppMediaSourceContext_t * pAudioSource )
         if( retMessageQueue != MESSAGE_QUEUE_RESULT_OK )
         {
             LogError( ( "Fail to open audio transceiver data queue." ) );
-            ret = -1;
-        }
-    }
-
-    if( ret == 0 )
-    {
-        /* Mutex can only be created in executing scheduler. */
-        pAudioSource->mediaMutex = xSemaphoreCreateMutex();
-        if( pAudioSource->mediaMutex == NULL )
-        {
-            LogError( ( "Fail to create mutex for Audio source." ) );
             ret = -1;
         }
     }
@@ -422,6 +407,18 @@ int32_t AppMediaSource_Init( AppMediaSourcesContext_t * pCtx,
         memset( pCtx,
                 0,
                 sizeof( AppMediaSourcesContext_t ) );
+
+        /* Mutex can only be created in executing scheduler. */
+        pCtx->mediaMutex = xSemaphoreCreateMutex();
+        if( pCtx->mediaMutex == NULL )
+        {
+            LogError( ( "Fail to create mutex for media source." ) );
+            ret = -1;
+        }
+    }
+
+    if( ret == 0 )
+    {
         ret = InitializeVideoSource( &pCtx->videoContext );
     }
 
@@ -436,14 +433,6 @@ int32_t AppMediaSource_Init( AppMediaSourcesContext_t * pCtx,
         pCtx->audioContext.pSourcesContext = pCtx;
         pCtx->onMediaSinkHookFunc = onMediaSinkHookFunc;
         pCtx->pOnMediaSinkHookCustom = pOnMediaSinkHookCustom;
-    }
-
-    if( ret == 0 )
-    {
-        ret = AppMediaSourcePort_Init( OnFrameReadyToSend,
-                                       &pCtx->videoContext,
-                                       OnFrameReadyToSend,
-                                       &pCtx->audioContext );
     }
 
     return ret;

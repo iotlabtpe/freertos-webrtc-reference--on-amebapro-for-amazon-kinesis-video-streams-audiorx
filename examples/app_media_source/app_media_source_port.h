@@ -21,11 +21,10 @@ typedef struct MediaFrame {
 typedef int32_t (* OnFrameReadyToSend_t)( void * pCtx,
                                           MediaFrame_t * pFrame );
 
-int32_t AppMediaSourcePort_Init( OnFrameReadyToSend_t onVideoFrameReadyToSendFunc,
-                                 void * pOnVideoFrameReadyToSendCustomContext,
-                                 OnFrameReadyToSend_t onAudioFrameReadyToSendFunc,
-                                 void * pOnAudioFrameReadyToSendCustomContext );
-int32_t AppMediaSourcePort_Start( void );
+int32_t AppMediaSourcePort_Start( OnFrameReadyToSend_t onVideoFrameReadyToSendFunc,
+                                  void * pOnVideoFrameReadyToSendCustomContext,
+                                  OnFrameReadyToSend_t onAudioFrameReadyToSendFunc,
+                                  void * pOnAudioFrameReadyToSendCustomContext );
 void AppMediaSourcePort_Stop( void );
 void AppMediaSourcePort_Destroy( void );
 
