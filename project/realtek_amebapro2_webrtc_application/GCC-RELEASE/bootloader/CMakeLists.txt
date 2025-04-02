@@ -63,7 +63,7 @@ list(
 
 add_library(bootfcs ${fcs_sources})
 target_compile_definitions(bootfcs PRIVATE ${boot_flags} )
-target_compile_options(bootfcs PRIVATE ${WARN_ERR_FLAGS})
+target_compile_options(bootfcs PRIVATE )
 
 if(FCS_FB)
 add_library(fcs_fb_import OBJECT IMPORTED)
@@ -84,7 +84,7 @@ add_executable(
 endif()
 
 target_compile_definitions(${bootloader} PRIVATE ${boot_flags} )
-target_compile_options(${bootloader} PRIVATE ${WARN_ERR_FLAGS})
+target_compile_options(${bootloader} PRIVATE -Wno-unused-variable )
 
 include(../includepath.cmake)
 target_include_directories(

@@ -75,6 +75,7 @@ include( ${REPO_ROOT_DIRECTORY}/libraries/coreJSON/jsonFilePaths.cmake )
 # Include signaling
 include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-signaling/signalingFilePaths.cmake )
 
+# Suppress warnings for some Libraries
 file(GLOB_RECURSE WARNING_SUPPRESSED_SOURCES
     "${REPO_ROOT_DIRECTORY}/libraries/ambpro2_sdk/*.c"
     "${REPO_ROOT_DIRECTORY}/libraries/coreHTTP/source/dependency/3rdparty/llhttp/src/llhttp.c"
