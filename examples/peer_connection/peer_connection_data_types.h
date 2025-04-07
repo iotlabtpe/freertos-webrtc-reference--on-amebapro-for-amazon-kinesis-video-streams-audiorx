@@ -14,6 +14,7 @@ extern "C" {
 #include "FreeRTOS.h"
 #include "task.h"
 #include "transport_dtls_mbedtls.h"
+#include "rtcp_twcc_manager.h"
 
 #include "message_queue.h"
 #include "ice_controller.h"
@@ -42,6 +43,8 @@ extern "C" {
 
 #define PEER_CONNECTION_SDP_DESCRIPTION_BUFFER_MAX_LENGTH ( 10000 )
 
+#define PEER_CONNECTION_RTCP_TWCC_MAX_ARRAY ( 100 )
+  
 #define PEER_CONNECTION_MAX_DTLS_DECRYPTED_DATA_LENGTH ( 2048 )
 
 #define MAX_SCTP_DATA_CHANNELS          4
@@ -61,6 +64,7 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_DESTROY,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_DESERIALIZE_CANDIDATE,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_RTP_PACKET,
+    PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_SEND_RTCP_PACKET,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_RESEND_RTP_PACKET,
     PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_ADD_ICE_SERVER_CONFIG,
     PEER_CONNECTION_RESULT_FAIL_CREATE_CERT_AND_KEY,
@@ -70,6 +74,7 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_FAIL_CREATE_SRTP_RX_SESSION,
     PEER_CONNECTION_RESULT_FAIL_CREATE_SRTP_TX_SESSION,
     PEER_CONNECTION_RESULT_FAIL_ENCRYPT_SRTP_RTP_PACKET,
+    PEER_CONNECTION_RESULT_FAIL_ENCRYPT_SRTP_RTCP_PACKET,
     PEER_CONNECTION_RESULT_FAIL_DECRYPT_SRTP_RTP_PACKET,
     PEER_CONNECTION_RESULT_FAIL_RTP_INIT,
     PEER_CONNECTION_RESULT_FAIL_RTP_SERIALIZE,
@@ -77,7 +82,21 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_FAIL_RTP_RX_NO_MATCHING_SSRC,
     PEER_CONNECTION_RESULT_FAIL_RTCP_INIT,
     PEER_CONNECTION_RESULT_FAIL_RTCP_DESERIALIZE,
+    PEER_CONNECTION_RESULT_FAIL_RTCP_PARSE_REMB,
     PEER_CONNECTION_RESULT_FAIL_RTCP_PARSE_NACK,
+    PEER_CONNECTION_RESULT_FAIL_RTCP_PARSE_PLI,
+    PEER_CONNECTION_RESULT_FAIL_RTCP_PARSE_SLI,
+    PEER_CONNECTION_RESULT_FAIL_RTCP_PARSE_FIR,
+    PEER_CONNECTION_RESULT_FAIL_RTCP_PARSE_SENDER_REPORT,
+    PEER_CONNECTION_RESULT_FAIL_RTCP_SERIALIZE_SENDER_REPORT,
+    PEER_CONNECTION_RESULT_FAIL_RTCP_PARSE_RECEIVER_REPORT,
+    PEER_CONNECTION_RESULT_FAIL_RTCP_TWCC_INIT,
+    PEER_CONNECTION_RESULT_FAIL_CREATE_TWCC_MUTEX,
+    PEER_CONNECTION_RESULT_FAIL_TAKE_TWCC_MUTEX,
+    PEER_CONNECTION_RESULT_FAIL_TIMER_INIT,
+    PEER_CONNECTION_RESULT_FAIL_TIMER_RESET,
+    PEER_CONNECTION_RESULT_FAIL_RTCP_PARSE_TWCC,
+    PEER_CONNECTION_RESULT_FAIL_RTCP_HANDLE_TWCC,
     PEER_CONNECTION_RESULT_FAIL_CREATE_SENDER_MUTEX,
     PEER_CONNECTION_RESULT_FAIL_TAKE_SENDER_MUTEX,
     PEER_CONNECTION_RESULT_FAIL_PACKET_INFO_NO_ENOUGH_MEMORY,
@@ -128,6 +147,14 @@ typedef IceControllerLocalCandidateReadyMsg_t PeerConnectionIceLocalCandidate_t;
 
 typedef void (* OnIceCandidateReadyCallback_t)( void * pCustomContext,
                                                 PeerConnectionIceLocalCandidate_t * pIceLocalCandidate );
+
+#if ENABLE_TWCC_SUPPORT
+    typedef void ( * OnBandwidthEstimationCallback_t )( void * pCustomContext,
+                                                    TwccBandwidthInfo_t * pTwccBandwidthInfo );
+#endif
+
+typedef void ( * OnPictureLossIndicationCallback_t )( void * pCustomContext,
+                                                      RtcpPliPacket_t * pRtcpPliPacket );
 
 /*
  * Media relates data structures.
@@ -217,6 +244,7 @@ typedef enum PeerConnectionSessionRequestType
     PEER_CONNECTION_SESSION_REQUEST_TYPE_ADD_REMOTE_CANDIDATE,
     PEER_CONNECTION_SESSION_REQUEST_TYPE_CONNECTIVITY_CHECK,
     PEER_CONNECTION_SESSION_REQUEST_TYPE_RESOLVE_ICE_SERVER_IP_ADDRESS,
+    PEER_CONNECTION_SESSION_REQUEST_TYPE_RTCP_SENDER_REPORT,
 } PeerConnectionSessionRequestType_t;
 
 typedef struct PeerConnectionSessionRequestMessage
@@ -227,6 +255,10 @@ typedef struct PeerConnectionSessionRequestMessage
     union
     {
         IceControllerCandidate_t remoteCandidate; /* PEER_CONNECTION_SESSION_REQUEST_TYPE_ADD_REMOTE_CANDIDATE */
+        struct {
+            uint64_t currentTime;               /* PEER_CONNECTION_SESSION_REQUEST_TYPE_RTCP_SENDER_REPORT */
+            const Transceiver_t * pTransceiver;
+        } rtcpContent;
     } peerConnectionSessionRequestContent;
 } PeerConnectionSessionRequestMessage_t;
 
@@ -279,6 +311,20 @@ typedef struct PeerConnectionSrtpReceiver
     void * pOnFrameReadyCallbackCustomContext;
 } PeerConnectionSrtpReceiver_t;
 
+#if ENABLE_TWCC_SUPPORT
+    typedef struct PeerConnectionTwccMetaData
+    {
+        /* Mutex to protect updated Bitrate's because we might read the updated bitrate in between of updating the bitrate. */
+        SemaphoreHandle_t twccBitrateMutex;
+        uint64_t lastAdjustmentTimeUs;
+        uint64_t currentVideoBitrate;
+        uint64_t currentAudioBitrate;
+        uint64_t updatedVideoBitrate;
+        uint64_t updatedAudioBitrate;
+        double  averagePacketLoss;
+    } PeerConnectionTwccMetaData_t;
+#endif
+
 typedef struct PeerConnectionContext PeerConnectionContext_t;
 typedef struct PeerConnectionSession PeerConnectionSession_t;
 typedef struct PeerConnectionDataChannel PeerConnectionDataChannel_t;
@@ -306,7 +352,7 @@ typedef struct PeerConnectionDataChannel
 
 typedef struct PeerConnectionSession
 {
-    PeerConnectionSessionState_t state;
+    volatile PeerConnectionSessionState_t state;
 
     TaskHandle_t * pTaskHandler;
 
@@ -345,6 +391,10 @@ typedef struct PeerConnectionSession
     char remoteSdpBuffer[ PEER_CONNECTION_SDP_DESCRIPTION_BUFFER_MAX_LENGTH ];
     PeerConnectionBufferSessionDescription_t remoteSessionDescription;
 
+    /* PLI callback and context */
+    OnPictureLossIndicationCallback_t onPictureLossIndicationCallback;
+    void* pPictureLossIndicationUserContext;
+
     #if ENABLE_SCTP_DATA_CHANNEL
     uint8_t ucEnableDataChannelLocal;
     uint8_t ucEnableDataChannelRemote;
@@ -360,6 +410,12 @@ typedef struct PeerConnectionSession
     PeerConnectionSrtpReceiver_t videoSrtpReceiver;
     PeerConnectionSrtpReceiver_t audioSrtpReceiver;
 
+    TimerHandler_t rtcpAudioSenderReportTimer;
+    TimerHandler_t rtcpVideoSenderReportTimer;
+
+    #if ENABLE_TWCC_SUPPORT
+    PeerConnectionTwccMetaData_t twccMetaData;
+    #endif
     /* Pointer that points to peer connection context. */
     PeerConnectionContext_t * pCtx;
 } PeerConnectionSession_t;
@@ -398,6 +454,15 @@ typedef struct PeerConnectionContext
     PeerConnectionDtlsContext_t dtlsContext;
     RtpContext_t rtpContext;
     RtcpContext_t rtcpContext;
+
+    #if ENABLE_TWCC_SUPPORT
+    RtcpTwccManager_t rtcpTwccManager;
+    TwccPacketInfo_t twccPacketInfo[ PEER_CONNECTION_RTCP_TWCC_MAX_ARRAY ];
+
+    /* Callback for bandwidth estimation updates */
+    OnBandwidthEstimationCallback_t onBandwidthEstimationCallback;
+    void * pOnBandwidthEstimationCallbackContext;
+    #endif /* ENABLE_TWCC_SUPPORT */
 } PeerConnectionContext_t;
 
 #ifdef __cplusplus

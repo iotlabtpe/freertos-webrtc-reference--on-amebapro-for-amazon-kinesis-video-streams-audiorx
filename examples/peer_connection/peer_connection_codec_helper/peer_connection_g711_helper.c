@@ -144,6 +144,9 @@ PeerConnectionResult_t PeerConnectionG711Helper_WriteG711Frame( PeerConnectionSe
     uint16_t * pRtpSeq = NULL;
     uint32_t payloadType;
     uint32_t * pSsrc = NULL;
+    uint32_t packetSent = 0;
+    uint32_t bytesSent = 0;
+    uint32_t randomRtpTimeoffset = 0;    // TODO : Spec required random rtp time offset ( current implementation of KVS SDK )
     /* For TWCC ID extension info. */
     uint32_t extensionPayload;
 
@@ -328,6 +331,12 @@ PeerConnectionResult_t PeerConnectionG711Helper_WriteG711Frame( PeerConnectionSe
 
         if( ret == PEER_CONNECTION_RESULT_OK )
         {
+            packetSent++;
+            bytesSent += pRollingBufferPacket->rtpPacket.payloadLength;
+        }
+
+        if( ret == PEER_CONNECTION_RESULT_OK )
+        {
             Metric_EndEvent( METRIC_EVENT_SENDING_FIRST_FRAME );
         }
     }
@@ -336,6 +345,15 @@ PeerConnectionResult_t PeerConnectionG711Helper_WriteG711Frame( PeerConnectionSe
     {
         xSemaphoreGive( pSrtpSender->senderMutex );
     }
-   
+
+    if( pTransceiver->rtpSender.rtpFirstFrameWallClockTime == 0 )
+    {
+        pTransceiver->rtpSender.rtpFirstFrameWallClockTime = NetworkingUtils_GetCurrentTimeUs( NULL );
+        pTransceiver->rtpSender.rtpTimeOffset = randomRtpTimeoffset;
+    }
+
+    pTransceiver->rtcpStats.rtpPacketsTransmitted += packetSent;
+    pTransceiver->rtcpStats.rtpBytesTransmitted += bytesSent;
+
     return ret;
 }
