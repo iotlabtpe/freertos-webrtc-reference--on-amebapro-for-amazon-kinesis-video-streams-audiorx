@@ -361,9 +361,9 @@ PeerConnectionResult_t PeerConnectionH264Helper_WriteH264Frame( PeerConnectionSe
         xSemaphoreGive( pSrtpSender->senderMutex );
     }
 
-    if( pTransceiver->rtpSender.rtpFirstFrameWallClockTime == 0 )
+    if( pTransceiver->rtpSender.rtpFirstFrameWallClockTimeUs == 0 )
     {
-        pTransceiver->rtpSender.rtpFirstFrameWallClockTime = NetworkingUtils_GetCurrentTimeUs( NULL );
+        pTransceiver->rtpSender.rtpFirstFrameWallClockTimeUs = NetworkingUtils_GetCurrentTimeUs( NULL );
         pTransceiver->rtpSender.rtpTimeOffset = randomRtpTimeoffset;
     }
 

@@ -53,6 +53,30 @@
 #define ICE_SERVER_TYPE_TURNS                     "turns:"
 #define ICE_SERVER_TYPE_TURNS_LENGTH              ( 6 )
 
+/**
+ * EMA (Exponential Moving Average) alpha value and 1-alpha value - over appx 20 samples
+ */
+#define EMA_ALPHA_VALUE           ( ( double ) 0.05 )
+#define ONE_MINUS_EMA_ALPHA_VALUE ( ( double ) ( 1 - EMA_ALPHA_VALUE ) )
+
+/**
+ * Calculates the EMA (Exponential Moving Average) accumulator value
+ *
+ * a - Accumulator value
+ * v - Next sample point
+ *
+ * @return the new Accumulator value
+ */
+#define EMA_ACCUMULATOR_GET_NEXT( a, v ) ( double )( EMA_ALPHA_VALUE * ( v ) + ONE_MINUS_EMA_ALPHA_VALUE * ( a ) )
+
+#ifndef MIN
+#define MIN( a, b ) ( ( ( a ) < ( b ) ) ? ( a ) : ( b ) )
+#endif
+
+#ifndef MAX
+#define MAX( a, b ) ( ( ( a ) > ( b ) ) ? ( a ) : ( b ) )
+#endif
+
 DemoContext_t demoContext;
 
 static void Master_Task( void * pParameter );
@@ -61,6 +85,10 @@ static void platform_init( void );
 static void wifi_common_init( void );
 static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEvent,
                                        void * pUserContext );
+#if ENABLE_TWCC_SUPPORT
+static void SampleSenderBandwidthEstimationHandler( void * pCustomContext,
+                                                    TwccBandwidthInfo_t * pTwccBandwidthInfo );
+#endif /* ENABLE_TWCC_SUPPORT */
 static int initializeApplication( DemoContext_t * pDemoContext );
 static int32_t InitializePeerConnectionSession( DemoContext_t * pDemoContext,
                                                 DemoPeerConnectionSession_t * pDemoSession );
@@ -86,7 +114,7 @@ static int32_t OnSendIceCandidateComplete( SignalingControllerEventStatus_t stat
                                            void * pUserContext );
 
 extern int crypto_init( void );
-extern int platform_set_malloc_free( void * ( *malloc_func )( size_t ),
+extern int platform_set_malloc_free( void * ( *malloc_func ) ( size_t ),
                                      void ( * free_func )( void * ) );
 
 static void platform_init( void )
@@ -95,8 +123,8 @@ static void platform_init( void )
 
     /* mbedtls init */
     crypto_init();
-    platform_set_malloc_free( ( void ( * ) )calloc,
-                              ( void ( * )( void * ) )free );
+    platform_set_malloc_free( ( void ( * ) ) calloc,
+                              ( void ( * ) ( void * ) ) free );
 
     /* Show backtrace if exception. */
     sys_backtrace_enable();
@@ -613,6 +641,109 @@ static int32_t GetIceServerList( DemoContext_t * pDemoContext,
     return skipProcess;
 }
 
+#if ENABLE_TWCC_SUPPORT
+/* Sample callback for TWCC. The average packet loss is tracked using an exponential moving average (EMA).
+   - If packet loss stays at or below 5%, the bitrate increases by 5%.
+   - If packet loss exceeds 5%, the bitrate decreases by the same percentage as the loss.
+   The bitrate is adjusted once per second, ensuring it stays within predefined limits. */
+    static void SampleSenderBandwidthEstimationHandler( void * pCustomContext,
+                                                        TwccBandwidthInfo_t * pTwccBandwidthInfo )
+    {
+        PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+        PeerConnectionTwccMetaData_t * pTwccMetaData = NULL;
+        uint64_t videoBitrate = 0;
+        uint64_t audioBitrate = 0;
+        uint64_t currentTimeUs = 0;
+        uint64_t timeDifference = 0;
+        uint32_t lostPacketCount = 0;
+        uint8_t isLocked = 0;
+        double percentLost = 0.0;
+
+        if( ( pCustomContext == NULL ) ||
+            ( pTwccBandwidthInfo == NULL ) )
+        {
+            LogError( ( "Invalid input, pCustomContext: %p, pTwccBandwidthInfo: %p",
+                        pCustomContext, pTwccBandwidthInfo ) );
+            ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+        }
+
+        // Calculate packet loss
+        if( ret == PEER_CONNECTION_RESULT_OK )
+        {
+            pTwccMetaData = ( PeerConnectionTwccMetaData_t * ) pCustomContext;
+
+            pTwccMetaData->averagePacketLoss = EMA_ACCUMULATOR_GET_NEXT( pTwccMetaData->averagePacketLoss,
+                                                                        ( ( double ) percentLost ) );
+
+            currentTimeUs = NetworkingUtils_GetCurrentTimeUs( NULL );
+            lostPacketCount = pTwccBandwidthInfo->sentPackets - pTwccBandwidthInfo->receivedPackets;
+            percentLost = ( double ) ( ( pTwccBandwidthInfo->sentPackets > 0 ) ? ( ( double ) ( lostPacketCount * 100 ) / ( double )pTwccBandwidthInfo->sentPackets ) : 0.0 );
+            timeDifference = currentTimeUs - pTwccMetaData->lastAdjustmentTimeUs;
+
+            if( timeDifference < PEER_CONNECTION_TWCC_BITRATE_ADJUSTMENT_INTERVAL_US )
+            {
+                // Too soon for another adjustment
+                ret = PEER_CONNECTION_RESULT_FAIL_RTCP_TWCC_INIT;
+            }
+        }
+
+        if( ret == PEER_CONNECTION_RESULT_OK )
+        {
+            if( xSemaphoreTake( pTwccMetaData->twccBitrateMutex,
+                                portMAX_DELAY ) == pdTRUE )
+            {
+                isLocked = 1;
+            }
+            else
+            {
+                LogError( ( "Failed to lock Twcc mutex." ) );
+                ret = PEER_CONNECTION_RESULT_FAIL_TAKE_TWCC_MUTEX;
+            }
+        }
+
+        if( ret == PEER_CONNECTION_RESULT_OK )
+        {
+            videoBitrate = pTwccMetaData->currentVideoBitrate;
+            audioBitrate = pTwccMetaData->currentAudioBitrate;
+
+            if( pTwccMetaData->averagePacketLoss <= 5 )
+            {
+                // Increase encoder bitrates by 5 percent with cap at MAX_BITRATE
+                videoBitrate = ( uint64_t ) MIN( videoBitrate * 1.05,
+                                                PEER_CONNECTION_MAX_VIDEO_BITRATE_KBPS );
+                audioBitrate = ( uint64_t ) MIN( audioBitrate * 1.05,
+                                                PEER_CONNECTION_MAX_AUDIO_BITRATE_BPS );
+            }
+            else
+            {
+                // Decrease encoder bitrate by average packet loss percent, with a cap at MIN_BITRATE
+                videoBitrate = ( uint64_t ) MAX( videoBitrate * ( 1.0 - ( pTwccMetaData->averagePacketLoss / 100.0 ) ),
+                                                PEER_CONNECTION_MIN_VIDEO_BITRATE_KBPS );
+                audioBitrate = ( uint64_t ) MAX( audioBitrate * ( 1.0 - ( pTwccMetaData->averagePacketLoss / 100.0 ) ),
+                                                PEER_CONNECTION_MIN_AUDIO_BITRATE_BPS );
+            }
+
+            pTwccMetaData->updatedVideoBitrate = videoBitrate;
+            pTwccMetaData->updatedAudioBitrate = audioBitrate;
+        }
+
+        if( isLocked != 0 )
+        {
+            xSemaphoreGive( pTwccMetaData->twccBitrateMutex );
+
+        }
+        if( ret == PEER_CONNECTION_RESULT_OK )
+        {
+            pTwccMetaData->lastAdjustmentTimeUs = currentTimeUs;
+
+            LogInfo( ( "Adjusted made : average packet loss = %.2f%%, timeDifference = %llu us", pTwccMetaData->averagePacketLoss, timeDifference  ) );
+            LogInfo( ( "Suggested video bitrate: %llu kbps, suggested audio bitrate: %llu bps, sent: %llu bytes, %llu packets,   received: %llu bytes, %llu packets, in %llu msec ",
+                    videoBitrate, audioBitrate, pTwccBandwidthInfo->sentBytes, pTwccBandwidthInfo->sentPackets, pTwccBandwidthInfo->receivedBytes, pTwccBandwidthInfo->receivedPackets, pTwccBandwidthInfo->duration / 10000ULL ) );
+        }
+
+    }
+#endif
+
 static int32_t InitializePeerConnectionSession( DemoContext_t * pDemoContext,
                                                 DemoPeerConnectionSession_t * pDemoSession )
 {
@@ -633,6 +764,20 @@ static int32_t InitializePeerConnectionSession( DemoContext_t * pDemoContext,
         ret = -1;
     }
 
+    #if ENABLE_TWCC_SUPPORT
+        if( peerConnectionResult == PEER_CONNECTION_RESULT_OK )
+        {
+            /* In case you want to set a different callback based on your business logic, you could replace SampleSenderBandwidthEstimationHandler() with your Handler. */
+            peerConnectionResult = PeerConnection_SetSenderBandwidthEstimationCallback( &pDemoSession->peerConnectionSession,
+                                                                                        SampleSenderBandwidthEstimationHandler,
+                                                                                        &pDemoSession->peerConnectionSession.twccMetaData );
+            if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
+            {
+                LogError( ( "Fail to set Sender Bandwidth Estimation Callback, result: %d", peerConnectionResult ) );
+                ret = -1;
+            }
+        }
+    #endif
     return ret;
 }
 
@@ -671,7 +816,7 @@ static int32_t StartPeerConnectionSession( DemoContext_t * pDemoContext,
                                                                   pcConfig.iceServersCount );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
-            LogWarn( ( "PeerConnection_Init fail, result: %d", peerConnectionResult ) );
+            LogWarn( ( "PeerConnection_AddIceServerConfig fail, result: %d", peerConnectionResult ) );
             ret = -1;
         }
     }

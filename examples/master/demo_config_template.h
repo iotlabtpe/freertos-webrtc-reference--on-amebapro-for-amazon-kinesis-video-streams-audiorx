@@ -9,6 +9,10 @@
 
 #define AWS_CA_CERT_PATH "cert/cert.pem"
 
+#ifndef ENABLE_TWCC_SUPPORT
+#define ENABLE_TWCC_SUPPORT 1U
+#endif
+
 /* Uncomment to use fetching credentials by IoT Role-alias for Authentication */
 /* Please add the AWS_IOT_THING_CERT and AWS_IOT_THING_PRIVATE_KEY similar to the AWS_CA_CERT_PEM */
 

@@ -94,7 +94,7 @@ typedef struct TransceiverRtpSender
 {
     /* RTCP Sender Report Stats. */
     uint64_t rtpTimeOffset;
-    uint64_t rtpFirstFrameWallClockTime;
+    uint64_t rtpFirstFrameWallClockTimeUs;
 } TransceiverRtpSender_t;
 
 typedef struct Transceiver

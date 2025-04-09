@@ -44,11 +44,17 @@ extern "C" {
 #define PEER_CONNECTION_SDP_DESCRIPTION_BUFFER_MAX_LENGTH ( 10000 )
 
 #define PEER_CONNECTION_RTCP_TWCC_MAX_ARRAY ( 100 )
-  
+
 #define PEER_CONNECTION_MAX_DTLS_DECRYPTED_DATA_LENGTH ( 2048 )
 
 #define MAX_SCTP_DATA_CHANNELS          4
 #define PEER_CONNECTION_MAX_SCTP_DATA_CHANNELS_PER_PEER 2
+
+#define PEER_CONNECTION_TWCC_BITRATE_ADJUSTMENT_INTERVAL_US        1000 * 10000  //1,000,000 microseconds.
+#define PEER_CONNECTION_MIN_VIDEO_BITRATE_KBPS                     512     // Unit kilobits/sec. Value could change based on codec.
+#define PEER_CONNECTION_MAX_VIDEO_BITRATE_KBPS                     2048000 // Unit kilobits/sec. Value could change based on codec.
+#define PEER_CONNECTION_MIN_AUDIO_BITRATE_BPS                      4000    // Unit bits/sec. Value could change based on codec.
+#define PEER_CONNECTION_MAX_AUDIO_BITRATE_BPS                      650000  // Unit bits/sec. Value could change based on codec.
 
 typedef enum PeerConnectionResult
 {
@@ -256,7 +262,7 @@ typedef struct PeerConnectionSessionRequestMessage
     {
         IceControllerCandidate_t remoteCandidate; /* PEER_CONNECTION_SESSION_REQUEST_TYPE_ADD_REMOTE_CANDIDATE */
         struct {
-            uint64_t currentTime;               /* PEER_CONNECTION_SESSION_REQUEST_TYPE_RTCP_SENDER_REPORT */
+            uint64_t currentTimeUs;               /* PEER_CONNECTION_SESSION_REQUEST_TYPE_RTCP_SENDER_REPORT */
             const Transceiver_t * pTransceiver;
         } rtcpContent;
     } peerConnectionSessionRequestContent;
@@ -393,7 +399,7 @@ typedef struct PeerConnectionSession
 
     /* PLI callback and context */
     OnPictureLossIndicationCallback_t onPictureLossIndicationCallback;
-    void* pPictureLossIndicationUserContext;
+    void * pPictureLossIndicationUserContext;
 
     #if ENABLE_SCTP_DATA_CHANNEL
     uint8_t ucEnableDataChannelLocal;
