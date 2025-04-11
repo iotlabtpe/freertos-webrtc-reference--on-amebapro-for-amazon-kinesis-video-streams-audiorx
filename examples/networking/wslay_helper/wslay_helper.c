@@ -1,5 +1,5 @@
 #include "logging.h"
-#include "websocket.h"
+#include "networking.h"
 #include "wslay_helper.h"
 #include "core_http_client.h"
 #include <base64.h>
@@ -330,6 +330,7 @@ static NetworkingWslayResult_t WriteUriEncodedChannelArn( char ** ppBuffer,
 }
 
 static NetworkingWslayResult_t WriteUriEncodedCredential( NetworkingWslayContext_t * pWebsocketCtx,
+                                                          const AwsCredentials_t * pAwsCredentials,
                                                           char ** ppBuffer,
                                                           size_t * pBufferLength,
                                                           const char * pDate )
@@ -359,9 +360,9 @@ static NetworkingWslayResult_t WriteUriEncodedCredential( NetworkingWslayContext
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
         writtenLength = snprintf( *ppBuffer, *pBufferLength, NETWORKING_WSLAY_STRING_CREDENTIAL_VALUE_TEMPLATE,
-                                  ( int ) pWebsocketCtx->credentials.accessKeyIdLength, pWebsocketCtx->credentials.pAccessKeyId,
+                                  ( int ) pAwsCredentials->accessKeyIdLength, pAwsCredentials->pAccessKeyId,
                                   NETWORKING_WSLAY_CREDENTIAL_PARAM_DATE_LENGTH, pDate,
-                                  ( int ) pWebsocketCtx->credentials.regionLength, pWebsocketCtx->credentials.pRegion );
+                                  ( int ) pAwsCredentials->regionLength, pAwsCredentials->pRegion );
 
         if( writtenLength < 0 )
         {
@@ -550,6 +551,7 @@ static NetworkingWslayResult_t WriteUriEncodedSignedHeaders( char ** ppBuffer,
 }
 
 static NetworkingWslayResult_t WriteUriEncodeSecurityToken( NetworkingWslayContext_t * pWebsocketCtx,
+                                                            const AwsCredentials_t * pAwsCredentials,
                                                             char ** ppBuffer,
                                                             size_t * pBufferLength )
 {
@@ -583,7 +585,7 @@ static NetworkingWslayResult_t WriteUriEncodeSecurityToken( NetworkingWslayConte
     {
 
         writtenLength = snprintf( *ppBuffer, *pBufferLength, "%.*s",
-                                  ( int ) pWebsocketCtx->credentials.sessionTokenLength, pWebsocketCtx->credentials.pSessionToken );
+                                  ( int ) pAwsCredentials->sessionTokenLength, pAwsCredentials->pSessionToken );
 
         if( writtenLength < 0 )
         {
@@ -619,6 +621,7 @@ static NetworkingWslayResult_t WriteUriEncodeSecurityToken( NetworkingWslayConte
 }
 
 static WebsocketResult_t generateQueryParameters( NetworkingWslayContext_t * pWebsocketCtx,
+                                                  const AwsCredentials_t * pAwsCredentials,
                                                   const char * pUrl,
                                                   size_t urlLength,
                                                   const char * pHost,
@@ -641,6 +644,7 @@ static WebsocketResult_t generateQueryParameters( NetworkingWslayContext_t * pWe
     NetworkingUtilsCanonicalRequest_t canonicalRequest;
     char * pSig;
     size_t sigLength;
+    SigV4Credentials_t sigv4Credential;
 
     if( ( pUrl == NULL ) || ( pHost == NULL ) || ( pPath == NULL ) || ( pOutput == NULL ) || ( pOutputLength == NULL ) )
     {
@@ -707,7 +711,7 @@ static WebsocketResult_t generateQueryParameters( NetworkingWslayContext_t * pWe
     /* X-Amz-Credential query parameter. */
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        ret = WriteUriEncodedCredential( pWebsocketCtx, &pCurrentWrite, &remainLength, dateBuffer );
+        ret = WriteUriEncodedCredential( pWebsocketCtx, pAwsCredentials, &pCurrentWrite, &remainLength, dateBuffer );
     }
 
     /* X-Amz-Date query parameter. */
@@ -723,9 +727,9 @@ static WebsocketResult_t generateQueryParameters( NetworkingWslayContext_t * pWe
     }
 
     // /* X-Amz-Security-Token query parameter. */
-    if( ( ret == NETWORKING_WSLAY_RESULT_OK ) && ( pWebsocketCtx->credentials.sessionTokenLength > 0U ) )
+    if( ( ret == NETWORKING_WSLAY_RESULT_OK ) && ( pAwsCredentials->sessionTokenLength > 0U ) )
     {
-        ret = WriteUriEncodeSecurityToken( pWebsocketCtx, &pCurrentWrite, &remainLength );
+        ret = WriteUriEncodeSecurityToken( pWebsocketCtx, pAwsCredentials, &pCurrentWrite, &remainLength );
     }
 
     /* X-Amz-SignedHeaders query parameter. */
@@ -772,9 +776,14 @@ static WebsocketResult_t generateQueryParameters( NetworkingWslayContext_t * pWe
         canonicalRequest.pPayload = NULL;
         canonicalRequest.payloadLength = 0;
 
+        sigv4Credential.pAccessKeyId = pAwsCredentials->pAccessKeyId;
+        sigv4Credential.accessKeyIdLen = pAwsCredentials->accessKeyIdLength;
+        sigv4Credential.pSecretAccessKey = pAwsCredentials->pSecretAccessKey;
+        sigv4Credential.secretAccessKeyLen = pAwsCredentials->secretAccessKeyLength;
+
         pWebsocketCtx->sigv4AuthBufferLength = NETWORKING_META_BUFFER_LENGTH;
-        retUtils = NetworkingUtils_GenrerateAuthorizationHeader( &canonicalRequest, &pWebsocketCtx->sigv4Credential,
-                                                                 pWebsocketCtx->credentials.pRegion, pWebsocketCtx->credentials.regionLength, dateBuffer,
+        retUtils = NetworkingUtils_GenrerateAuthorizationHeader( &canonicalRequest, &sigv4Credential,
+                                                                 pAwsCredentials->pRegion, pAwsCredentials->regionLength, dateBuffer,
                                                                  pWebsocketCtx->sigv4AuthBuffer, &pWebsocketCtx->sigv4AuthBufferLength,
                                                                  &pSig, &sigLength );
 
@@ -1212,35 +1221,20 @@ static void TriggerWakeUpSocket( NetworkingWslayContext_t * pWebsocketCtx )
 }
 
 WebsocketResult_t Websocket_Init( NetworkingWslayContext_t * pWebsocketCtx,
-                                  void * pCredential,
                                   WebsocketMessageCallback_t rxCallback,
                                   void * pRxCallbackContext )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
-    NetworkingWslayCredentials_t * pNetworkingWslayCredentials = ( NetworkingWslayCredentials_t * )pCredential;
     static uint8_t first = 0U;
 
-    if( pCredential == NULL )
+    if( pWebsocketCtx == NULL )
     {
         ret = NETWORKING_WSLAY_RESULT_BAD_PARAMETER;
     }
 
     if( ( ret == NETWORKING_WSLAY_RESULT_OK ) && !first )
     {
-        memcpy( &pWebsocketCtx->credentials, pCredential, sizeof( NetworkingWslayCredentials_t ) );
-        pWebsocketCtx->sigv4Credential.pAccessKeyId = pNetworkingWslayCredentials->pAccessKeyId;
-        pWebsocketCtx->sigv4Credential.accessKeyIdLen = pNetworkingWslayCredentials->accessKeyIdLength;
-        pWebsocketCtx->sigv4Credential.pSecretAccessKey = pNetworkingWslayCredentials->pSecretAccessKey;
-        pWebsocketCtx->sigv4Credential.secretAccessKeyLen = pNetworkingWslayCredentials->secretAccessKeyLength;
 
-        if( pWebsocketCtx->credentials.userAgentLength > NETWORKING_WSLAY_USER_AGENT_NAME_MAX_LENGTH )
-        {
-            ret = NETWORKING_WSLAY_RESULT_USER_AGENT_NAME_LENGTH_TOO_LONG;
-        }
-    }
-
-    if( ( ret == NETWORKING_WSLAY_RESULT_OK ) && !first )
-    {
         memset( &pWebsocketCtx->xTransportInterface, 0, sizeof( TransportInterface_t ) );
         memset( &pWebsocketCtx->xNetworkContext, 0, sizeof( NetworkContext_t ) );
         memset( &pWebsocketCtx->xTlsTransportParams, 0, sizeof( TlsTransportParams_t ) );
@@ -1266,6 +1260,7 @@ WebsocketResult_t Websocket_Init( NetworkingWslayContext_t * pWebsocketCtx,
 }
 
 WebsocketResult_t Websocket_Connect( NetworkingWslayContext_t * pWebsocketCtx,
+                                     const AwsCredentials_t * pAwsCredentials,
                                      WebsocketServerInfo_t * pServerInfo )
 {
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
@@ -1327,15 +1322,15 @@ WebsocketResult_t Websocket_Connect( NetworkingWslayContext_t * pWebsocketCtx,
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
         memset( &credentials, 0, sizeof( NetworkCredentials_t ) );
-        credentials.pRootCa = pWebsocketCtx->credentials.pRootCa;
-        credentials.rootCaSize = pWebsocketCtx->credentials.rootCaSize;
+        credentials.pRootCa = pAwsCredentials->pRootCa;
+        credentials.rootCaSize = pAwsCredentials->rootCaSize;
 
-        if( pWebsocketCtx->credentials.iotThingCertSize > 0 )
+        if( pAwsCredentials->iotThingCertSize > 0 )
         {
-            credentials.pClientCert = pWebsocketCtx->credentials.pIotThingCert;
-            credentials.clientCertSize = pWebsocketCtx->credentials.iotThingCertSize;
-            credentials.pPrivateKey = pWebsocketCtx->credentials.pIotThingPrivateKey;
-            credentials.privateKeySize = pWebsocketCtx->credentials.iotThingPrivateKeySize;
+            credentials.pClientCert = pAwsCredentials->pIotThingCert;
+            credentials.clientCertSize = pAwsCredentials->iotThingCertSize;
+            credentials.pPrivateKey = pAwsCredentials->pIotThingPrivateKey;
+            credentials.privateKeySize = pAwsCredentials->iotThingPrivateKeySize;
         }
 
         retUtils = NetworkingUtils_ConnectToServer( &pWebsocketCtx->xNetworkContext,
@@ -1356,6 +1351,7 @@ WebsocketResult_t Websocket_Connect( NetworkingWslayContext_t * pWebsocketCtx,
     {
         /* Follow https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html to create query parameters. */
         ret = generateQueryParameters( pWebsocketCtx,
+                                       pAwsCredentials,
                                        pServerInfo->pUrl,
                                        pServerInfo->urlLength,
                                        pHost,
@@ -1672,34 +1668,6 @@ WebsocketResult_t Websocket_Signal( NetworkingWslayContext_t * pWebsocketCtx )
     NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
 
     TriggerWakeUpSocket( pWebsocketCtx );
-
-    return ret;
-}
-
-WebsocketResult_t Websocket_UpdateCredential( NetworkingWslayContext_t * pWebsocketCtx,
-                                              void * pCredential )
-{
-    NetworkingWslayResult_t ret = NETWORKING_WSLAY_RESULT_OK;
-    NetworkingWslayCredentials_t * pNetworkingWslayCredentials = ( NetworkingWslayCredentials_t * )pCredential;
-
-    if( pCredential == NULL )
-    {
-        ret = NETWORKING_WSLAY_RESULT_BAD_PARAMETER;
-    }
-
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        memcpy( &pWebsocketCtx->credentials, pCredential, sizeof( NetworkingWslayCredentials_t ) );
-        pWebsocketCtx->sigv4Credential.pAccessKeyId = pNetworkingWslayCredentials->pAccessKeyId;
-        pWebsocketCtx->sigv4Credential.accessKeyIdLen = pNetworkingWslayCredentials->accessKeyIdLength;
-        pWebsocketCtx->sigv4Credential.pSecretAccessKey = pNetworkingWslayCredentials->pSecretAccessKey;
-        pWebsocketCtx->sigv4Credential.secretAccessKeyLen = pNetworkingWslayCredentials->secretAccessKeyLength;
-
-        if( pWebsocketCtx->credentials.userAgentLength > NETWORKING_WSLAY_USER_AGENT_NAME_MAX_LENGTH )
-        {
-            ret = NETWORKING_WSLAY_RESULT_USER_AGENT_NAME_LENGTH_TOO_LONG;
-        }
-    }
 
     return ret;
 }

@@ -79,7 +79,7 @@ static int32_t CreateSdpOffer( DemoContext_t * pDemoContext )
     if( skipProcess == 0 )
     {
         eventMessage.eventContent.correlationIdLength = 0U;
-        memset( eventMessage.eventContent.correlationId, 0, SIGNALING_CONTROLLER_CORRELATION_ID_MAX_LENGTH );
+        memset( eventMessage.eventContent.correlationId, 0, SECRET_ACCESS_KEY_MAX_LEN );
         eventMessage.eventContent.messageType = SIGNALING_TYPE_MESSAGE_SDP_OFFER;
         eventMessage.eventContent.pDecodeMessage = pDemoContext->sdpBuffer;
         eventMessage.eventContent.decodeMessageLength = sdpOfferMessageLength;

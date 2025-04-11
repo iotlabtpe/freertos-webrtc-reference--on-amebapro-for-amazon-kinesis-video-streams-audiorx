@@ -20,7 +20,7 @@
 #include "metric.h"
 
 #if ENABLE_SCTP_DATA_CHANNEL
-    #include "peer_connection_sctp.h"
+#include "peer_connection_sctp.h"
 #endif /* ENABLE_SCTP_DATA_CHANNEL */
 
 #define AWS_DEFAULT_STUN_SERVER_URL_POSTFIX       "amazonaws.com"
@@ -53,6 +53,8 @@
 #define ICE_SERVER_TYPE_TURNS                     "turns:"
 #define ICE_SERVER_TYPE_TURNS_LENGTH              ( 6 )
 
+#define SIGNALING_CONNECT_STATE_TIMEOUT_SEC ( 15 )
+
 /**
  * EMA (Exponential Moving Average) alpha value and 1-alpha value - over appx 20 samples
  */
@@ -83,8 +85,8 @@ static void Master_Task( void * pParameter );
 
 static void platform_init( void );
 static void wifi_common_init( void );
-static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEvent,
-                                       void * pUserContext );
+static int OnSignalingMessageReceived( SignalingMessage_t * pSignalingMessage,
+                                       void * pUserData );
 #if ENABLE_TWCC_SUPPORT
 static void SampleSenderBandwidthEstimationHandler( void * pCustomContext,
                                                     TwccBandwidthInfo_t * pTwccBandwidthInfo );
@@ -102,19 +104,19 @@ static DemoPeerConnectionSession_t * GetCreatePeerConnectionSession( DemoContext
                                                                      size_t remoteClientIdLength,
                                                                      uint8_t allowCreate );
 static void HandleRemoteCandidate( DemoContext_t * pDemoContext,
-                                   const SignalingControllerReceiveEvent_t * pEvent );
+                                   const SignalingMessage_t * pSignalingMessage );
 static void HandleIceServerReconnect( DemoContext_t * pDemoContext,
-                                      const SignalingControllerReceiveEvent_t * pEvent );
+                                      const SignalingMessage_t * pSignalingMessage );
 static void HandleLocalCandidateReady( void * pCustomContext,
                                        PeerConnectionIceLocalCandidate_t * pIceLocalCandidate );
 static void HandleSdpOffer( DemoContext_t * pDemoContext,
-                            const SignalingControllerReceiveEvent_t * pEvent );
+                            const SignalingMessage_t * pSignalingMessage );
 static const char * GetCandidateTypeString( IceCandidateType_t candidateType );
 static int32_t OnSendIceCandidateComplete( SignalingControllerEventStatus_t status,
                                            void * pUserContext );
 
 extern int crypto_init( void );
-extern int platform_set_malloc_free( void * ( *malloc_func ) ( size_t ),
+extern int platform_set_malloc_free( void * ( *malloc_func )( size_t ),
                                      void ( * free_func )( void * ) );
 
 static void platform_init( void )
@@ -123,8 +125,8 @@ static void platform_init( void )
 
     /* mbedtls init */
     crypto_init();
-    platform_set_malloc_free( ( void ( * ) ) calloc,
-                              ( void ( * ) ( void * ) ) free );
+    platform_set_malloc_free( ( void ( * ) )calloc,
+                              ( void ( * )( void * ) )free );
 
     /* Show backtrace if exception. */
     sys_backtrace_enable();
@@ -176,7 +178,7 @@ static int initializeApplication( DemoContext_t * pDemoContext )
 {
     int ret = 0;
     SignalingControllerResult_t signalingControllerReturn;
-    SignalingControllerCredentialInfo_t credentialInfo;
+    SSLCredentials_t sslCreds;
 
     if( pDemoContext == NULL )
     {
@@ -189,55 +191,13 @@ static int initializeApplication( DemoContext_t * pDemoContext )
         memset( pDemoContext,
                 0,
                 sizeof( DemoContext_t ) );
-
-        /* Initialize Signaling controller. */
-        memset( &credentialInfo,
-                0,
-                sizeof( SignalingControllerCredentialInfo_t ) );
-        credentialInfo.pRegion = AWS_REGION;
-        credentialInfo.regionLength = strlen( AWS_REGION );
-        credentialInfo.pChannelName = AWS_KVS_CHANNEL_NAME;
-        credentialInfo.channelNameLength = strlen( AWS_KVS_CHANNEL_NAME );
-        credentialInfo.pUserAgentName = AWS_KVS_AGENT_NAME;
-        credentialInfo.userAgentNameLength = strlen( AWS_KVS_AGENT_NAME );
-
-        #if defined( AWS_CA_CERT_PATH )
-            credentialInfo.pCaCertPath = AWS_CA_CERT_PATH;
-        #endif /* #if defined( AWS_CA_CERT_PATH ) */
+        memset( &sslCreds, 0, sizeof( SSLCredentials_t ) );
 
         #if defined( AWS_CA_CERT_PEM )
-            credentialInfo.pCaCertPem = AWS_CA_CERT_PEM;
-            credentialInfo.caCertPemSize = sizeof( AWS_CA_CERT_PEM );
+        sslCreds.pCaCertPem = ( uint8_t * ) AWS_CA_CERT_PEM;
         #endif /* #if defined( AWS_CA_CERT_PEM ) */
 
-        #if defined( AWS_ACCESS_KEY_ID )
-            credentialInfo.pAccessKeyId = AWS_ACCESS_KEY_ID;
-            credentialInfo.accessKeyIdLength = strlen( AWS_ACCESS_KEY_ID );
-            credentialInfo.pSecretAccessKey = AWS_SECRET_ACCESS_KEY;
-            credentialInfo.secretAccessKeyLength = strlen( AWS_SECRET_ACCESS_KEY );
-            #if defined( AWS_SESSION_TOKEN )
-                credentialInfo.pSessionToken = AWS_SESSION_TOKEN;
-                credentialInfo.sessionTokenLength = strlen( AWS_SESSION_TOKEN );
-            #endif /* #if defined( AWS_SESSION_TOKEN ) */
-        #endif /* #if defined( AWS_ACCESS_KEY_ID ) */
-
-        #if defined( AWS_IOT_THING_ROLE_ALIAS )
-        credentialInfo.pCredEndpoint = AWS_CREDENTIALS_ENDPOINT;
-        credentialInfo.credEndpointLength = strlen( AWS_CREDENTIALS_ENDPOINT );
-        credentialInfo.pIotThingName = AWS_IOT_THING_NAME;
-        credentialInfo.iotThingNameLength = strlen( AWS_IOT_THING_NAME );
-        credentialInfo.pIotThingRoleAlias = AWS_IOT_THING_ROLE_ALIAS;
-        credentialInfo.iotThingRoleAliasLength = strlen( AWS_IOT_THING_ROLE_ALIAS );
-        credentialInfo.pIotThingCert = AWS_IOT_THING_CERT;
-        credentialInfo.iotThingCertSize = sizeof( AWS_IOT_THING_CERT );
-        credentialInfo.pIotThingPrivateKey = AWS_IOT_THING_PRIVATE_KEY;
-        credentialInfo.iotThingPrivateKeySize = sizeof( AWS_IOT_THING_PRIVATE_KEY );
-        #endif /* #if defined( AWS_IOT_THING_ROLE_ALIAS ) */
-
-        signalingControllerReturn = SignalingController_Init( &demoContext.signalingControllerContext,
-                                                              &credentialInfo,
-                                                              handleSignalingMessage,
-                                                              NULL );
+        signalingControllerReturn = SignalingController_Init( &demoContext.signalingControllerContext, &sslCreds );
 
         if( signalingControllerReturn != SIGNALING_CONTROLLER_RESULT_OK )
         {
@@ -486,7 +446,7 @@ static int32_t GetIceServerList( DemoContext_t * pDemoContext,
     int32_t skipProcess = 0;
     int32_t parseResult = 0;
     SignalingControllerResult_t signalingControllerReturn;
-    SignalingControllerIceServerConfig_t * pIceServerConfigs;
+    IceServerConfig_t * pIceServerConfigs;
     size_t iceServerConfigsCount;
     char * pStunUrlPostfix;
     int written;
@@ -600,12 +560,12 @@ static int32_t GetIceServerList( DemoContext_t * pDemoContext,
                 /* Do nothing, coverity happy. */
             }
 
-            for( j = 0; j < pIceServerConfigs[ i ].uriCount; j++ )
+            for( j = 0; j < pIceServerConfigs[ i ].iceServerUriCount; j++ )
             {
                 /* Parse each URI */
                 parseResult = ParseIceServerUri( &pOutputIceServers[ currentIceServerIndex ],
-                                                 pIceServerConfigs[ i ].uris[ j ],
-                                                 pIceServerConfigs[ i ].urisLength[ j ] );
+                                                 pIceServerConfigs[ i ].iceServerUris[ j ].uri,
+                                                 pIceServerConfigs[ i ].iceServerUris[ j ].uriLength );
 
                 if( parseResult != 0 )
                 {
@@ -646,102 +606,102 @@ static int32_t GetIceServerList( DemoContext_t * pDemoContext,
    - If packet loss stays at or below 5%, the bitrate increases by 5%.
    - If packet loss exceeds 5%, the bitrate decreases by the same percentage as the loss.
    The bitrate is adjusted once per second, ensuring it stays within predefined limits. */
-    static void SampleSenderBandwidthEstimationHandler( void * pCustomContext,
-                                                        TwccBandwidthInfo_t * pTwccBandwidthInfo )
+static void SampleSenderBandwidthEstimationHandler( void * pCustomContext,
+                                                    TwccBandwidthInfo_t * pTwccBandwidthInfo )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+    PeerConnectionTwccMetaData_t * pTwccMetaData = NULL;
+    uint64_t videoBitrate = 0;
+    uint64_t audioBitrate = 0;
+    uint64_t currentTimeUs = 0;
+    uint64_t timeDifference = 0;
+    uint32_t lostPacketCount = 0;
+    uint8_t isLocked = 0;
+    double percentLost = 0.0;
+
+    if( ( pCustomContext == NULL ) ||
+        ( pTwccBandwidthInfo == NULL ) )
     {
-        PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
-        PeerConnectionTwccMetaData_t * pTwccMetaData = NULL;
-        uint64_t videoBitrate = 0;
-        uint64_t audioBitrate = 0;
-        uint64_t currentTimeUs = 0;
-        uint64_t timeDifference = 0;
-        uint32_t lostPacketCount = 0;
-        uint8_t isLocked = 0;
-        double percentLost = 0.0;
+        LogError( ( "Invalid input, pCustomContext: %p, pTwccBandwidthInfo: %p",
+                    pCustomContext, pTwccBandwidthInfo ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
 
-        if( ( pCustomContext == NULL ) ||
-            ( pTwccBandwidthInfo == NULL ) )
+    // Calculate packet loss
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        pTwccMetaData = ( PeerConnectionTwccMetaData_t * ) pCustomContext;
+
+        pTwccMetaData->averagePacketLoss = EMA_ACCUMULATOR_GET_NEXT( pTwccMetaData->averagePacketLoss,
+                                                                     ( ( double ) percentLost ) );
+
+        currentTimeUs = NetworkingUtils_GetCurrentTimeUs( NULL );
+        lostPacketCount = pTwccBandwidthInfo->sentPackets - pTwccBandwidthInfo->receivedPackets;
+        percentLost = ( double ) ( ( pTwccBandwidthInfo->sentPackets > 0 ) ? ( ( double ) ( lostPacketCount * 100 ) / ( double )pTwccBandwidthInfo->sentPackets ) : 0.0 );
+        timeDifference = currentTimeUs - pTwccMetaData->lastAdjustmentTimeUs;
+
+        if( timeDifference < PEER_CONNECTION_TWCC_BITRATE_ADJUSTMENT_INTERVAL_US )
         {
-            LogError( ( "Invalid input, pCustomContext: %p, pTwccBandwidthInfo: %p",
-                        pCustomContext, pTwccBandwidthInfo ) );
-            ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+            // Too soon for another adjustment
+            ret = PEER_CONNECTION_RESULT_FAIL_RTCP_TWCC_INIT;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        if( xSemaphoreTake( pTwccMetaData->twccBitrateMutex,
+                            portMAX_DELAY ) == pdTRUE )
+        {
+            isLocked = 1;
+        }
+        else
+        {
+            LogError( ( "Failed to lock Twcc mutex." ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_TAKE_TWCC_MUTEX;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        videoBitrate = pTwccMetaData->currentVideoBitrate;
+        audioBitrate = pTwccMetaData->currentAudioBitrate;
+
+        if( pTwccMetaData->averagePacketLoss <= 5 )
+        {
+            // Increase encoder bitrates by 5 percent with cap at MAX_BITRATE
+            videoBitrate = ( uint64_t ) MIN( videoBitrate * 1.05,
+                                             PEER_CONNECTION_MAX_VIDEO_BITRATE_KBPS );
+            audioBitrate = ( uint64_t ) MIN( audioBitrate * 1.05,
+                                             PEER_CONNECTION_MAX_AUDIO_BITRATE_BPS );
+        }
+        else
+        {
+            // Decrease encoder bitrate by average packet loss percent, with a cap at MIN_BITRATE
+            videoBitrate = ( uint64_t ) MAX( videoBitrate * ( 1.0 - ( pTwccMetaData->averagePacketLoss / 100.0 ) ),
+                                             PEER_CONNECTION_MIN_VIDEO_BITRATE_KBPS );
+            audioBitrate = ( uint64_t ) MAX( audioBitrate * ( 1.0 - ( pTwccMetaData->averagePacketLoss / 100.0 ) ),
+                                             PEER_CONNECTION_MIN_AUDIO_BITRATE_BPS );
         }
 
-        // Calculate packet loss
-        if( ret == PEER_CONNECTION_RESULT_OK )
-        {
-            pTwccMetaData = ( PeerConnectionTwccMetaData_t * ) pCustomContext;
+        pTwccMetaData->updatedVideoBitrate = videoBitrate;
+        pTwccMetaData->updatedAudioBitrate = audioBitrate;
+    }
 
-            pTwccMetaData->averagePacketLoss = EMA_ACCUMULATOR_GET_NEXT( pTwccMetaData->averagePacketLoss,
-                                                                        ( ( double ) percentLost ) );
-
-            currentTimeUs = NetworkingUtils_GetCurrentTimeUs( NULL );
-            lostPacketCount = pTwccBandwidthInfo->sentPackets - pTwccBandwidthInfo->receivedPackets;
-            percentLost = ( double ) ( ( pTwccBandwidthInfo->sentPackets > 0 ) ? ( ( double ) ( lostPacketCount * 100 ) / ( double )pTwccBandwidthInfo->sentPackets ) : 0.0 );
-            timeDifference = currentTimeUs - pTwccMetaData->lastAdjustmentTimeUs;
-
-            if( timeDifference < PEER_CONNECTION_TWCC_BITRATE_ADJUSTMENT_INTERVAL_US )
-            {
-                // Too soon for another adjustment
-                ret = PEER_CONNECTION_RESULT_FAIL_RTCP_TWCC_INIT;
-            }
-        }
-
-        if( ret == PEER_CONNECTION_RESULT_OK )
-        {
-            if( xSemaphoreTake( pTwccMetaData->twccBitrateMutex,
-                                portMAX_DELAY ) == pdTRUE )
-            {
-                isLocked = 1;
-            }
-            else
-            {
-                LogError( ( "Failed to lock Twcc mutex." ) );
-                ret = PEER_CONNECTION_RESULT_FAIL_TAKE_TWCC_MUTEX;
-            }
-        }
-
-        if( ret == PEER_CONNECTION_RESULT_OK )
-        {
-            videoBitrate = pTwccMetaData->currentVideoBitrate;
-            audioBitrate = pTwccMetaData->currentAudioBitrate;
-
-            if( pTwccMetaData->averagePacketLoss <= 5 )
-            {
-                // Increase encoder bitrates by 5 percent with cap at MAX_BITRATE
-                videoBitrate = ( uint64_t ) MIN( videoBitrate * 1.05,
-                                                PEER_CONNECTION_MAX_VIDEO_BITRATE_KBPS );
-                audioBitrate = ( uint64_t ) MIN( audioBitrate * 1.05,
-                                                PEER_CONNECTION_MAX_AUDIO_BITRATE_BPS );
-            }
-            else
-            {
-                // Decrease encoder bitrate by average packet loss percent, with a cap at MIN_BITRATE
-                videoBitrate = ( uint64_t ) MAX( videoBitrate * ( 1.0 - ( pTwccMetaData->averagePacketLoss / 100.0 ) ),
-                                                PEER_CONNECTION_MIN_VIDEO_BITRATE_KBPS );
-                audioBitrate = ( uint64_t ) MAX( audioBitrate * ( 1.0 - ( pTwccMetaData->averagePacketLoss / 100.0 ) ),
-                                                PEER_CONNECTION_MIN_AUDIO_BITRATE_BPS );
-            }
-
-            pTwccMetaData->updatedVideoBitrate = videoBitrate;
-            pTwccMetaData->updatedAudioBitrate = audioBitrate;
-        }
-
-        if( isLocked != 0 )
-        {
-            xSemaphoreGive( pTwccMetaData->twccBitrateMutex );
-
-        }
-        if( ret == PEER_CONNECTION_RESULT_OK )
-        {
-            pTwccMetaData->lastAdjustmentTimeUs = currentTimeUs;
-
-            LogInfo( ( "Adjusted made : average packet loss = %.2f%%, timeDifference = %llu us", pTwccMetaData->averagePacketLoss, timeDifference  ) );
-            LogInfo( ( "Suggested video bitrate: %llu kbps, suggested audio bitrate: %llu bps, sent: %llu bytes, %llu packets,   received: %llu bytes, %llu packets, in %llu msec ",
-                    videoBitrate, audioBitrate, pTwccBandwidthInfo->sentBytes, pTwccBandwidthInfo->sentPackets, pTwccBandwidthInfo->receivedBytes, pTwccBandwidthInfo->receivedPackets, pTwccBandwidthInfo->duration / 10000ULL ) );
-        }
+    if( isLocked != 0 )
+    {
+        xSemaphoreGive( pTwccMetaData->twccBitrateMutex );
 
     }
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        pTwccMetaData->lastAdjustmentTimeUs = currentTimeUs;
+
+        LogInfo( ( "Adjusted made : average packet loss = %.2f%%, timeDifference = %llu us", pTwccMetaData->averagePacketLoss, timeDifference  ) );
+        LogInfo( ( "Suggested video bitrate: %llu kbps, suggested audio bitrate: %llu bps, sent: %llu bytes, %llu packets,   received: %llu bytes, %llu packets, in %llu msec ",
+                   videoBitrate, audioBitrate, pTwccBandwidthInfo->sentBytes, pTwccBandwidthInfo->sentPackets, pTwccBandwidthInfo->receivedBytes, pTwccBandwidthInfo->receivedPackets, pTwccBandwidthInfo->duration / 10000ULL ) );
+    }
+
+}
 #endif
 
 static int32_t InitializePeerConnectionSession( DemoContext_t * pDemoContext,
@@ -765,18 +725,18 @@ static int32_t InitializePeerConnectionSession( DemoContext_t * pDemoContext,
     }
 
     #if ENABLE_TWCC_SUPPORT
-        if( peerConnectionResult == PEER_CONNECTION_RESULT_OK )
+    if( peerConnectionResult == PEER_CONNECTION_RESULT_OK )
+    {
+        /* In case you want to set a different callback based on your business logic, you could replace SampleSenderBandwidthEstimationHandler() with your Handler. */
+        peerConnectionResult = PeerConnection_SetSenderBandwidthEstimationCallback( &pDemoSession->peerConnectionSession,
+                                                                                    SampleSenderBandwidthEstimationHandler,
+                                                                                    &pDemoSession->peerConnectionSession.twccMetaData );
+        if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
-            /* In case you want to set a different callback based on your business logic, you could replace SampleSenderBandwidthEstimationHandler() with your Handler. */
-            peerConnectionResult = PeerConnection_SetSenderBandwidthEstimationCallback( &pDemoSession->peerConnectionSession,
-                                                                                        SampleSenderBandwidthEstimationHandler,
-                                                                                        &pDemoSession->peerConnectionSession.twccMetaData );
-            if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
-            {
-                LogError( ( "Fail to set Sender Bandwidth Estimation Callback, result: %d", peerConnectionResult ) );
-                ret = -1;
-            }
+            LogError( ( "Fail to set Sender Bandwidth Estimation Callback, result: %d", peerConnectionResult ) );
+            ret = -1;
         }
+    }
     #endif
     return ret;
 }
@@ -1011,7 +971,7 @@ static PeerConnectionResult_t HandleRxAudioFrame( void * pCustomContext,
 }
 
 static void HandleSdpOffer( DemoContext_t * pDemoContext,
-                            const SignalingControllerReceiveEvent_t * pEvent )
+                            const SignalingMessage_t * pSignalingMessage )
 {
     uint8_t skipProcess = 0;
     SignalingControllerResult_t signalingControllerReturn;
@@ -1029,28 +989,28 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
     DemoPeerConnectionSession_t * pPcSession = NULL;
 
     if( ( pDemoContext == NULL ) ||
-        ( pEvent == NULL ) )
+        ( pSignalingMessage == NULL ) )
     {
-        LogError( ( "Invalid input, pDemoContext: %p, pEvent: %p", pDemoContext, pEvent ) );
+        LogError( ( "Invalid input, pDemoContext: %p, pSignalingMessage: %p", pDemoContext, pSignalingMessage ) );
         skipProcess = 1;
     }
 
     if( skipProcess == 0 )
     {
         /* Get the SDP content in pSdpOfferMessage. */
-        signalingControllerReturn = SignalingController_GetSdpContentFromEventMsg( pEvent->pDecodeMessage,
-                                                                                   pEvent->decodeMessageLength,
-                                                                                   1U,
-                                                                                   &pSdpOfferMessage,
-                                                                                   &sdpOfferMessageLength );
+        signalingControllerReturn = SignalingController_ExtractSdpOfferFromSignalingMessage( pSignalingMessage->pMessage,
+                                                                                             pSignalingMessage->messageLength,
+                                                                                             1U,
+                                                                                             &pSdpOfferMessage,
+                                                                                             &sdpOfferMessageLength );
 
         if( signalingControllerReturn != SIGNALING_CONTROLLER_RESULT_OK )
         {
             LogError( ( "Fail to parse SDP offer content, result: %d, event message(%u): %.*s.",
                         signalingControllerReturn,
-                        pEvent->decodeMessageLength,
-                        ( int ) pEvent->decodeMessageLength,
-                        pEvent->pDecodeMessage ) );
+                        pSignalingMessage->messageLength,
+                        ( int ) pSignalingMessage->messageLength,
+                        pSignalingMessage->pMessage ) );
             skipProcess = 1;
         }
     }
@@ -1069,9 +1029,9 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
         {
             LogError( ( "Fail to deserialize SDP offer newline, result: %d, event message(%u): %.*s.",
                         signalingControllerReturn,
-                        pEvent->decodeMessageLength,
-                        ( int ) pEvent->decodeMessageLength,
-                        pEvent->pDecodeMessage ) );
+                        pSignalingMessage->messageLength,
+                        ( int ) pSignalingMessage->messageLength,
+                        pSignalingMessage->pMessage ) );
             skipProcess = 1;
         }
     }
@@ -1079,16 +1039,16 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
     if( skipProcess == 0 )
     {
         pPcSession = GetCreatePeerConnectionSession( pDemoContext,
-                                                     pEvent->pRemoteClientId,
-                                                     pEvent->remoteClientIdLength,
+                                                     pSignalingMessage->pRemoteClientId,
+                                                     pSignalingMessage->remoteClientIdLength,
                                                      1U );
 
         if( pPcSession == NULL )
         {
             LogWarn( ( "No available peer connection session for remote client ID(%u): %.*s",
-                       pEvent->remoteClientIdLength,
-                       ( int ) pEvent->remoteClientIdLength,
-                       pEvent->pRemoteClientId ) );
+                       pSignalingMessage->remoteClientIdLength,
+                       ( int ) pSignalingMessage->remoteClientIdLength,
+                       pSignalingMessage->pRemoteClientId ) );
             skipProcess = 1;
         }
     }
@@ -1189,14 +1149,14 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
         eventMessage.eventContent.correlationIdLength = 0U;
         memset( eventMessage.eventContent.correlationId,
                 0,
-                SIGNALING_CONTROLLER_CORRELATION_ID_MAX_LENGTH );
+                SECRET_ACCESS_KEY_MAX_LEN );
         eventMessage.eventContent.messageType = SIGNALING_TYPE_MESSAGE_SDP_ANSWER;
         eventMessage.eventContent.pDecodeMessage = pDemoContext->sdpBuffer;
         eventMessage.eventContent.decodeMessageLength = sdpAnswerMessageLength;
         memcpy( eventMessage.eventContent.remoteClientId,
-                pEvent->pRemoteClientId,
-                pEvent->remoteClientIdLength );
-        eventMessage.eventContent.remoteClientIdLength = pEvent->remoteClientIdLength;
+                pSignalingMessage->pRemoteClientId,
+                pSignalingMessage->remoteClientIdLength );
+        eventMessage.eventContent.remoteClientIdLength = pSignalingMessage->remoteClientIdLength;
 
         signalingControllerReturn = SignalingController_SendMessage( &demoContext.signalingControllerContext,
                                                                      &eventMessage );
@@ -1210,31 +1170,31 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
 }
 
 static void HandleRemoteCandidate( DemoContext_t * pDemoContext,
-                                   const SignalingControllerReceiveEvent_t * pEvent )
+                                   const SignalingMessage_t * pSignalingMessage )
 {
     uint8_t skipProcess = 0;
     PeerConnectionResult_t peerConnectionResult;
     DemoPeerConnectionSession_t * pPcSession = NULL;
 
     pPcSession = GetCreatePeerConnectionSession( pDemoContext,
-                                                 pEvent->pRemoteClientId,
-                                                 pEvent->remoteClientIdLength,
+                                                 pSignalingMessage->pRemoteClientId,
+                                                 pSignalingMessage->remoteClientIdLength,
                                                  1U );
 
     if( pPcSession == NULL )
     {
         LogWarn( ( "No available peer connection session for remote client ID(%u): %.*s",
-                   pEvent->remoteClientIdLength,
-                   ( int ) pEvent->remoteClientIdLength,
-                   pEvent->pRemoteClientId ) );
+                   pSignalingMessage->remoteClientIdLength,
+                   ( int ) pSignalingMessage->remoteClientIdLength,
+                   pSignalingMessage->pRemoteClientId ) );
         skipProcess = 1;
     }
 
     if( skipProcess == 0 )
     {
         peerConnectionResult = PeerConnection_AddRemoteCandidate( &pPcSession->peerConnectionSession,
-                                                                  pEvent->pDecodeMessage,
-                                                                  pEvent->decodeMessageLength );
+                                                                  pSignalingMessage->pMessage,
+                                                                  pSignalingMessage->messageLength );
 
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
@@ -1244,7 +1204,7 @@ static void HandleRemoteCandidate( DemoContext_t * pDemoContext,
 }
 
 static void HandleIceServerReconnect( DemoContext_t * pDemoContext,
-                                      const SignalingControllerReceiveEvent_t * pEvent )
+                                      const SignalingMessage_t * pSignalingMessage )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     uint64_t initTimeSec = NetworkingUtils_GetCurrentTimeSec( NULL );
@@ -1252,7 +1212,7 @@ static void HandleIceServerReconnect( DemoContext_t * pDemoContext,
 
     while( currTimeSec < initTimeSec + SIGNALING_CONNECT_STATE_TIMEOUT_SEC )
     {
-        ret = SignalingController_IceServerReconnection( &demoContext.signalingControllerContext );
+        ret = SignalingController_RefreshIceServerConfigs( &demoContext.signalingControllerContext );
 
         if( ret == SIGNALING_CONTROLLER_RESULT_OK )
         {
@@ -1440,24 +1400,24 @@ static void HandleLocalCandidateReady( void * pCustomContext,
     }
 }
 
-static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEvent,
-                                       void * pUserContext )
+static int OnSignalingMessageReceived( SignalingMessage_t * pSignalingMessage,
+                                       void * pUserData )
 {
-    ( void ) pUserContext;
+    ( void ) pUserData;
 
     LogDebug( ( "Received Message from websocket server!" ) );
-    LogDebug( ( "Message Type: %x", pEvent->messageType ) );
-    LogDebug( ( "Sender ID: %.*s", ( int ) pEvent->remoteClientIdLength, pEvent->pRemoteClientId ) );
-    LogDebug( ( "Correlation ID: %.*s", ( int ) pEvent->correlationIdLength, pEvent->pCorrelationId ) );
-    LogDebug( ( "Message Length: %u, Message:", pEvent->decodeMessageLength ) );
-    LogDebug( ( "%.*s", ( int ) pEvent->decodeMessageLength, pEvent->pDecodeMessage ) );
+    LogDebug( ( "Message Type: %x", pSignalingMessage->messageType ) );
+    LogDebug( ( "Sender ID: %.*s", ( int ) pSignalingMessage->remoteClientIdLength, pSignalingMessage->pRemoteClientId ) );
+    LogDebug( ( "Correlation ID: %.*s", ( int ) pSignalingMessage->correlationIdLength, pSignalingMessage->pCorrelationId ) );
+    LogDebug( ( "Message Length: %u, Message:", pSignalingMessage->messageLength ) );
+    LogDebug( ( "%.*s", ( int ) pSignalingMessage->messageLength, pSignalingMessage->pMessage ) );
 
-    switch( pEvent->messageType )
+    switch( pSignalingMessage->messageType )
     {
         case SIGNALING_TYPE_MESSAGE_SDP_OFFER:
             Metric_StartEvent( METRIC_EVENT_SENDING_FIRST_FRAME );
             HandleSdpOffer( &demoContext,
-                            pEvent );
+                            pSignalingMessage );
             break;
 
         case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:
@@ -1465,12 +1425,12 @@ static int32_t handleSignalingMessage( SignalingControllerReceiveEvent_t * pEven
 
         case SIGNALING_TYPE_MESSAGE_ICE_CANDIDATE:
             HandleRemoteCandidate( &demoContext,
-                                   pEvent );
+                                   pSignalingMessage );
             break;
 
         case SIGNALING_TYPE_MESSAGE_RECONNECT_ICE_SERVER:
             HandleIceServerReconnect( &demoContext,
-                                      pEvent );
+                                      pSignalingMessage );
             break;
 
         case SIGNALING_TYPE_MESSAGE_STATUS_RESPONSE:
@@ -1545,12 +1505,49 @@ static void Master_Task( void * pParameter )
     int32_t ret = 0;
     uint8_t i;
     SignalingControllerResult_t signalingControllerReturn;
+    SignalingControllerConnectInfo_t connectInfo;
 
     ( void ) pParameter;
 
     LogDebug( ( "Start webrtc_master_demo_app_main." ) );
 
     platform_init();
+
+    memset( &connectInfo, 0, sizeof( SignalingControllerConnectInfo_t ) );
+
+    connectInfo.awsConfig.pRegion = AWS_REGION;
+    connectInfo.awsConfig.regionLen = strlen( AWS_REGION );
+    connectInfo.awsConfig.pService = "kinesisvideo";
+    connectInfo.awsConfig.serviceLen = strlen( "kinesisvideo" );
+
+    connectInfo.channelName.pChannelName = AWS_KVS_CHANNEL_NAME;
+    connectInfo.channelName.channelNameLength = strlen( AWS_KVS_CHANNEL_NAME );
+
+    connectInfo.pUserAgentName = AWS_KVS_AGENT_NAME;
+    connectInfo.userAgentNameLength = strlen( AWS_KVS_AGENT_NAME );
+
+    connectInfo.messageReceivedCallback = OnSignalingMessageReceived;
+    connectInfo.pMessageReceivedCallbackData = NULL;
+
+    #if defined( AWS_ACCESS_KEY_ID )
+    connectInfo.awsCreds.pAccessKeyId = AWS_ACCESS_KEY_ID;
+    connectInfo.awsCreds.accessKeyIdLength = strlen( AWS_ACCESS_KEY_ID );
+    connectInfo.awsCreds.pSecretAccessKey = AWS_SECRET_ACCESS_KEY;
+    connectInfo.awsCreds.secretAccessKeyLength = strlen( AWS_SECRET_ACCESS_KEY );
+    #if defined( AWS_SESSION_TOKEN )
+    connectInfo.awsCreds.pSessionToken = AWS_SESSION_TOKEN;
+    connectInfo.awsCreds.sessionTokenLength = strlen( AWS_SESSION_TOKEN );
+    #endif     /* #if defined( AWS_SESSION_TOKEN ) */
+    #endif /* #if defined( AWS_ACCESS_KEY_ID ) */
+
+    #if defined( AWS_IOT_THING_ROLE_ALIAS )
+    connectInfo.awsIotCreds.pIotCredentialsEndpoint = AWS_CREDENTIALS_ENDPOINT;
+    connectInfo.awsIotCreds.iotCredentialsEndpointLength = strlen( AWS_CREDENTIALS_ENDPOINT );
+    connectInfo.awsIotCreds.pThingName = AWS_IOT_THING_NAME;
+    connectInfo.awsIotCreds.thingNameLength = strlen( AWS_IOT_THING_NAME );
+    connectInfo.awsIotCreds.pRoleAlias = AWS_IOT_THING_ROLE_ALIAS;
+    connectInfo.awsIotCreds.roleAliasLength = strlen( AWS_IOT_THING_ROLE_ALIAS );
+    #endif /* #if defined( AWS_IOT_THING_ROLE_ALIAS ) */
 
     ret = initializeApplication( &demoContext );
 
@@ -1575,19 +1572,9 @@ static void Master_Task( void * pParameter )
 
     if( ret == 0 )
     {
-        signalingControllerReturn = SignalingController_ConnectServers( &demoContext.signalingControllerContext );
-
-        if( signalingControllerReturn != SIGNALING_CONTROLLER_RESULT_OK )
-        {
-            LogError( ( "Fail to connect with signaling controller." ) );
-            ret = -1;
-        }
-    }
-
-    if( ret == 0 )
-    {
         /* This should never return unless exception happens. */
-        signalingControllerReturn = SignalingController_ProcessLoop( &demoContext.signalingControllerContext );
+        signalingControllerReturn = SignalingController_StartListening( &demoContext.signalingControllerContext,
+                                                                        &connectInfo );
 
         if( signalingControllerReturn != SIGNALING_CONTROLLER_RESULT_OK )
         {
@@ -1597,8 +1584,8 @@ static void Master_Task( void * pParameter )
     }
 
     #if ENABLE_SCTP_DATA_CHANNEL
-        /* TODO_SCTP: Move to a common shutdown function? */
-        Sctp_DeInit();
+    /* TODO_SCTP: Move to a common shutdown function? */
+    Sctp_DeInit();
     #endif /* ENABLE_SCTP_DATA_CHANNEL */
 
     for( ;; )

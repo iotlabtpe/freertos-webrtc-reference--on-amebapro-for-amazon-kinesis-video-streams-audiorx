@@ -43,42 +43,6 @@ typedef enum NetworkingCorehttpResult
     NETWORKING_COREHTTP_RESULT_NO_PATH_IN_URL,
 } NetworkingCorehttpResult_t;
 
-typedef struct NetworkingCorehttpCredentials
-{
-    /* user-agent */
-    char * pUserAgent;
-    size_t userAgentLength;
-
-    /* Region */
-    char * pRegion;
-    size_t regionLength;
-
-    /* AKSK */
-    char * pAccessKeyId;
-    size_t accessKeyIdLength;
-    char * pSecretAccessKey;
-    size_t secretAccessKeyLength;
-
-    /* CA Cert Path */
-    char * pCaCertPath;
-
-    /* Or CA PEM */
-    const uint8_t * pRootCa;
-    size_t rootCaSize;
-
-    /* IoT thing credentials for role alias. */
-    const uint8_t * pIotThingCert;
-    size_t iotThingCertSize;
-    const uint8_t * pIotThingPrivateKey;
-    size_t iotThingPrivateKeySize;
-    char * pIotThingName;
-    size_t iotThingNameLength;
-    char * pSessionToken;
-    size_t sessionTokenLength;
-
-    uint64_t expirationSeconds;
-} NetworkingCorehttpCredentials_t;
-
 
 #ifdef __cplusplus
 }

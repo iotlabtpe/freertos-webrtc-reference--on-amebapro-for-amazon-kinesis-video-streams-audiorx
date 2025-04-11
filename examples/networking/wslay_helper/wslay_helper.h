@@ -53,42 +53,6 @@ typedef enum NetworkingWslayResult
     NETWORKING_WSLAY_RESULT_UNKNOWN_MESSAGE,
 } NetworkingWslayResult_t;
 
-typedef struct NetworkingWslayCredentials
-{
-    /* user-agent */
-    char * pUserAgent;
-    size_t userAgentLength;
-
-    /* Region */
-    char * pRegion;
-    size_t regionLength;
-
-    /* AKSK */
-    char * pAccessKeyId;
-    size_t accessKeyIdLength;
-    char * pSecretAccessKey;
-    size_t secretAccessKeyLength;
-
-    /* CA Cert Path */
-    char * pCaCertPath;
-
-    /* Or CA PEM */
-    const uint8_t * pRootCa;
-    size_t rootCaSize;
-
-    /* IoT thing credentials for role alias. */
-    const uint8_t * pIotThingCert;
-    size_t iotThingCertSize;
-    const uint8_t * pIotThingPrivateKey;
-    size_t iotThingPrivateKeySize;
-    char * pIotThingName;
-    size_t iotThingNameLength;
-    char * pSessionToken;
-    size_t sessionTokenLength;
-
-    uint64_t expirationSeconds;
-} NetworkingWslayCredentials_t;
-
 typedef enum NetworkingWslayHttpHeader
 {
     NETWORKING_WSLAY_HTTP_HEADER_CONNECTION = 1,

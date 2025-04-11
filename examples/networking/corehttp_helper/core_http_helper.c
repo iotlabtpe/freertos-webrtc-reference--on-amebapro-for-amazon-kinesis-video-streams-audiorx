@@ -2,7 +2,7 @@
 
 #include "FreeRTOS_POSIX/time.h"
 #include "logging.h"
-#include "http.h"
+#include "networking.h"
 #include "core_http_helper.h"
 #include "core_http_client.h"
 
@@ -23,30 +23,14 @@
 #define NETWORKING_COREHTTP_STRING_CONTENT_LENGTH "content-length"
 #define NETWORKING_COREHTTP_STRING_IOT_THINGNAME "x-amzn-iot-thingname"
 
-HttpResult_t Http_Init( NetworkingCorehttpContext_t * pHttpCtx,
-                        void * pCredential )
+HttpResult_t Http_Init( NetworkingCorehttpContext_t * pHttpCtx )
 {
     NetworkingCorehttpResult_t ret = NETWORKING_COREHTTP_RESULT_OK;
-    NetworkingCorehttpCredentials_t * pNetworkingCorehttpCredentials = ( NetworkingCorehttpCredentials_t * )pCredential;
     static uint8_t first = 0U;
 
-    if( pCredential == NULL )
+    if( pHttpCtx == NULL )
     {
         ret = NETWORKING_COREHTTP_RESULT_BAD_PARAMETER;
-    }
-
-    if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && !first )
-    {
-        memcpy( &pHttpCtx->credentials, pNetworkingCorehttpCredentials, sizeof( NetworkingCorehttpCredentials_t ) );
-        pHttpCtx->sigv4Credential.pAccessKeyId = pNetworkingCorehttpCredentials->pAccessKeyId;
-        pHttpCtx->sigv4Credential.accessKeyIdLen = pNetworkingCorehttpCredentials->accessKeyIdLength;
-        pHttpCtx->sigv4Credential.pSecretAccessKey = pNetworkingCorehttpCredentials->pSecretAccessKey;
-        pHttpCtx->sigv4Credential.secretAccessKeyLen = pNetworkingCorehttpCredentials->secretAccessKeyLength;
-
-        if( pHttpCtx->credentials.userAgentLength > NETWORKING_COREHTTP_USER_AGENT_NAME_MAX_LENGTH )
-        {
-            ret = NETWORKING_COREHTTP_RESULT_USER_AGENT_NAME_TOO_LONG;
-        }
     }
 
     if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && !first )
@@ -62,18 +46,6 @@ HttpResult_t Http_Init( NetworkingCorehttpContext_t * pHttpCtx,
 
         /* Set the pParams member of the network context with desired transport. */
         pHttpCtx->xNetworkContext.pParams = &pHttpCtx->xTlsTransportParams;
-
-        /* Set up network credentials */
-        pHttpCtx->xNetworkCredientials.pRootCa = pNetworkingCorehttpCredentials->pRootCa;
-        pHttpCtx->xNetworkCredientials.rootCaSize = pNetworkingCorehttpCredentials->rootCaSize;
-
-        if( pHttpCtx->credentials.iotThingPrivateKeySize > 0 )
-        {
-            pHttpCtx->xNetworkCredientials.pClientCert = pNetworkingCorehttpCredentials->pIotThingCert;
-            pHttpCtx->xNetworkCredientials.clientCertSize = pNetworkingCorehttpCredentials->iotThingCertSize;
-            pHttpCtx->xNetworkCredientials.pPrivateKey = pNetworkingCorehttpCredentials->pIotThingPrivateKey;
-            pHttpCtx->xNetworkCredientials.privateKeySize = pNetworkingCorehttpCredentials->iotThingPrivateKeySize;
-        }
     }
 
     if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && !first )
@@ -86,6 +58,7 @@ HttpResult_t Http_Init( NetworkingCorehttpContext_t * pHttpCtx,
 
 HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
                         HttpRequest_t * pRequest,
+                        const AwsCredentials_t * pAwsCredentials,
                         size_t timeoutMs,
                         HttpResponse_t * pResponse )
 {
@@ -110,6 +83,7 @@ HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
     NetworkCredentials_t credentials;
     char * pSig;
     size_t sigLength;
+    SigV4Credentials_t sigv4Credential;
 
     if( ( pRequest == NULL ) || ( pResponse == NULL ) )
     {
@@ -147,15 +121,15 @@ HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
     if( ret == NETWORKING_COREHTTP_RESULT_OK )
     {
         memset( &credentials, 0, sizeof( NetworkCredentials_t ) );
-        credentials.pRootCa = pHttpCtx->credentials.pRootCa;
-        credentials.rootCaSize = pHttpCtx->credentials.rootCaSize;
+        credentials.pRootCa = pAwsCredentials->pRootCa;
+        credentials.rootCaSize = pAwsCredentials->rootCaSize;
 
-        if( pHttpCtx->credentials.iotThingCertSize > 0 )
+        if( pAwsCredentials->iotThingCertSize > 0 )
         {
-            credentials.pClientCert = pHttpCtx->credentials.pIotThingCert;
-            credentials.clientCertSize = pHttpCtx->credentials.iotThingCertSize;
-            credentials.pPrivateKey = pHttpCtx->credentials.pIotThingPrivateKey;
-            credentials.privateKeySize = pHttpCtx->credentials.iotThingPrivateKeySize;
+            credentials.pClientCert = pAwsCredentials->pIotThingCert;
+            credentials.clientCertSize = pAwsCredentials->iotThingCertSize;
+            credentials.pPrivateKey = pAwsCredentials->pIotThingPrivateKey;
+            credentials.privateKeySize = pAwsCredentials->iotThingPrivateKeySize;
         }
 
         retUtils = NetworkingUtils_ConnectToServer( &pHttpCtx->xNetworkContext,
@@ -213,8 +187,8 @@ HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
         xHttpStatus = HTTPClient_AddHeader( &xRequestHeaders,
                                             NETWORKING_COREHTTP_STRING_USER_AGENT,
                                             strlen( NETWORKING_COREHTTP_STRING_USER_AGENT ),
-                                            pHttpCtx->credentials.pUserAgent,
-                                            pHttpCtx->credentials.userAgentLength );
+                                            pAwsCredentials->pUserAgent,
+                                            pAwsCredentials->userAgentLength );
 
         if( xHttpStatus != HTTPSuccess )
         {
@@ -236,14 +210,14 @@ HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
     }
 
     /* While fetching credential, append IoT Thing Name and use HTTP GET. */
-    if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && ( pRequest->isFetchingCredential != 0U ) && ( pHttpCtx->credentials.iotThingNameLength > 0 ) )
+    if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && ( pRequest->isFetchingCredential != 0U ) && ( pAwsCredentials->iotThingNameLength > 0 ) )
     {
 
         xHttpStatus = HTTPClient_AddHeader( &xRequestHeaders,
                                             NETWORKING_COREHTTP_STRING_IOT_THINGNAME,
                                             strlen( NETWORKING_COREHTTP_STRING_IOT_THINGNAME ),
-                                            pHttpCtx->credentials.pIotThingName,
-                                            pHttpCtx->credentials.iotThingNameLength );
+                                            pAwsCredentials->pIotThingName,
+                                            pAwsCredentials->iotThingNameLength );
 
         if( xHttpStatus != HTTPSuccess )
         {
@@ -254,13 +228,13 @@ HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
     }
 
     /* While fetching credential, append IoT Thing Name and use HTTP GET. */
-    if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && ( pHttpCtx->credentials.sessionTokenLength > 0 ) )
+    if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && ( pAwsCredentials->sessionTokenLength > 0 ) )
     {
         xHttpStatus = HTTPClient_AddHeader( &xRequestHeaders,
                                             SIGV4_HTTP_X_AMZ_SECURITY_TOKEN_HEADER,
                                             strlen( SIGV4_HTTP_X_AMZ_SECURITY_TOKEN_HEADER ),
-                                            pHttpCtx->credentials.pSessionToken,
-                                            pHttpCtx->credentials.sessionTokenLength );
+                                            pAwsCredentials->pSessionToken,
+                                            pAwsCredentials->sessionTokenLength );
 
         if( xHttpStatus != HTTPSuccess )
         {
@@ -304,9 +278,14 @@ HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
         canonicalRequest.pPayload = pRequest->pBody;
         canonicalRequest.payloadLength = pRequest->bodyLength;
 
+        sigv4Credential.pAccessKeyId = pAwsCredentials->pAccessKeyId;
+        sigv4Credential.accessKeyIdLen = pAwsCredentials->accessKeyIdLength;
+        sigv4Credential.pSecretAccessKey = pAwsCredentials->pSecretAccessKey;
+        sigv4Credential.secretAccessKeyLen = pAwsCredentials->secretAccessKeyLength;
+
         pHttpCtx->sigv4AuthBufferLength = NETWORKING_COREHTTP_SIGV4_METADATA_BUFFER_LENGTH;
-        retUtils = NetworkingUtils_GenrerateAuthorizationHeader( &canonicalRequest, &pHttpCtx->sigv4Credential,
-                                                                 pHttpCtx->credentials.pRegion, pHttpCtx->credentials.regionLength, dateBuffer,
+        retUtils = NetworkingUtils_GenrerateAuthorizationHeader( &canonicalRequest, &sigv4Credential,
+                                                                 pAwsCredentials->pRegion, pAwsCredentials->regionLength, dateBuffer,
                                                                  pHttpCtx->sigv4AuthBuffer, &pHttpCtx->sigv4AuthBufferLength,
                                                                  &pSig, &sigLength );
 
@@ -404,34 +383,6 @@ HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
     }
 
     NetworkingUtils_CloseConnection( &pHttpCtx->xNetworkContext );
-
-    return ret;
-}
-
-HttpResult_t Http_UpdateCredential( NetworkingCorehttpContext_t * pHttpCtx,
-                                    void * pCredential )
-{
-    NetworkingCorehttpResult_t ret = NETWORKING_COREHTTP_RESULT_OK;
-    NetworkingCorehttpCredentials_t * pNetworkingCorehttpCredentials = ( NetworkingCorehttpCredentials_t * )pCredential;
-
-    if( pCredential == NULL )
-    {
-        ret = NETWORKING_COREHTTP_RESULT_BAD_PARAMETER;
-    }
-
-    if( ret == NETWORKING_COREHTTP_RESULT_OK )
-    {
-        memcpy( &pHttpCtx->credentials, pNetworkingCorehttpCredentials, sizeof( NetworkingCorehttpCredentials_t ) );
-        pHttpCtx->sigv4Credential.pAccessKeyId = pNetworkingCorehttpCredentials->pAccessKeyId;
-        pHttpCtx->sigv4Credential.accessKeyIdLen = pNetworkingCorehttpCredentials->accessKeyIdLength;
-        pHttpCtx->sigv4Credential.pSecretAccessKey = pNetworkingCorehttpCredentials->pSecretAccessKey;
-        pHttpCtx->sigv4Credential.secretAccessKeyLen = pNetworkingCorehttpCredentials->secretAccessKeyLength;
-
-        if( pHttpCtx->credentials.userAgentLength > NETWORKING_COREHTTP_USER_AGENT_NAME_MAX_LENGTH )
-        {
-            ret = NETWORKING_COREHTTP_RESULT_USER_AGENT_NAME_TOO_LONG;
-        }
-    }
 
     return ret;
 }

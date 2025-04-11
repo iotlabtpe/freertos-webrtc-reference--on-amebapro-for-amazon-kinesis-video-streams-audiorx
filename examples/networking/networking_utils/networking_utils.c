@@ -533,13 +533,13 @@ uint64_t NetworkingUtils_GetTimeFromIso8601( const char * pDate,
    3881515845 << 32 | 2147483648 = 16677181839663572288
  */
 
- uint64_t NetworkingUtils_GetNTPTimeFromUnixTimeUs( uint64_t timeUs )
- {
-     uint64_t sec = timeUs / 1000000ULL;  // Convert microseconds to seconds
-     uint64_t usec = timeUs % 1000000ULL; // Get microsecond remainder
- 
-     uint64_t ntp_sec = sec + NETWORKING_NTP_OFFSET;
-     uint64_t ntp_frac = ( usec * NETWORKING_NTP_TIMESCALE ) / 1000000ULL;
- 
-     return( ntp_sec << 32U | ntp_frac );
- }
+uint64_t NetworkingUtils_GetNTPTimeFromUnixTimeUs( uint64_t timeUs )
+{
+    uint64_t sec = timeUs / 1000000ULL;   // Convert microseconds to seconds
+    uint64_t usec = timeUs % 1000000ULL;  // Get microsecond remainder
+
+    uint64_t ntp_sec = sec + NETWORKING_NTP_OFFSET;
+    uint64_t ntp_frac = ( usec * NETWORKING_NTP_TIMESCALE ) / 1000000ULL;
+
+    return( ntp_sec << 32U | ntp_frac );
+}
