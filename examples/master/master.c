@@ -197,6 +197,11 @@ static int initializeApplication( DemoContext_t * pDemoContext )
         sslCreds.pCaCertPem = ( uint8_t * ) AWS_CA_CERT_PEM;
         #endif /* #if defined( AWS_CA_CERT_PEM ) */
 
+        #if defined( AWS_IOT_THING_ROLE_ALIAS )
+        sslCreds.pDeviceCertPem = ( uint8_t * ) AWS_IOT_THING_CERT;
+        sslCreds.pDeviceKeyPem = ( uint8_t * ) AWS_IOT_THING_PRIVATE_KEY;
+        #endif
+
         signalingControllerReturn = SignalingController_Init( &demoContext.signalingControllerContext, &sslCreds );
 
         if( signalingControllerReturn != SIGNALING_CONTROLLER_RESULT_OK )
