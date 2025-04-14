@@ -66,11 +66,12 @@ ret = PeerConnection_SetSenderBandwidthEstimationCallback(  pSession,
    ```sh
    tar -xvf asdk-10.3.0-*.tar.bz2
 
+   chmod +x `pwd`/libraries/ambpro2_sdk/project/realtek_amebapro2_v0_example/GCC-RELEASE/mp/*
+
    <!-- if The environment is Linux :  -->
    export PATH=`pwd`/asdk-10.3.0/linux/newlib/bin:$PATH
 
    <!-- else if The environment is Darwin : -->
-   chmod +x `pwd`/project/realtek_amebapro2_webrtc_application/GCC-RELEASE/mp/* 
    export PATH=`pwd`/asdk-10.3.0/darwin/newlib/bin:$PATH
    ```
 1. Connect the board to the PC using the CH340 micro USB port (marked as "Serial

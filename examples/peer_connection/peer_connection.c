@@ -1452,7 +1452,7 @@ PeerConnectionResult_t PeerConnection_SetRemoteDescription( PeerConnectionSessio
                 }
                 else
                 {
-                    LogDebug( ( "Added remote candidate from SDP offer (%lu): %.*s with status code: %d",
+                    LogDebug( ( "Added remote candidate from SDP offer (%u): %.*s with status code: %d",
                                 pTargetRemoteSdp->sdpDescription.quickAccess.remoteCandidateLengths[ i ],
                                 ( int ) pTargetRemoteSdp->sdpDescription.quickAccess.remoteCandidateLengths[ i ],
                                 pTargetRemoteSdp->sdpDescription.quickAccess.pRemoteCandidates[ i ], ret ) );
@@ -1979,8 +1979,8 @@ static PeerConnectionResult_t PeerConnection_OnRtcpSenderReportCallback( PeerCon
             }
             else
             {
-                LogInfo( ( "Send RTCP Sender Report with Status : %u  to SSRC :  %lu, NTP Time :  %llu, RTP Time:  %lu,  PacketCount : %lu, OctetCount : %lu",ret,
-                           rtcpSenderReport.senderSsrc, rtcpSenderReport.senderInfo.ntpTime, rtcpSenderReport.senderInfo.rtpTime, rtcpSenderReport.senderInfo.packetCount, rtcpSenderReport.senderInfo.octetCount ) );
+                LogDebug( ( "Send RTCP Sender Report with Status : %u  to SSRC :  %lu, NTP Time :  %llu, RTP Time:  %lu,  PacketCount : %lu, OctetCount : %lu",ret,
+                             rtcpSenderReport.senderSsrc, rtcpSenderReport.senderInfo.ntpTime, rtcpSenderReport.senderInfo.rtpTime, rtcpSenderReport.senderInfo.packetCount, rtcpSenderReport.senderInfo.octetCount ) );
             }
         }
 

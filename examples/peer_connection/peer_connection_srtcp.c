@@ -30,6 +30,29 @@
 
 /*-----------------------------------------------------------*/
 
+static PeerConnectionResult_t PeerConnectionSrtcp_MatchRemoteBySsrc( PeerConnectionSession_t * pSession,
+                                                                     uint32_t ssrc )
+{
+    PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
+
+    if( ( pSession == NULL ) )
+    {
+        LogError( ( "Invalid input, pSession: %p", pSession ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        if( ( ssrc != pSession->rtpConfig.remoteAudioSsrc ) && ( ssrc != pSession->rtpConfig.remoteVideoSsrc ) )
+        {
+            LogWarn( ( "No transceiver for SSRC: %lu", ssrc ) );
+            ret = PEER_CONNECTION_RESULT_UNKNOWN_SSRC;
+        }
+    }
+
+    return ret;
+}
+
 static PeerConnectionResult_t ResendSrtpPacket( PeerConnectionSession_t * pSession,
                                                 const Transceiver_t * pTransceiver,
                                                 uint16_t rtpSeq,
@@ -545,7 +568,6 @@ static PeerConnectionResult_t OnRtcpSenderReportEvent( PeerConnectionSession_t *
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     RtcpResult_t resultRtcp;
     RtcpSenderReport_t senderReport;
-    const Transceiver_t * pTransceiver = NULL;
 
     if( ( pSession == NULL ) || ( pRtcpPacket == NULL ) )
     {
@@ -584,9 +606,8 @@ static PeerConnectionResult_t OnRtcpSenderReportEvent( PeerConnectionSession_t *
 
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
-        ret = PeerConnection_MatchTransceiverBySsrc( pSession,
-                                                     senderReport.senderSsrc,
-                                                     &pTransceiver );
+        ret = PeerConnectionSrtcp_MatchRemoteBySsrc( pSession,
+                                                     senderReport.senderSsrc );
 
         LogVerbose( ( "RTCP_PACKET_SENDER_REPORT %lu %llu  rtpTs: %lu  %lu pkts  %lu bytes", senderReport.senderSsrc, senderReport.senderInfo.ntpTime, senderReport.senderInfo.rtpTime, senderReport.senderInfo.packetCount, senderReport.senderInfo.octetCount ) );
 
@@ -660,7 +681,7 @@ static PeerConnectionResult_t OnRtcpReceiverReportEvent( PeerConnectionSession_t
                                                          receiverReport.pReceptionReports[ 0 ].sourceSsrc,
                                                          &pTransceiver );
 
-            LogDebug( ( "RTCP_PACKET_TYPE_RECEIVER_REPORT %lu %lu  loss: %lu  %lu seq:  %lu jit: %lu  lsr: %lu  dlsr: %lu", receiverReport.senderSsrc, receiverReport.pReceptionReports[ 0 ].sourceSsrc, receiverReport.pReceptionReports[ 0 ].fractionLost, receiverReport.pReceptionReports[ 0 ].cumulativePacketsLost, receiverReport.pReceptionReports[ 0 ].extendedHighestSeqNumReceived, receiverReport.pReceptionReports[ 0 ].interArrivalJitter, receiverReport.pReceptionReports[ 0 ].lastSR, receiverReport.pReceptionReports[ 0 ].delaySinceLastSR ) );
+            LogDebug( ( "RTCP_PACKET_TYPE_RECEIVER_REPORT %lu %lu  loss: %u  %lu seq:  %lu jit: %lu  lsr: %lu  dlsr: %lu", receiverReport.senderSsrc, receiverReport.pReceptionReports[ 0 ].sourceSsrc, receiverReport.pReceptionReports[ 0 ].fractionLost, receiverReport.pReceptionReports[ 0 ].cumulativePacketsLost, receiverReport.pReceptionReports[ 0 ].extendedHighestSeqNumReceived, receiverReport.pReceptionReports[ 0 ].interArrivalJitter, receiverReport.pReceptionReports[ 0 ].lastSR, receiverReport.pReceptionReports[ 0 ].delaySinceLastSR ) );
 
             if( ret == PEER_CONNECTION_RESULT_UNKNOWN_SSRC )
             {
@@ -684,11 +705,11 @@ static PeerConnectionResult_t OnRtcpReceiverReportEvent( PeerConnectionSession_t
 
                 if( pTransceiver->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO )
                 {
-                    LogInfo( ( "RTCP_PACKET_TYPE_RECEIVER_REPORT Round Trip Propagation Delay for Audio : %lu ms", roundTripPropagationDelay ) );
+                    LogVerbose( ( "RTCP_PACKET_TYPE_RECEIVER_REPORT Round Trip Propagation Delay for Audio : %lu ms", roundTripPropagationDelay ) );
                 }
                 else if( pTransceiver->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
                 {
-                    LogInfo( ( "RTCP_PACKET_TYPE_RECEIVER_REPORT Round Trip Propagation Delay for Video : %lu ms", roundTripPropagationDelay ) );
+                    LogVerbose( ( "RTCP_PACKET_TYPE_RECEIVER_REPORT Round Trip Propagation Delay for Video : %lu ms", roundTripPropagationDelay ) );
                 }
             }
         }
