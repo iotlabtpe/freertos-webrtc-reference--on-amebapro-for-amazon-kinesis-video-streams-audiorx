@@ -36,16 +36,16 @@ HttpResult_t Http_Init( NetworkingCorehttpContext_t * pHttpCtx )
     if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && !first )
     {
         memset( &pHttpCtx->xTransportInterface, 0, sizeof( TransportInterface_t ) );
-        memset( &pHttpCtx->xNetworkContext, 0, sizeof( NetworkContext_t ) );
+        memset( &pHttpCtx->xTlsNetworkContext, 0, sizeof( TlsNetworkContext_t ) );
         memset( &pHttpCtx->xTlsTransportParams, 0, sizeof( TlsTransportParams_t ) );
 
         /* Set transport interface. */
-        pHttpCtx->xTransportInterface.pNetworkContext = &pHttpCtx->xNetworkContext;
+        pHttpCtx->xTransportInterface.pNetworkContext = ( NetworkContext_t * ) &pHttpCtx->xTlsNetworkContext;
         pHttpCtx->xTransportInterface.send = TLS_FreeRTOS_send;
         pHttpCtx->xTransportInterface.recv = TLS_FreeRTOS_recv;
 
         /* Set the pParams member of the network context with desired transport. */
-        pHttpCtx->xNetworkContext.pParams = &pHttpCtx->xTlsTransportParams;
+        pHttpCtx->xTlsNetworkContext.pParams = &pHttpCtx->xTlsTransportParams;
     }
 
     if( ( ret == NETWORKING_COREHTTP_RESULT_OK ) && !first )
@@ -83,6 +83,7 @@ HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
     NetworkCredentials_t credentials;
     char * pSig;
     size_t sigLength;
+    TlsTransportStatus_t xNetworkStatus;
     SigV4Credentials_t sigv4Credential;
 
     if( ( pRequest == NULL ) || ( pResponse == NULL ) )
@@ -132,14 +133,18 @@ HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
             credentials.privateKeySize = pAwsCredentials->iotThingPrivateKeySize;
         }
 
-        retUtils = NetworkingUtils_ConnectToServer( &pHttpCtx->xNetworkContext,
-                                                    pHttpCtx->hostName,
-                                                    443,
-                                                    &credentials,
-                                                    NETWORKING_COREHTTP_SEND_TIMEOUT_MS,
-                                                    NETWORKING_COREHTTP_RECV_TIMEOUT_MS );
+        LogInfo( ( "Establishing a TLS session with %s:443.",
+                   pHttpCtx->hostName ) );
 
-        if( retUtils != NETWORKING_UTILS_RESULT_OK )
+        /* Attempt to create a server-authenticated TLS connection. */
+        xNetworkStatus = TLS_FreeRTOS_Connect( &pHttpCtx->xTlsNetworkContext,
+                                               pHttpCtx->hostName,
+                                               443,
+                                               &credentials,
+                                               NETWORKING_COREHTTP_SEND_TIMEOUT_MS,
+                                               NETWORKING_COREHTTP_RECV_TIMEOUT_MS );
+
+        if( xNetworkStatus != TLS_TRANSPORT_SUCCESS )
         {
             LogError( ( "Fail to connect the host: %s:%u", pHttpCtx->hostName, 443U ) );
             ret = NETWORKING_COREHTTP_RESULT_FAIL_CONNECT;
@@ -382,7 +387,7 @@ HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
         }
     }
 
-    NetworkingUtils_CloseConnection( &pHttpCtx->xNetworkContext );
+    TLS_FreeRTOS_Disconnect( &pHttpCtx->xTlsNetworkContext );
 
     return ret;
 }

@@ -55,7 +55,7 @@ PeerConnectionResult_t PeerConnectionOpusHelper_FillFrameOpus( PeerConnectionJit
     OpusPacket_t opusPackets[ PEER_CONNECTION_JITTER_BUFFER_MAX_PACKETS_NUM_IN_A_FRAME ];
     OpusPacket_t opusPacket;
     OpusFrame_t frame;
-    uint32_t rtpTimestamp;
+    uint32_t rtpTimestamp = 0;
 
     if( ( pJitterBuffer == NULL ) ||
         ( pOutBuffer == NULL ) ||

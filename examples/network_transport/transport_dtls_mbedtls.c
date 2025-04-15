@@ -316,7 +316,6 @@ int dtlsSessionKeyDerivationCallback( void * customData,
 static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
                                DtlsNetworkCredentials_t * pNetworkCredentials )
 {
-    LogDebug( ( "setCredentials" ) );
     int32_t mbedtlsError = 0;
 
     configASSERT( pSslContext != NULL );
@@ -329,11 +328,9 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
     /* Set SSL authmode and the RNG context. */
     mbedtls_ssl_conf_authmode( &( pSslContext->config ),
                                MBEDTLS_SSL_VERIFY_OPTIONAL );
-    LogDebug( ( "before mbedtls_ssl_conf_rng" ) );
     mbedtls_ssl_conf_rng( &( pSslContext->config ),
                           mbedtls_ctr_drbg_random,
                           &( pSslContext->ctrDrbgContext ) );
-    LogDebug( ( "before mbedtls_ssl_conf_cert_profile" ) );
     mbedtls_ssl_conf_cert_profile( &( pSslContext->config ),
                                    &( pSslContext->certProfile ) );
 
@@ -343,7 +340,6 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
         {
             if( mbedtlsError == 0 )
             {
-                LogInfo( ( "Before mbedtls_ssl_conf_own_cert." ) );
                 mbedtlsError = mbedtls_ssl_conf_own_cert( &( pSslContext->config ),
                                                           pNetworkCredentials->pClientCert,
                                                           pNetworkCredentials->pPrivateKey );
@@ -351,7 +347,6 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
 
             if( mbedtlsError == 0 )
             {
-                LogInfo( ( "Before mbedtls_ssl_conf_dtls_cookies." ) );
                 mbedtls_ssl_conf_dtls_cookies( &( pSslContext->config ),
                                                NULL,
                                                NULL,
@@ -360,7 +355,6 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
 
             if( mbedtlsError == 0 )
             {
-                LogInfo( ( "Before mbedtls_ssl_conf_dtls_srtp_protection_profiles." ) );
                 mbedtlsError = mbedtls_ssl_conf_dtls_srtp_protection_profiles( &pSslContext->config,
                                                                                DTLS_SRTP_SUPPORTED_PROFILES,
                                                                                ARRAY_SIZE( DTLS_SRTP_SUPPORTED_PROFILES ) );
@@ -372,8 +366,6 @@ static int32_t setCredentials( DtlsSSLContext_t * pSslContext,
             }
             if( mbedtlsError == 0 )
             {
-                LogInfo( ( "Before mbedtls_ssl_conf_export_keys_ext_cb." ) );
-
                 mbedtls_ssl_conf_export_keys_ext_cb( &pSslContext->config,
                                                      dtlsSessionKeyDerivationCallback,
                                                      pSslContext );
@@ -427,7 +419,6 @@ static DtlsTransportStatus_t dtlsSetup( DtlsNetworkContext_t * pNetworkContext,
 
     if( returnStatus == DTLS_SUCCESS )
     {
-        LogInfo( ( "Before setCredentials." ) );
         mbedtlsError = setCredentials( &( pDtlsTransportParams->dtlsSslContext ),
                                        pNetworkCredentials );
 
@@ -444,11 +435,12 @@ static DtlsTransportStatus_t dtlsSetup( DtlsNetworkContext_t * pNetworkContext,
         /* Initialize the mbed DTLS secured connection context. */
         mbedtlsError = mbedtls_ssl_setup( &( pDtlsTransportParams->dtlsSslContext.context ),
                                           &( pDtlsTransportParams->dtlsSslContext.config ) );
-
         if( mbedtlsError != 0 )
         {
-            LogError( ( "Failed to set up mbed DTLS SSL context: mbedTLSError= %s : %s.",
-                        mbedtlsHighLevelCodeOrDefault( mbedtlsError ), mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
+            LogError( ( "Failed to set up mbed DTLS SSL context: mbedTLSError=-0x%lx %s : %s.",
+                        mbedtlsError,
+                        mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
+                        mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
             returnStatus = DTLS_TRANSPORT_INTERNAL_ERROR;
         }
     }
@@ -478,7 +470,7 @@ static DtlsTransportStatus_t initMbedtls( mbedtls_entropy_context * pEntropyCont
         returnStatus = DTLS_TRANSPORT_INTERNAL_ERROR;
     }
 
-    #ifdef MBEDTLS_PSA_CRYPTO_C
+#ifdef MBEDTLS_PSA_CRYPTO_C
     if( returnStatus == DTLS_SUCCESS )
     {
         mbedtlsError = psa_crypto_init();
@@ -489,7 +481,7 @@ static DtlsTransportStatus_t initMbedtls( mbedtls_entropy_context * pEntropyCont
             returnStatus = DTLS_TRANSPORT_INTERNAL_ERROR;
         }
     }
-    #endif /* MBEDTLS_PSA_CRYPTO_C */
+#endif /* MBEDTLS_PSA_CRYPTO_C */
 
     if( returnStatus == DTLS_SUCCESS )
     {
@@ -602,7 +594,7 @@ int32_t DTLS_Send( DtlsNetworkContext_t * pNetworkContext,
         }
         else if( dtlsStatus < 0 )
         {
-            LogError( ( "Failed to send data:  mbedTLSError= %s : %s.", mbedtlsHighLevelCodeOrDefault( dtlsStatus ), mbedtlsLowLevelCodeOrDefault( dtlsStatus ) ) );
+            LogError( ( "Failed to send DTLS data: -0x%lx mbedTLSError= %s : %s.", -dtlsStatus, mbedtlsHighLevelCodeOrDefault( dtlsStatus ), mbedtlsLowLevelCodeOrDefault( dtlsStatus ) ) );
         }
         else
         {
@@ -808,11 +800,11 @@ int32_t DTLS_PopulateKeyingMaterial( DtlsSSLContext_t * pSslContext,
 
     TlsKeys * pKeys = NULL;
     uint8_t keyingMaterialBuffer[MAX_SRTP_MASTER_KEY_LEN * 2 + MAX_SRTP_SALT_KEY_LEN * 2];
-    #if ( MBEDTLS_VERSION_NUMBER == 0x03000000 || MBEDTLS_VERSION_NUMBER == 0x03020100 )
+#if ( MBEDTLS_VERSION_NUMBER == 0x03000000 || MBEDTLS_VERSION_NUMBER == 0x03020100 )
     mbedtls_dtls_srtp_info negotiatedSRTPProfile;
-    #else
+#else /* #if ( MBEDTLS_VERSION_NUMBER == 0x03000000 || MBEDTLS_VERSION_NUMBER == 0x03020100 ) */
     mbedtls_ssl_srtp_profile negotiatedSRTPProfile;
-    #endif
+#endif /* #if ( MBEDTLS_VERSION_NUMBER == 0x03000000 || MBEDTLS_VERSION_NUMBER == 0x03020100 ) */
 
     if( ( pSslContext == NULL ) || ( pDtlsKeyingMaterial == NULL ) )
     {
@@ -869,30 +861,30 @@ int32_t DTLS_PopulateKeyingMaterial( DtlsSSLContext_t * pSslContext,
                 &keyingMaterialBuffer[offset],
                 MAX_SRTP_SALT_KEY_LEN );
 
-        #if ( MBEDTLS_VERSION_NUMBER == 0x03000000 || MBEDTLS_VERSION_NUMBER == 0x03020100 )
+#if ( MBEDTLS_VERSION_NUMBER == 0x03000000 || MBEDTLS_VERSION_NUMBER == 0x03020100 )
         mbedtls_ssl_get_dtls_srtp_negotiation_result( &pSslContext->context, &negotiatedSRTPProfile );
         switch( negotiatedSRTPProfile.chosen_dtls_srtp_profile )
         {
             case MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80:
-        #else
+#else /* #if ( MBEDTLS_VERSION_NUMBER == 0x03000000 || MBEDTLS_VERSION_NUMBER == 0x03020100 ) */
         negotiatedSRTPProfile = mbedtls_ssl_get_dtls_srtp_protection_profile( &pSslContext->context );
         switch( negotiatedSRTPProfile )
         {
             case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80:
-                #endif
+#endif /* #if ( MBEDTLS_VERSION_NUMBER == 0x03000000 || MBEDTLS_VERSION_NUMBER == 0x03020100 ) */
                 pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_80;
                 break;
 
-                #if ( MBEDTLS_VERSION_NUMBER == 0x03000000 || MBEDTLS_VERSION_NUMBER == 0x03020100 )
+#if ( MBEDTLS_VERSION_NUMBER == 0x03000000 || MBEDTLS_VERSION_NUMBER == 0x03020100 )
             case MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_32:
-                #else
+#else /* #if ( MBEDTLS_VERSION_NUMBER == 0x03000000 || MBEDTLS_VERSION_NUMBER == 0x03020100 ) */
             case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32:
-                #endif
+#endif /* #if ( MBEDTLS_VERSION_NUMBER == 0x03000000 || MBEDTLS_VERSION_NUMBER == 0x03020100 ) */
                 pDtlsKeyingMaterial->srtpProfile = KVS_SRTP_PROFILE_AES128_CM_HMAC_SHA1_32;
                 break;
             default:
-                LogError( ( "STATUS_SSL_UNKNOWN_SRTP_PROFILE" ) );
-                retStatus = -1;
+                LogError( ( "DTLS_SSL_UNKNOWN_SRTP_PROFILE" ) );
+                retStatus = DTLS_SSL_UNKNOWN_SRTP_PROFILE;
         }
     }
     return retStatus;
@@ -995,7 +987,7 @@ int32_t DTLS_CreateCertificateAndKey( int32_t certificateBits,
                                     else
                                     {
                                         retStatus = DTLS_GENERATE_KEY_FAILURE;
-                                        LogError( ( "mbedtls_pk_setup or mbedtls_ecp_gen_key" ) );
+                                        LogError( ( "mbedtls_pk_setup or mbedtls_ecp_gen_key failed" ) );
                                     }
                                 }
                             }
@@ -1184,7 +1176,6 @@ int32_t DTLS_CreateCertificateAndKey( int32_t certificateBits,
 }
 /*-----------------------------------------------------------*/
 
-
 int32_t DTLS_FreeCertificateAndKey( mbedtls_x509_crt * pCert,
                                     mbedtls_pk_context * pKey )
 {
@@ -1356,7 +1347,9 @@ DtlsTransportStatus_t DTLS_ProcessPacket( DtlsNetworkContext_t * pNetworkContext
             }
             else if( mbedtlsError < 0 )
             {
-                LogWarn( ( "Failed to read data: mbedTLSError=-0x%lx %s : %s.", -mbedtlsError, mbedtlsHighLevelCodeOrDefault( mbedtlsError ), mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
+                LogError( ( "Failed to read data: mbedTLSError=-0x%lx, %s : %s.",
+                            -mbedtlsError,
+                            mbedtlsHighLevelCodeOrDefault( mbedtlsError ), mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
                 returnStatus = DTLS_TRANSPORT_PROCESS_FAILURE;
             }
             else
@@ -1428,7 +1421,10 @@ DtlsTransportStatus_t DTLS_ExecuteHandshake( DtlsNetworkContext_t * pNetworkCont
         }
         else if( mbedtlsError < 0 )
         {
-            LogError( ( "Unexpected error during DTLS handshaking, error= %s : %s.", mbedtlsHighLevelCodeOrDefault( mbedtlsError ), mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
+            LogError( ( "Unexpected error during DTLS handshaking, error= -0x%lx %s : %s.",
+                        -mbedtlsError,
+                        mbedtlsHighLevelCodeOrDefault( mbedtlsError ),
+                        mbedtlsLowLevelCodeOrDefault( mbedtlsError ) ) );
             returnStatus = DTLS_TRANSPORT_HANDSHAKE_FAILED;
         }
         else

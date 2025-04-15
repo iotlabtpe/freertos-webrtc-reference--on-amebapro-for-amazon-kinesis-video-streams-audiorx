@@ -62,6 +62,7 @@ TimerControllerResult_t TimerController_SetTimer( TimerHandler_t * pTimerHandler
                                                   uint32_t repeatTimeMs )
 {
     TimerControllerResult_t ret = TIMER_CONTROLLER_RESULT_OK;
+    BaseType_t retTimer;
 
     ( void ) initialTimeMs;
     ( void ) repeatTimeMs;
@@ -73,7 +74,20 @@ TimerControllerResult_t TimerController_SetTimer( TimerHandler_t * pTimerHandler
 
     if( ret == TIMER_CONTROLLER_RESULT_OK )
     {
-        if( xTimerStart( pTimerHandler->timer, 0 ) != pdPASS )
+        retTimer = xTimerChangePeriod( pTimerHandler->timer, pdMS_TO_TICKS( initialTimeMs ), 0 );
+
+        if( retTimer != pdPASS )
+        {
+            LogError( ( "Fail to change timer period" ) );
+            ret = TIMER_CONTROLLER_RESULT_FAIL_TIMER_SET;
+        }
+    }
+
+    if( ret == TIMER_CONTROLLER_RESULT_OK )
+    {
+        retTimer = xTimerStart( pTimerHandler->timer, 0 );
+
+        if( retTimer != pdPASS )
         {
             LogError( ( "Fail to set timer" ) );
             ret = TIMER_CONTROLLER_RESULT_FAIL_TIMER_SET;

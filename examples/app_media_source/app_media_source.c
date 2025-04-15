@@ -419,18 +419,18 @@ int32_t AppMediaSource_Init( AppMediaSourcesContext_t * pCtx,
 
     if( ret == 0 )
     {
+        pCtx->videoContext.pSourcesContext = pCtx;
         ret = InitializeVideoSource( &pCtx->videoContext );
     }
 
     if( ret == 0 )
     {
+        pCtx->audioContext.pSourcesContext = pCtx;
         ret = InitializeAudioSource( &pCtx->audioContext );
     }
 
     if( ret == 0 )
     {
-        pCtx->videoContext.pSourcesContext = pCtx;
-        pCtx->audioContext.pSourcesContext = pCtx;
         pCtx->onMediaSinkHookFunc = onMediaSinkHookFunc;
         pCtx->pOnMediaSinkHookCustom = pOnMediaSinkHookCustom;
     }

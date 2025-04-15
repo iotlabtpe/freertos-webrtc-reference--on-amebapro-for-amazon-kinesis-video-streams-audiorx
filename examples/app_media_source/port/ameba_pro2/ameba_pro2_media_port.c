@@ -21,6 +21,8 @@
 #include "FreeRTOS.h"
 #include "networking_utils.h"
 
+#include "metric.h"
+
 /* used to monitor skb resource */
 extern int skbbuf_used_num;
 extern int skbdata_used_num;
@@ -732,6 +734,7 @@ int32_t AppMediaSourcePort_Start( OnFrameReadyToSend_t onVideoFrameReadyToSendFu
 {
     int32_t ret = 0;
 
+    Metric_StartEvent( METRIC_EVENT_MEDIA_PORT_START );
     InitializeMmfModules();
     mm_module_ctrl( pWebrtcMmContext,
                     CMD_KVS_WEBRTC_START,
@@ -748,14 +751,17 @@ int32_t AppMediaSourcePort_Start( OnFrameReadyToSend_t onVideoFrameReadyToSendFu
     mm_module_ctrl( pWebrtcMmContext,
                     CMD_KVS_WEBRTC_REG_AUDIO_SEND_CALLBACK_CUSTOM_CONTEXT,
                     ( int ) pOnAudioFrameReadyToSendCustomContext );
+    Metric_EndEvent( METRIC_EVENT_MEDIA_PORT_START );
 
     return ret;
 }
 
 void AppMediaSourcePort_Stop( void )
 {
+    Metric_StartEvent( METRIC_EVENT_MEDIA_PORT_STOP );
     mm_module_ctrl( pWebrtcMmContext,
                     CMD_KVS_WEBRTC_STOP,
                     0 );
     AppMediaSourcePort_Destroy();
+    Metric_EndEvent( METRIC_EVENT_MEDIA_PORT_STOP );
 }

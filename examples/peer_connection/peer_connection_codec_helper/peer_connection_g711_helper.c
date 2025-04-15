@@ -55,7 +55,7 @@ PeerConnectionResult_t PeerConnectionG711Helper_FillFrameG711( PeerConnectionJit
     G711Packet_t g711Packets[ PEER_CONNECTION_JITTER_BUFFER_MAX_PACKETS_NUM_IN_A_FRAME ];
     G711Packet_t g711Packet;
     G711Frame_t frame;
-    uint32_t rtpTimestamp;
+    uint32_t rtpTimestamp = 0;
 
     if( ( pJitterBuffer == NULL ) ||
         ( pOutBuffer == NULL ) ||

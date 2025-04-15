@@ -84,7 +84,7 @@ typedef struct NetworkingCorehttpContext
     /* The transport layer interface used by the HTTP Client library. */
     TransportInterface_t xTransportInterface;
     /* The network context for the transport layer interface. */
-    NetworkContext_t xNetworkContext;
+    TlsNetworkContext_t xTlsNetworkContext;
     TlsTransportParams_t xTlsTransportParams;
 
     char hostName[ NETWORKING_COREHTTP_HOST_NAME_MAX_LENGTH ];
@@ -99,7 +99,7 @@ typedef struct NetworkingWslayContext
     /* The transport layer interface used by the HTTP Client library. */
     TransportInterface_t xTransportInterface;
     /* The network context for the transport layer interface. */
-    NetworkContext_t xNetworkContext;
+    TlsNetworkContext_t xTlsNetworkContext;
     TlsTransportParams_t xTlsTransportParams;
 
     /* Rx path: callback user to handle received message. */

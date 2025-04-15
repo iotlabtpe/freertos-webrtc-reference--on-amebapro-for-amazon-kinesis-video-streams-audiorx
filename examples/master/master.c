@@ -271,7 +271,6 @@ static int32_t OnMediaSinkHook( void * pCustom,
                     LogError( ( "Fail to write %s frame, result: %d", ( pFrame->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO ) ? "video" : "audio",
                                 peerConnectionResult ) );
                     ret = -3;
-                    break;
                 }
             }
         }
@@ -325,7 +324,7 @@ static int32_t ParseIceServerUri( IceControllerIceServer_t * pIceServer,
                                                                           pUri,
                                                                           ICE_SERVER_TYPE_TURNS_LENGTH ) == 0 ) ) )
     {
-        pIceServer->serverType = ICE_CONTROLLER_ICE_SERVER_TYPE_TURN;
+        pIceServer->serverType = ICE_CONTROLLER_ICE_SERVER_TYPE_TURNS;
         pTail = pUri + uriLength;
         pCurr = pUri + ICE_SERVER_TYPE_TURNS_LENGTH;
     }
@@ -410,12 +409,13 @@ static int32_t ParseIceServerUri( IceControllerIceServer_t * pIceServer,
 
     if( ret == 0 )
     {
-        if( ( pIceServer->serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_TURN ) && ( pCurr >= pTail ) )
+        if( pCurr >= pTail )
         {
             LogWarn( ( "No valid transport string found" ) );
             ret = -1;
         }
-        else if( pIceServer->serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_TURN )
+        else if( ( pIceServer->serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_TURN ) ||
+                 ( pIceServer->serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_TURNS ) )
         {
             if( strncmp( pCurr,
                          "?transport=udp",
@@ -555,9 +555,10 @@ static int32_t GetIceServerList( DemoContext_t * pDemoContext,
             }
             else if( currentIceServerIndex >= *pOutputIceServersCount )
             {
-                LogWarn( ( "The size of Ice server buffer has no space for more server info, current index: %u, buffer size: %u",
+                LogWarn( ( "The size of Ice server buffer has no space for more server info, current index: %u, buffer size: %u, skipped server config idx: %lu",
                            currentIceServerIndex,
-                           *pOutputIceServersCount ) );
+                           *pOutputIceServersCount,
+                           i ) );
                 break;
             }
             else
@@ -567,6 +568,16 @@ static int32_t GetIceServerList( DemoContext_t * pDemoContext,
 
             for( j = 0; j < pIceServerConfigs[ i ].iceServerUriCount; j++ )
             {
+                if( currentIceServerIndex >= *pOutputIceServersCount )
+                {
+                    LogWarn( ( "The size of Ice server buffer has no space for more server info, current index: %u, buffer size: %u, skipped server URL: %.*s",
+                               currentIceServerIndex,
+                               *pOutputIceServersCount,
+                               ( int ) pIceServerConfigs[ i ].iceServerUris[ j ].uriLength,
+                               pIceServerConfigs[ i ].iceServerUris[ j ].uri ) );
+                    break;
+                }
+
                 /* Parse each URI */
                 parseResult = ParseIceServerUri( &pOutputIceServers[ currentIceServerIndex ],
                                                  pIceServerConfigs[ i ].iceServerUris[ j ].uri,
@@ -586,14 +597,6 @@ static int32_t GetIceServerList( DemoContext_t * pDemoContext,
                         pIceServerConfigs[ i ].passwordLength );
                 pOutputIceServers[ currentIceServerIndex ].passwordLength = pIceServerConfigs[ i ].passwordLength;
                 currentIceServerIndex++;
-
-                if( currentIceServerIndex >= *pOutputIceServersCount )
-                {
-                    LogWarn( ( "The size of Ice server buffer has no space for more server info, current index: %u, buffer size: %u",
-                               currentIceServerIndex,
-                               *pOutputIceServersCount ) );
-                    break;
-                }
             }
         }
     }
@@ -720,6 +723,7 @@ static int32_t InitializePeerConnectionSession( DemoContext_t * pDemoContext,
             0,
             sizeof( PeerConnectionSessionConfiguration_t ) );
     pcConfig.canTrickleIce = 1U;
+    pcConfig.natTraversalConfigBitmap = ICE_CANDIDATE_NAT_TRAVERSAL_CONFIG_ALLOW_ALL;
 
     peerConnectionResult = PeerConnection_Init( &pDemoSession->peerConnectionSession,
                                                 &pcConfig );
@@ -768,6 +772,18 @@ static int32_t StartPeerConnectionSession( DemoContext_t * pDemoContext,
                 0,
                 sizeof( PeerConnectionSessionConfiguration_t ) );
         pcConfig.iceServersCount = ICE_CONTROLLER_MAX_ICE_SERVER_COUNT;
+        #if defined( AWS_CA_CERT_PATH )
+        pcConfig.pRootCaPath = AWS_CA_CERT_PATH;
+        pcConfig.rootCaPathLength = strlen( AWS_CA_CERT_PATH );
+        #endif /* #if defined( AWS_CA_CERT_PATH ) */
+
+        #if defined( AWS_CA_CERT_PEM )
+        pcConfig.pRootCaPem = AWS_CA_CERT_PEM;
+        pcConfig.rootCaPemLength = sizeof( AWS_CA_CERT_PEM );
+        #endif /* #if defined( AWS_CA_CERT_PEM ) */
+
+        pcConfig.canTrickleIce = 1U;
+        pcConfig.natTraversalConfigBitmap = ICE_CANDIDATE_NAT_TRAVERSAL_CONFIG_ALLOW_ALL;
 
         ret = GetIceServerList( pDemoContext,
                                 pcConfig.iceServers,
@@ -777,8 +793,7 @@ static int32_t StartPeerConnectionSession( DemoContext_t * pDemoContext,
     if( ret == 0 )
     {
         peerConnectionResult = PeerConnection_AddIceServerConfig( &pDemoSession->peerConnectionSession,
-                                                                  pcConfig.iceServers,
-                                                                  pcConfig.iceServersCount );
+                                                                  &pcConfig );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
         {
             LogWarn( ( "PeerConnection_AddIceServerConfig fail, result: %d", peerConnectionResult ) );
@@ -1251,7 +1266,7 @@ static const char * GetCandidateTypeString( IceCandidateType_t candidateType )
             ret = DEMO_CANDIDATE_TYPE_SRFLX_STRING;
             break;
 
-        case ICE_CANDIDATE_TYPE_RELAYED:
+        case ICE_CANDIDATE_TYPE_RELAY:
             ret = DEMO_CANDIDATE_TYPE_RELAY_STRING;
             break;
 
@@ -1616,7 +1631,7 @@ void app_example( void )
                          ( ( const char * ) "MasterTask" ),
                          20480,
                          NULL,
-                         tskIDLE_PRIORITY + 2,
+                         tskIDLE_PRIORITY + 4,
                          NULL ) != pdPASS )
         {
             LogError( ( "xTaskCreate(Master_Task) failed" ) );

@@ -60,7 +60,7 @@ static ssize_t wslay_send_callback( wslay_event_context_ptr pCtx,
 {
     NetworkingWslayContext_t * pContext = ( NetworkingWslayContext_t * ) pUserData;
     TransportSend_t sendFunction = pContext->xTransportInterface.send;
-    ssize_t r = ( ssize_t )sendFunction( &pContext->xNetworkContext, pData, dataLength );
+    ssize_t r = ( ssize_t ) sendFunction( ( NetworkContext_t * ) &pContext->xTlsNetworkContext, pData, dataLength );
 
     if( r < 0 )
     {
@@ -88,7 +88,7 @@ static ssize_t wslay_recv_callback( wslay_event_context_ptr pCtx,
 {
     NetworkingWslayContext_t * pContext = ( NetworkingWslayContext_t * ) pUserData;
     TransportRecv_t recvFunction = pContext->xTransportInterface.recv;
-    ssize_t r = ( ssize_t ) recvFunction( &pContext->xNetworkContext, pData, dataLength );
+    ssize_t r = ( ssize_t ) recvFunction( ( NetworkContext_t * ) &pContext->xTlsNetworkContext, pData, dataLength );
 
     if( r < 0 )
     {
@@ -150,7 +150,7 @@ static void handleWslayControlMessage( void * pUserData,
     else if( opcode == WSLAY_CONNECTION_CLOSE )
     {
         LogInfo( ( "<== connection close, msg len: %u", dataLength ) );
-        NetworkingUtils_CloseConnection( &pContext->xNetworkContext );
+        TLS_FreeRTOS_Disconnect( &pContext->xTlsNetworkContext );
     }
     else
     {
@@ -1236,16 +1236,16 @@ WebsocketResult_t Websocket_Init( NetworkingWslayContext_t * pWebsocketCtx,
     {
 
         memset( &pWebsocketCtx->xTransportInterface, 0, sizeof( TransportInterface_t ) );
-        memset( &pWebsocketCtx->xNetworkContext, 0, sizeof( NetworkContext_t ) );
+        memset( &pWebsocketCtx->xTlsNetworkContext, 0, sizeof( TlsNetworkContext_t ) );
         memset( &pWebsocketCtx->xTlsTransportParams, 0, sizeof( TlsTransportParams_t ) );
 
         /* Set transport interface. */
-        pWebsocketCtx->xTransportInterface.pNetworkContext = &pWebsocketCtx->xNetworkContext;
+        pWebsocketCtx->xTransportInterface.pNetworkContext = ( NetworkContext_t * ) &pWebsocketCtx->xTlsNetworkContext;
         pWebsocketCtx->xTransportInterface.send = TLS_FreeRTOS_send;
         pWebsocketCtx->xTransportInterface.recv = TLS_FreeRTOS_recv;
 
         /* Set the pParams member of the network context with desired transport. */
-        pWebsocketCtx->xNetworkContext.pParams = &pWebsocketCtx->xTlsTransportParams;
+        pWebsocketCtx->xTlsNetworkContext.pParams = &pWebsocketCtx->xTlsTransportParams;
 
         pWebsocketCtx->websocketRxCallback = rxCallback;
         pWebsocketCtx->pWebsocketRxCallbackContext = pRxCallbackContext;
@@ -1280,6 +1280,7 @@ WebsocketResult_t Websocket_Connect( NetworkingWslayContext_t * pWebsocketCtx,
         .onHeaderCallback = ParsingConnectResponseHeader,
         .pContext = &connectResponseContext
     };
+    TlsTransportStatus_t xNetworkStatus;
 
     if( ( pServerInfo == NULL ) || ( pServerInfo->pUrl == NULL ) )
     {
@@ -1333,16 +1334,20 @@ WebsocketResult_t Websocket_Connect( NetworkingWslayContext_t * pWebsocketCtx,
             credentials.privateKeySize = pAwsCredentials->iotThingPrivateKeySize;
         }
 
-        retUtils = NetworkingUtils_ConnectToServer( &pWebsocketCtx->xNetworkContext,
-                                                    host,
-                                                    443,
-                                                    &credentials,
-                                                    NETWORKING_WSLAY_SEND_TIMEOUT_MS,
-                                                    NETWORKING_WSLAY_RECV_TIMEOUT_MS );
+        LogInfo( ( "Establishing a TLS session with %s:443.",
+                   host ) );
 
-        if( retUtils != NETWORKING_UTILS_RESULT_OK )
+        /* Attempt to create a server-authenticated TLS connection. */
+        xNetworkStatus = TLS_FreeRTOS_Connect( &pWebsocketCtx->xTlsNetworkContext,
+                                               host,
+                                               443,
+                                               &credentials,
+                                               NETWORKING_WSLAY_SEND_TIMEOUT_MS,
+                                               NETWORKING_WSLAY_RECV_TIMEOUT_MS );
+
+        if( xNetworkStatus != TLS_TRANSPORT_SUCCESS )
         {
-            LogError( ( "Fail to connect the host: %s:%u", host, 443U ) );
+            LogError( ( "Fail to connect with server with return %d", xNetworkStatus ) );
             ret = NETWORKING_WSLAY_RESULT_FAIL_CONNECT;
         }
     }
@@ -1572,7 +1577,7 @@ WebsocketResult_t Websocket_Disconnect( NetworkingWslayContext_t * pWebsocketCtx
     /* Close TLS connection if it exists */
     if( ret == WEBSOCKET_RESULT_OK )
     {
-        tlsStatus = TLS_FreeRTOS_Disconnect( &pWebsocketCtx->xNetworkContext );
+        tlsStatus = TLS_FreeRTOS_Disconnect( &pWebsocketCtx->xTlsNetworkContext );
         if( tlsStatus != TLS_TRANSPORT_SUCCESS )
         {
             LogError( ( "Failed to disconnect TLS connection: Status=%d", tlsStatus ) );
@@ -1621,7 +1626,7 @@ WebsocketResult_t Websocket_Recv( NetworkingWslayContext_t * pWebsocketCtx )
     int retSelect;
     TickType_t currentTick;
 
-    fd = TLS_FreeRTOS_GetSocketFd( &pWebsocketCtx->xNetworkContext );
+    fd = TLS_FreeRTOS_GetSocketFd( &pWebsocketCtx->xTlsNetworkContext );
 
     FD_ZERO( &rfds );
     FD_SET( fd, &rfds );

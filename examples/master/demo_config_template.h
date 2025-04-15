@@ -7,7 +7,13 @@
 
 #define AWS_KVS_AGENT_NAME "AWS-SDK-KVS"
 
-#define AWS_CA_CERT_PATH "cert/cert.pem"
+#ifndef ENABLE_SCTP_DATA_CHANNEL
+#define ENABLE_SCTP_DATA_CHANNEL 0U
+#endif
+
+#ifndef ENABLE_TWCC_SUPPORT
+#define ENABLE_TWCC_SUPPORT 1U
+#endif
 
 #ifndef ENABLE_TWCC_SUPPORT
 #define ENABLE_TWCC_SUPPORT 1U

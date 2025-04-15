@@ -74,6 +74,11 @@ typedef struct TlsTransportParams
     SSLContext_t sslContext;
 } TlsTransportParams_t;
 
+typedef struct TlsNetworkContext
+{
+    TlsTransportParams_t * pParams;
+} TlsNetworkContext_t;
+
 /**
  * @brief Contains the credentials necessary for tls connection setup.
  */
@@ -96,11 +101,19 @@ typedef struct NetworkCredentials
 
     const uint8_t * pRootCa;     /**< @brief String representing a trusted server root certificate. */
     size_t rootCaSize;           /**< @brief Size associated with #NetworkCredentials.pRootCa. */
+    const uint8_t * pRootCaPath; /**< @brief String representing a trusted server root certificate path. */
+    size_t rootCaPathLength;     /**< @brief Length associated with #NetworkCredentials.pRootCaPath. */
     const uint8_t * pClientCert; /**< @brief String representing the client certificate. */
     size_t clientCertSize;       /**< @brief Size associated with #NetworkCredentials.pClientCert. */
     const uint8_t * pPrivateKey; /**< @brief String representing the client certificate's private key. */
     size_t privateKeySize;       /**< @brief Size associated with #NetworkCredentials.pPrivateKey. */
 } NetworkCredentials_t;
+
+typedef struct TlsSession
+{
+    TlsNetworkContext_t xTlsNetworkContext;
+    TlsTransportParams_t xTlsTransportParams;
+} TlsSession_t;
 
 /**
  * @brief TLS Connect / Disconnect return status.
@@ -130,7 +143,7 @@ typedef enum TlsTransportStatus
  * @return #TLS_TRANSPORT_SUCCESS, #TLS_TRANSPORT_INSUFFICIENT_MEMORY, #TLS_TRANSPORT_INVALID_CREDENTIALS,
  * #TLS_TRANSPORT_HANDSHAKE_FAILED, #TLS_TRANSPORT_INTERNAL_ERROR, or #TLS_TRANSPORT_CONNECT_FAILURE.
  */
-TlsTransportStatus_t TLS_FreeRTOS_Connect( NetworkContext_t * pNetworkContext,
+TlsTransportStatus_t TLS_FreeRTOS_Connect( TlsNetworkContext_t * pNetworkContext,
                                            const char * pHostName,
                                            uint16_t port,
                                            const NetworkCredentials_t * pNetworkCredentials,
@@ -142,7 +155,7 @@ TlsTransportStatus_t TLS_FreeRTOS_Connect( NetworkContext_t * pNetworkContext,
  *
  * @param[in] pNetworkContext Network context.
  */
-TlsTransportStatus_t TLS_FreeRTOS_Disconnect( NetworkContext_t * pNetworkContext );
+TlsTransportStatus_t TLS_FreeRTOS_Disconnect( TlsNetworkContext_t * pNetworkContext );
 
 /**
  * @brief Receives data from an established TLS connection.
@@ -187,7 +200,7 @@ int32_t TLS_FreeRTOS_send( NetworkContext_t * pNetworkContext,
  *
  * @return The socket descriptor if value >= 0. It returns -1 when failure.
  */
-int32_t TLS_FreeRTOS_GetSocketFd( NetworkContext_t * pNetworkContext );
+int32_t TLS_FreeRTOS_GetSocketFd( TlsNetworkContext_t * pNetworkContext );
 
 #ifdef MBEDTLS_DEBUG_C
 

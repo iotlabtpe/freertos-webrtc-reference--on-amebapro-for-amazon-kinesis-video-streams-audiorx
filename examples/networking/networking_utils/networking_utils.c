@@ -316,50 +316,6 @@ void NetworkingUtils_GetHeaderStartLocFromHttpRequest( HTTPRequestHeaders_t * px
     }
 }
 
-NetworkingUtilsResult_t NetworkingUtils_ConnectToServer( NetworkContext_t * pxNetworkContext,
-                                                         const char * pcServer,
-                                                         uint16_t port,
-                                                         NetworkCredentials_t * pxNetworkCredentials,
-                                                         uint32_t sendTimeoutMs,
-                                                         uint32_t recvTimeoutMs )
-{
-    NetworkingUtilsResult_t ret = NETWORKING_UTILS_RESULT_OK;
-    TlsTransportStatus_t xNetworkStatus;
-
-    if( ( pxNetworkContext == NULL ) || ( pcServer == NULL ) )
-    {
-        ret = NETWORKING_UTILS_RESULT_BAD_PARAMETER;
-    }
-
-    if( ret == NETWORKING_UTILS_RESULT_OK )
-    {
-        LogInfo( ( "Establishing a TLS session with %s:%d.",
-                   pcServer,
-                   port ) );
-
-        /* Attempt to create a server-authenticated TLS connection. */
-        xNetworkStatus = TLS_FreeRTOS_Connect( pxNetworkContext,
-                                               pcServer,
-                                               port,
-                                               pxNetworkCredentials,
-                                               sendTimeoutMs,
-                                               recvTimeoutMs );
-
-        if( xNetworkStatus != TLS_TRANSPORT_SUCCESS )
-        {
-            LogWarn( ( "Fail to connect with server with return %d", xNetworkStatus ) );
-            ret = NETWORKING_UTILS_RESULT_FAIL_CONNECT;
-        }
-    }
-
-    return ret;
-}
-
-void NetworkingUtils_CloseConnection( NetworkContext_t * pxNetworkContext )
-{
-    TLS_FreeRTOS_Disconnect( pxNetworkContext );
-}
-
 NetworkingUtilsResult_t NetworkingUtils_GetIso8601CurrentTime( char * pDate,
                                                                size_t dateBufferLength )
 {
@@ -532,7 +488,6 @@ uint64_t NetworkingUtils_GetTimeFromIso8601( const char * pDate,
    final_ntp = (ntp_sec << 32U | ntp_frac);
    3881515845 << 32 | 2147483648 = 16677181839663572288
  */
-
 uint64_t NetworkingUtils_GetNTPTimeFromUnixTimeUs( uint64_t timeUs )
 {
     uint64_t sec = timeUs / 1000000ULL;   // Convert microseconds to seconds

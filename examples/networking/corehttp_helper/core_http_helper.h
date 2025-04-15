@@ -43,7 +43,6 @@ typedef enum NetworkingCorehttpResult
     NETWORKING_COREHTTP_RESULT_NO_PATH_IN_URL,
 } NetworkingCorehttpResult_t;
 
-
 #ifdef __cplusplus
 }
 #endif

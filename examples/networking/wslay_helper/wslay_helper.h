@@ -70,7 +70,6 @@ typedef struct NetworkingWslayConnectResponseContext
     uint16_t statusCode; //bitmap with NetworkingWslayHttpHeader_t value.
 } NetworkingWslayConnectResponseContext_t;
 
-
 #ifdef __cplusplus
 }
 #endif

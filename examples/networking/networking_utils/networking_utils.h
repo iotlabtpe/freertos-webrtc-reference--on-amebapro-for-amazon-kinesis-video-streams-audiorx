@@ -50,11 +50,6 @@ typedef struct NetworkingUtilsCanonicalRequest
     size_t payloadLength;
 } NetworkingUtilsCanonicalRequest_t;
 
-struct NetworkContext
-{
-    TlsTransportParams_t * pParams;
-};
-
 NetworkingUtilsResult_t NetworkingUtils_GetUrlHost( char * pUrl,
                                                     size_t urlLength,
                                                     char ** ppStart,
@@ -75,13 +70,6 @@ NetworkingUtilsResult_t NetworkingUtils_GenrerateAuthorizationHeader( Networking
 void NetworkingUtils_GetHeaderStartLocFromHttpRequest( HTTPRequestHeaders_t * pxRequestHeaders,
                                                        char ** pcStartHeaderLoc,
                                                        size_t * pxHeadersDataLen );
-NetworkingUtilsResult_t NetworkingUtils_ConnectToServer( NetworkContext_t * pxNetworkContext,
-                                                         const char * pcServer,
-                                                         uint16_t port,
-                                                         NetworkCredentials_t * pxNetworkCredentials,
-                                                         uint32_t sendTimeoutMs,
-                                                         uint32_t recvTimeoutMs );
-void NetworkingUtils_CloseConnection( NetworkContext_t * pxNetworkContext );
 NetworkingUtilsResult_t NetworkingUtils_GetIso8601CurrentTime( char * pDate,
                                                                size_t dateBufferLength );
 

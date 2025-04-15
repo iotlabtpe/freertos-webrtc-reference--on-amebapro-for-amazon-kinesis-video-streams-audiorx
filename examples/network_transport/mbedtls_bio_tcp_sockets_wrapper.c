@@ -29,6 +29,7 @@
  * @brief Implements mbed TLS platform send/receive functions for the TCP sockets wrapper.
  */
 
+#include "logging.h"
 #include "threading_alt.h"
 #include "mbedtls/entropy.h"
 #include "mbedtls/ssl.h"
@@ -61,6 +62,10 @@ int xMbedTLSBioTCPSocketsWrapperSend( void * ctx,
 
     switch( xReturnStatus )
     {
+        /* The send might be failed because of out-of-memory/interrupted by system call/EAGAIN. */
+        case TCP_SOCKETS_ERRNO_EWOULDBLOCK:
+            xReturnStatus = MBEDTLS_ERR_SSL_WANT_WRITE;
+            break;
         /* Socket was closed or just got closed. */
         case TCP_SOCKETS_ERRNO_ENOTCONN:
         /* Not enough memory for the socket to create either an Rx or Tx stream. */
