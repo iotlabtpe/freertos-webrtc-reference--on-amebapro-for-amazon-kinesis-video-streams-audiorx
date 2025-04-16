@@ -105,7 +105,7 @@ static void OnRtcpSenderReportAudioTimerExpire( void * pParameter )
     uint8_t i;
     uint64_t currentTimeUs = NetworkingUtils_GetCurrentTimeUs( NULL );
 
-    for(i = 0 ; i < PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ; i++ )
+    for( i = 0; i < PEER_CONNECTION_TRANSCEIVER_MAX_COUNT; i++ )
     {
         if( pSession->pTransceivers[ i ]->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO )
         {
@@ -134,7 +134,7 @@ static void OnRtcpSenderReportVideoTimerExpire( void * pParameter )
     uint8_t i;
     uint64_t currentTimeUs = NetworkingUtils_GetCurrentTimeUs( NULL );
 
-    for(i = 0 ; i < PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ; i++ )
+    for( i = 0; i < PEER_CONNECTION_TRANSCEIVER_MAX_COUNT; i++ )
     {
         if( pSession->pTransceivers[ i ]->trackKind == TRANSCEIVER_TRACK_KIND_VIDEO )
         {
@@ -696,7 +696,7 @@ static void PeerConnection_SetTimer( PeerConnectionSession_t * pSession )
     uint8_t i;
     TimerControllerResult_t retTimer;
 
-    for(i = 0 ; i < PEER_CONNECTION_TRANSCEIVER_MAX_COUNT ; i++ )
+    for( i = 0; i < PEER_CONNECTION_TRANSCEIVER_MAX_COUNT; i++ )
     {
         if( pSession->pTransceivers[ i ]->trackKind == TRANSCEIVER_TRACK_KIND_AUDIO )
         {
@@ -819,6 +819,11 @@ static int32_t OnDtlsHandshakeComplete( PeerConnectionSession_t * pSession )
                                                                    NULL );
             }
         }
+    }
+
+    if( ret == 0 )
+    {
+        IceController_HandleEvent( &pSession->iceControllerContext, ICE_CONTROLLER_EVENT_DTLS_HANDSHAKE_DONE );
     }
 
     return ret;
@@ -1391,8 +1396,8 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionSession_t * pSession,
         if( ret == PEER_CONNECTION_RESULT_OK )
         {
             resultRtcpTwccManager = RtcpTwccManager_Init( &pSession->pCtx->rtcpTwccManager,
-                                                          pSession->pCtx->twccPacketInfo,
-                                                          PEER_CONNECTION_RTCP_TWCC_MAX_ARRAY );
+                                                        pSession->pCtx->twccPacketInfo,
+                                                        PEER_CONNECTION_RTCP_TWCC_MAX_ARRAY );
             if( resultRtcpTwccManager != RTCP_TWCC_MANAGER_RESULT_OK )
             {
                 LogError( ( "Fail to Initialize RTCP TWCC Manager, result: %d", resultRtcpTwccManager ) );
@@ -1409,7 +1414,7 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionSession_t * pSession,
                 ret = PEER_CONNECTION_RESULT_FAIL_CREATE_TWCC_MUTEX;
             }
         }
-    #endif
+    #endif /* ENABLE_TWCC_SUPPORT */
 
     /* Initialize timer for audio Sender Reports. */
     if( ret == PEER_CONNECTION_RESULT_OK )
@@ -2170,7 +2175,7 @@ static PeerConnectionResult_t PeerConnection_OnRtcpSenderReportCallback( PeerCon
             else
             {
                 LogDebug( ( "Send RTCP Sender Report with Status : %u  to SSRC :  %lu, NTP Time :  %llu, RTP Time:  %lu,  PacketCount : %lu, OctetCount : %lu",ret,
-                             rtcpSenderReport.senderSsrc, rtcpSenderReport.senderInfo.ntpTime, rtcpSenderReport.senderInfo.rtpTime, rtcpSenderReport.senderInfo.packetCount, rtcpSenderReport.senderInfo.octetCount ) );
+                            rtcpSenderReport.senderSsrc, rtcpSenderReport.senderInfo.ntpTime, rtcpSenderReport.senderInfo.rtpTime, rtcpSenderReport.senderInfo.packetCount, rtcpSenderReport.senderInfo.octetCount ) );
             }
         }
 
