@@ -135,8 +135,15 @@ typedef enum HttpResult
     HTTP_RESULT_BAD_PARAMETER,
 } HttpResult_t;
 
+typedef enum HttpVerb
+{
+    HTTP_GET,
+    HTTP_POST,
+} HttpVerb_t;
+
 typedef struct HttpRequest
 {
+    HttpVerb_t verb;
     char * pUrl;
     size_t urlLength;
     char * pBody;

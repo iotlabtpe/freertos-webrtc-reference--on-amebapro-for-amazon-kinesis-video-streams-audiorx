@@ -30,6 +30,9 @@ static SignalingControllerResult_t UpdateIceServerConfigs( SignalingControllerCo
                                                            size_t iceServerListNum );
 
 static SignalingControllerResult_t ConnectToSignalingService( SignalingControllerContext_t * pCtx );
+
+static SignalingControllerResult_t JoinStorageSession( SignalingControllerContext_t *pCtx );
+
 static WebsocketResult_t HandleWssMessage( char * pMessage,
                                            size_t messageLength,
                                            void * pUserContext )
@@ -676,7 +679,12 @@ static SignalingControllerResult_t getSignalingChannelEndpoints( SignalingContro
     // Create the API url
     endpointRequestInfo.channelArn.pChannelArn = &( pCtx->signalingChannelArn[ 0 ] );
     endpointRequestInfo.channelArn.channelArnLength = pCtx->signalingChannelArnLength;
-    endpointRequestInfo.protocols = SIGNALING_PROTOCOL_WEBSOCKET_SECURE | SIGNALING_PROTOCOL_HTTPS;
+    endpointRequestInfo.protocols = SIGNALING_PROTOCOL_WEBSOCKET_SECURE |
+                                    SIGNALING_PROTOCOL_HTTPS;
+    if( pCtx->enableStorageSession != 0 )
+    {
+        endpointRequestInfo.protocols |= SIGNALING_PROTOCOL_WEBRTC;
+    }
     endpointRequestInfo.role = SIGNALING_ROLE_MASTER;
 
     retSignal = Signaling_ConstructGetSignalingChannelEndpointRequest( &awsRegion, &endpointRequestInfo, &signalRequest );
@@ -1180,6 +1188,15 @@ static SignalingControllerResult_t ConnectToSignalingService( SignalingControlle
         Metric_EndEvent( METRIC_EVENT_SIGNALING_CONNECT_WSS_SERVER );
     }
 
+    /* Join the storage session, if enabled. */
+    if ( ret == SIGNALING_CONTROLLER_RESULT_OK && 
+         ( pCtx->enableStorageSession != 0 ) )
+    {
+        Metric_StartEvent( METRIC_EVENT_SIGNALING_JOIN_STORAGE_SESSION );
+        ret = JoinStorageSession( pCtx );
+        Metric_EndEvent( METRIC_EVENT_SIGNALING_JOIN_STORAGE_SESSION );
+    }
+
     /* Print metric. */
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
@@ -1235,6 +1252,8 @@ SignalingControllerResult_t SignalingController_ConnectServers( SignalingControl
         pCtx->pMessageReceivedCallbackData = pConnectInfo->pMessageReceivedCallbackData;
 
         pCtx->expirationSeconds = pConnectInfo->awsCreds.expirationSeconds;
+
+        pCtx->enableStorageSession = pConnectInfo->enableStorageSession;
 
         ret = ConnectToSignalingService( pCtx );
 
@@ -1584,6 +1603,70 @@ SignalingControllerResult_t SignalingController_SerializeSdpContentNewline( cons
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
         *pEventSdpMessageLength = outputLength;
+    }
+
+    return ret;
+}
+
+static SignalingControllerResult_t JoinStorageSession( SignalingControllerContext_t *pCtx )
+{
+    SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
+    SignalingResult_t signalingResult;
+    SignalingChannelEndpoint_t webrtcEndpoint;
+    JoinStorageSessionRequestInfo_t joinSessionRequestInfo;
+    SignalingRequest_t signalingRequest;
+    HttpRequest_t httpRequest;
+    HttpResponse_t httpResponse;
+
+    signalingRequest.pUrl = &( pCtx->httpUrlBuffer[ 0 ] );
+    signalingRequest.urlLength = SIGNALING_CONTROLLER_HTTP_URL_BUFFER_LENGTH;
+
+    signalingRequest.pBody = &( pCtx->httpBodyBuffer[ 0 ] );
+    signalingRequest.bodyLength = SIGNALING_CONTROLLER_HTTP_BODY_BUFFER_LENGTH;
+
+    /* Create the API request. */
+    memset( &( joinSessionRequestInfo ), 0, sizeof( JoinStorageSessionRequestInfo_t ) );
+    joinSessionRequestInfo.channelArn.pChannelArn = &( pCtx->signalingChannelArn[ 0 ] );
+    joinSessionRequestInfo.channelArn.channelArnLength = pCtx->signalingChannelArnLength;
+    joinSessionRequestInfo.role = SIGNALING_ROLE_MASTER;
+
+    webrtcEndpoint.pEndpoint = &( pCtx->webrtcEndpoint[ 0 ] );
+    webrtcEndpoint.endpointLength = pCtx->webrtcEndpointLength;
+
+    LogInfo( ( "Joining storage session for channel: %s with length: %d", pCtx->signalingChannelArn,
+                                                                           pCtx->signalingChannelArnLength ) );
+    signalingResult = Signaling_ConstructJoinStorageSessionRequest( &( webrtcEndpoint ),
+                                                                    &( joinSessionRequestInfo ),
+                                                                    &( signalingRequest ) );
+
+    if( signalingResult != SIGNALING_RESULT_OK )
+    {
+        LogError( ( "Failed to construct join storage session request, return=0x%x", signalingResult ) );
+        ret = SIGNALING_CONTROLLER_RESULT_FAIL;
+    }
+    else
+    {
+        LogInfo( ( "Constructed join storage session request: %.*s", ( int ) signalingRequest.bodyLength,
+                                                                             signalingRequest.pBody ) );
+    }
+
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
+    {
+        memset( &( httpRequest ), 0, sizeof( HttpRequest_t ) );
+        httpRequest.pUrl = signalingRequest.pUrl;
+        httpRequest.urlLength = signalingRequest.urlLength;
+        httpRequest.pBody = signalingRequest.pBody;
+        httpRequest.bodyLength = signalingRequest.bodyLength;
+        httpRequest.verb = HTTP_POST;
+
+        memset( &( httpResponse ), 0, sizeof( HttpResponse_t ) );
+        httpResponse.pBuffer = pCtx->httpResponserBuffer;
+        httpResponse.bufferLength = SIGNALING_CONTROLLER_HTTP_RESPONSE_BUFFER_LENGTH;
+        ret = HttpSend( pCtx, &( httpRequest ), 0, &( httpResponse ) );
+        if ( ret != SIGNALING_CONTROLLER_RESULT_OK )
+        {
+            LogError( ( "HTTP request failed, error=0x%x", ret ) );
+        }
     }
 
     return ret;

@@ -23,6 +23,16 @@
 #define NETWORKING_COREHTTP_STRING_CONTENT_LENGTH "content-length"
 #define NETWORKING_COREHTTP_STRING_IOT_THINGNAME "x-amzn-iot-thingname"
 
+static uint32_t GetCurrentTimeMilisec( void )
+{
+    uint32_t timeSeconds, timeMilliseconds;
+
+    timeSeconds = ( uint32_t ) NetworkingUtils_GetCurrentTimeSec( NULL );
+    timeMilliseconds = 1000 * timeSeconds;
+
+    return timeMilliseconds;
+}
+
 HttpResult_t Http_Init( NetworkingCorehttpContext_t * pHttpCtx )
 {
     NetworkingCorehttpResult_t ret = NETWORKING_COREHTTP_RESULT_OK;
@@ -357,6 +367,7 @@ HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
         corehttpResponse.pBuffer = ( uint8_t * ) pResponse->pBuffer;
         corehttpResponse.bufferLen = pResponse->bufferLength;
         corehttpResponse.pHeaderParsingCallback = NULL;
+        corehttpResponse.getTime = GetCurrentTimeMilisec;
 
         LogDebug( ( "Sending HTTP header: %.*s", ( int ) xRequestHeaders.headersLen, xRequestHeaders.pBuffer ) );
         LogDebug( ( "Sending HTTP body: %.*s", ( int ) pRequest->bodyLength, pRequest->pBody ) );

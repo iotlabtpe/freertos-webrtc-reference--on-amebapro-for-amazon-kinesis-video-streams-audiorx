@@ -35,30 +35,7 @@ Choose ONE of the following authentication options:
    * Set `AWS_IOT_THING_ROLE_ALIAS` to your Role Alias.
    * Set `AWS_IOT_THING_CERT` to your IOT Core Certificate.
    * Set `AWS_IOT_THING_PRIVATE_KEY` to your IOT Core Private Key.
-## TWCC support
 
-Transport Wide Congestion Control (TWCC) is a mechanism in WebRTC designed to enhance the performance and reliability of real-time communication over the internet. TWCC addresses the challenges of network congestion by providing detailed feedback on the transport of packets across the network, enabling adaptive bitrate control and optimization of media streams in real-time. This feedback mechanism is crucial for maintaining high-quality audio and video communication, as it allows senders to adjust their transmission strategies based on comprehensive information about packet losses, delays, and jitter experienced across the entire transport path.
-
-The importance of TWCC in WebRTC lies in its ability to ensure efficient use of available network bandwidth while minimizing the negative impacts of network congestion. By monitoring the delivery of packets across the network, TWCC helps identify bottlenecks and adjust the media transmission rates accordingly. This dynamic approach to congestion control is essential for preventing degradation in call quality, such as pixelation, stuttering, or drops in audio and video streams, especially in environments with fluctuating network conditions.
-
-To learn more about TWCC, check [TWCC spec](https://datatracker.ietf.org/doc/html/draft-holmer-rmcat-transport-wide-cc-extensions-01)
-
-### Enabling TWCC support
-
-TWCC is enabled by default in this application (via `ENABLE_TWCC_SUPPORT`) value set as `1` in `demo_config_template.h`. In order to disable it, set this value to `0`.
-
-```c
-#define ENABLE_TWCC_SUPPORT 1U
-```
-
-If not using the samples directly, following thing need to be done to set up Twcc:
-
-1. Set the callback that will have the business logic to modify the bitrate based on packet loss information. The callback can be set using `PeerConnection_SetSenderBandwidthEstimationCallback()` inside `PeerConnection_Init()`:
-```c
-ret = PeerConnection_SetSenderBandwidthEstimationCallback(  pSession,
-                                                            SampleSenderBandwidthEstimationHandler,
-                                                            &pSession->twccMetaData );
-```
 ## Compile commands
 1. Download toolchain (based on your environment)
    - https://github.com/Ameba-AIoT/ameba-toolchain/releases/tag/V10.3.0-amebe-rtos-pro2
@@ -104,17 +81,17 @@ ret = PeerConnection_SetSenderBandwidthEstimationCallback(  pSession,
    cd libraries/ambpro2_sdk/tools/
    unzip Pro2_PG_tool _v1.3.0.zip
    ```
-   **Note: If you're using MAC, please find repo owner to get Pro2_PG_tool+_v1.4.3_B.zip.**
+   **Note: If you're using Mac, please find repo owner to get Pro2_PG_tool+_v1.4.3_B.zip.**
 1. Copy the contents of `libraries/ambpro2_sdk/tools/Pro2_PG_tool _v1.3.0` to
-   a directory in the Windows file system.
+   a directory in the Windows/Mac file system.
 
 ### Flash Binary
-1. Close TeraTerm if it is running and connected to the board.
+1. Close TeraTerm (or minicom for Mac) if it is running and connected to the board.
 1. Copy the generated binary `project/realtek_amebapro2_webrtc_application/GCC-RELEASE/build/flash_ntz.bin`
-   to the directory in the Windows file system which contains the flash tool
+   to the directory in the Windows/Mac file system which contains the flash tool
    from the [Copy Flash Tool](#copy-flash-tool-needed-only-one-time) section.
 1. Open a terminal (such as PowerShell) and enter the directory in the
-   Windows file system which contains the flash tool from the
+   Windows/Mac file system which contains the flash tool from the
    [Copy Flash Tool](#copy-flash-tool-needed-only-one-time) section.
 1. Enter the board into program mode:
    * Press the Reset button.
@@ -140,7 +117,7 @@ ret = PeerConnection_SetSenderBandwidthEstimationCallback(  pSession,
 
 ## Run
 ### Set up WiFi [Needed only one time]
-1. Open TeraTerm and connect to the COM port.
+1. Open TeraTerm (or minicom for Mac) and connect to the COM port.
 1. Press and release the Reset button.
 1. Send the following commands to the device using TeraTerm to setup WiFi SSID
    and Password:
@@ -151,8 +128,63 @@ ret = PeerConnection_SetSenderBandwidthEstimationCallback(  pSession,
    ```
 
 ### Run the Program
-1. Open TeraTerm and connect to the COM port.
+1. Open TeraTerm (or minicom for Mac) and connect to the COM port.
 1. Press and release the Reset button.
+
+## TWCC support
+
+Transport Wide Congestion Control (TWCC) is a mechanism in WebRTC designed to enhance the performance and reliability of real-time communication over the internet. TWCC addresses the challenges of network congestion by providing detailed feedback on the transport of packets across the network, enabling adaptive bitrate control and optimization of media streams in real-time. This feedback mechanism is crucial for maintaining high-quality audio and video communication, as it allows senders to adjust their transmission strategies based on comprehensive information about packet losses, delays, and jitter experienced across the entire transport path.
+
+The importance of TWCC in WebRTC lies in its ability to ensure efficient use of available network bandwidth while minimizing the negative impacts of network congestion. By monitoring the delivery of packets across the network, TWCC helps identify bottlenecks and adjust the media transmission rates accordingly. This dynamic approach to congestion control is essential for preventing degradation in call quality, such as pixelation, stuttering, or drops in audio and video streams, especially in environments with fluctuating network conditions.
+
+To learn more about TWCC, check [TWCC spec](https://datatracker.ietf.org/doc/html/draft-holmer-rmcat-transport-wide-cc-extensions-01)
+
+### Enabling TWCC support
+
+TWCC is enabled by default in this application (via `ENABLE_TWCC_SUPPORT`) value set as `1` in `demo_config_template.h`. In order to disable it, set this value to `0`.
+
+```c
+#define ENABLE_TWCC_SUPPORT 1U
+```
+
+If not using the samples directly, following thing need to be done to set up Twcc:
+
+1. Set the callback that will have the business logic to modify the bitrate based on packet loss information. The callback can be set using `PeerConnection_SetSenderBandwidthEstimationCallback()` inside `PeerConnection_Init()`:
+```c
+ret = PeerConnection_SetSenderBandwidthEstimationCallback(  pSession,
+                                                            SampleSenderBandwidthEstimationHandler,
+                                                            &pSession->twccMetaData );
+```
+
+## JoinStorageSession support
+
+JoinStorageSession enables video producing devices to join or create WebRTC sessions for real-time media ingestion through Amazon Kinesis Video Streams. For Master configurations, this allows devices to ingest both audio and video media while maintaining synchronized playback capabilities. 
+
+In our implementation (Master participant only):
+1. First connect to Kinesis Video Streams with WebRTC Signaling.
+2. It calls the `JoinStorageSession` API to initiate a storage session WebRTC connection.
+3. Once WebRTC connection is established, media is ingested to the configured Kinesis video stream.
+
+#### Media Requirements
+- **Video Track**: H.264 codec required.
+- **Audio Track**: Opus codec required.
+- Both audio and video tracks are mandatory for WebRTC ingestion.
+
+### Enabling JoinStorageSession support
+
+JoinStorageSession is disabled by default in this application (via `JOIN_STORAGE_SESSION`) value set as `0` in `demo_config_template.h`. In order to enable it, set this value to `1`.
+```c
+#define JOIN_STORAGE_SESSION 0
+```
+#### Prerequisites for enabling JoinStorageSession
+
+Before using JoinStorageSession, Set up Signaling Channel with Video Stream :
+   - Create a Kinesis Video Streams signaling channel
+   - Create a Kinesis Video Streams video stream
+   - Connect the channel to the video stream
+   - Ensure proper IAM permissions are configured
+
+For detailed setup instructions, refer to: https://docs.aws.amazon.com/kinesisvideostreams-webrtc-dg/latest/devguide/webrtc-ingestion.html
 
 ## Troubleshooting
 

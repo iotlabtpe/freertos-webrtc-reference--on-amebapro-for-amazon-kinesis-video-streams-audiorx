@@ -887,9 +887,10 @@ static DemoPeerConnectionSession_t * GetCreatePeerConnectionSession( DemoContext
     for( i = 0; i < AWS_MAX_VIEWER_NUM; i++ )
     {
         if( ( pDemoContext->peerConnectionSessions[ i ].remoteClientIdLength == remoteClientIdLength ) &&
-            ( strncmp( pDemoContext->peerConnectionSessions[ i ].remoteClientId,
-                       pRemoteClientId,
-                       remoteClientIdLength ) == 0 ) )
+            ( ( remoteClientIdLength == 0 ) ||
+              ( strncmp( pDemoContext->peerConnectionSessions[ i ].remoteClientId,
+                         pRemoteClientId,
+                         remoteClientIdLength ) == 0 ) ) )
         {
             /* Found existing session. */
             pRet = &pDemoContext->peerConnectionSessions[ i ];
@@ -1532,8 +1533,12 @@ static void Master_Task( void * pParameter )
     LogDebug( ( "Start webrtc_master_demo_app_main." ) );
 
     platform_init();
-
+    
     memset( &connectInfo, 0, sizeof( SignalingControllerConnectInfo_t ) );
+
+    #if ( JOIN_STORAGE_SESSION != 0 )
+    connectInfo.enableStorageSession = 1;
+    #endif
 
     connectInfo.awsConfig.pRegion = AWS_REGION;
     connectInfo.awsConfig.regionLen = strlen( AWS_REGION );

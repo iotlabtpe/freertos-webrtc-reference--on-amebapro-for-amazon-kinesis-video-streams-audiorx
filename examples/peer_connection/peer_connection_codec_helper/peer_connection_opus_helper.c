@@ -355,6 +355,5 @@ PeerConnectionResult_t PeerConnectionOpusHelper_WriteOpusFrame( PeerConnectionSe
     pTransceiver->rtcpStats.rtpPacketsTransmitted += packetSent;
     pTransceiver->rtcpStats.rtpBytesTransmitted += bytesSent;
 
-    LogInfo( ( " Opus write frame is done. return = %d", ret ) );
     return ret;
 }

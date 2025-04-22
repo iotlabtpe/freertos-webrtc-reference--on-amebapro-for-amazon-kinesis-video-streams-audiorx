@@ -19,8 +19,8 @@
 #define ENABLE_TWCC_SUPPORT 1U
 #endif
 
-/* Uncomment to use fetching credentials by IoT Role-alias for Authentication */
-/* Please add the AWS_IOT_THING_CERT and AWS_IOT_THING_PRIVATE_KEY similar to the AWS_CA_CERT_PEM */
+/* Uncomment to use fetching credentials by IoT Role-alias for Authentication. */
+/* Please add the AWS_IOT_THING_CERT and AWS_IOT_THING_PRIVATE_KEY similar to the AWS_CA_CERT_PEM. */
 
 // #define AWS_CREDENTIALS_ENDPOINT ""
 // #define AWS_IOT_THING_NAME ""
@@ -28,14 +28,14 @@
 // #define AWS_IOT_THING_CERT ""
 // #define AWS_IOT_THING_PRIVATE_KEY ""
 
-/* Uncomment to use AWS Access Key Credentials for Authentication */
+/* Uncomment to use AWS Access Key Credentials for Authentication. */
 // #define AWS_ACCESS_KEY_ID ""
 // #define AWS_SECRET_ACCESS_KEY ""
 // #define AWS_SESSION_TOKEN ""
 
 #if defined( AWS_ACCESS_KEY_ID ) && defined( AWS_IOT_THING_ROLE_ALIAS )
 #error "Configuration Error: AWS_ACCESS_KEY_ID and AWS_IOT_THING_ROLE_ALIAS are mutually exclusive authentication methods. Please define only one of them."
-#endif /* #if defined( AWS_ACCESS_KEY_ID ) && defined( AWS_IOT_THING_ROLE_ALIAS ) */
+#endif /* #if defined( AWS_ACCESS_KEY_ID ) && defined( AWS_IOT_THING_ROLE_ALIAS ). */
 
 #define AWS_CA_CERT_PEM \
     "-----BEGIN CERTIFICATE-----\n"\
@@ -65,7 +65,7 @@
 
 #define AWS_MAX_VIEWER_NUM ( 2 )
 
-/* Audio format setting */
+/* Audio format setting. */
 #define AUDIO_G711_MULAW 1
 #define AUDIO_G711_ALAW 0
 #define AUDIO_OPUS 0
@@ -73,7 +73,12 @@
 #error only one of audio format should be set
 #endif
 
-/* Video format setting */
+/* Video format setting. */
 #define USE_H265 0
+
+/* Join Storage Session setting. */
+#ifndef JOIN_STORAGE_SESSION
+    #define JOIN_STORAGE_SESSION 0
+#endif
 
 #endif /* DEMO_CONFIG_H */
