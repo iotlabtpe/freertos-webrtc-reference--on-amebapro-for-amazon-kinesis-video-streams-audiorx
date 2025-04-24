@@ -496,7 +496,6 @@ Certain platform allows computing and verifying the IP, UDP, TCP and ICMP checks
 #define LWIP_AUTOIP                     1
 #define TCPIP_THREAD_NAME              "TCP_IP"
 
-#define SNTP_RECV_TIMEOUT               3000
 #define LWIP_NETIF_LOOPBACK             1
 #define LWIP_IPV6                       1
 #if LWIP_IPV6
@@ -563,5 +562,11 @@ Certain platform allows computing and verifying the IP, UDP, TCP and ICMP checks
 #undef LWIP_SOCKET_SET_ERRNO
 #define LWIP_SOCKET_SET_ERRNO           1
 #endif
+
+/* SNTP Configurations */
+#define SNTP_RECV_TIMEOUT               1500
+#define SNTP_RETRY_TIMEOUT              SNTP_RECV_TIMEOUT
+#define SNTP_SERVER_ADDRESS             "time.aws.com", "time.google.com", "pool.ntp.org"
+#define SNTP_SUPPORT_MULTIPLE_SERVERS   1
 
 #endif /* LWIPOPTS_H */
