@@ -62,7 +62,7 @@ static void OnTimerExpire( void * pContext )
         {
             case ICE_CONTROLLER_STATE_PROCESS_CANDIDATES_AND_PAIRS:
                 pCtx->onIceEventCallbackFunc( pCtx->pOnIceEventCustomContext,
-                                              ICE_CONTROLLER_CB_EVENT_PROCESS_ICE_CANDIDATES_AND_PAIRS_TIMEOUT,
+                                              ICE_CONTROLLER_CB_EVENT_PROCESS_ICE_CANDIDATES_AND_PAIRS,
                                               NULL );
                 break;
             case ICE_CONTROLLER_STATE_READY:
@@ -72,12 +72,12 @@ static void OnTimerExpire( void * pContext )
                 break;
             case ICE_CONTROLLER_STATE_CLOSING:
                 pCtx->onIceEventCallbackFunc( pCtx->pOnIceEventCustomContext,
-                                              ICE_CONTROLLER_CB_EVENT_CLOSING,
+                                              ICE_CONTROLLER_CB_EVENT_ICE_CLOSING,
                                               NULL );
                 break;
             case ICE_CONTROLLER_STATE_CLOSED:
                 pCtx->onIceEventCallbackFunc( pCtx->pOnIceEventCustomContext,
-                                              ICE_CONTROLLER_CB_EVENT_CLOSED,
+                                              ICE_CONTROLLER_CB_EVENT_ICE_CLOSED,
                                               NULL );
                 break;
             default:
@@ -847,6 +847,7 @@ IceControllerResult_t IceController_AddRemoteCandidate( IceControllerContext_t *
 IceControllerResult_t IceController_ProcessIceCandidatesAndPairs( IceControllerContext_t * pCtx )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
+    uint64_t currentTimeMs = NetworkingUtils_GetCurrentTimeUs( NULL ) / 1000;
 
     if( pCtx == NULL )
     {
@@ -861,21 +862,53 @@ IceControllerResult_t IceController_ProcessIceCandidatesAndPairs( IceControllerC
 
         /* Send request for local candidates. */
         ProcessLocalCandidates( pCtx );
-
-        /* Re-set the timer. */
-        IceController_UpdateTimerInterval( pCtx, ICE_CONTROLLER_CONNECTIVITY_TIMER_INTERVAL_MS );
     }
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
-        if( ( NetworkingUtils_GetCurrentTimeUs( NULL ) / 1000 ) >= pCtx->metrics.printCandidatePairsStatusMs )
+        /* Check timeout. */
+        if( currentTimeMs > pCtx->connectivityCheckTimeoutMs )
+        {
+            LogWarn( ( "Unable to find valid connection before timeout for ICE combined name: %.*s, closing peer connection session.",
+                       ( int ) pCtx->iceContext.creds.combinedUsernameLength,
+                       pCtx->iceContext.creds.pCombinedUsername ) );
+
+            /* Notify peer connection for closing the connection. */
+            if( pCtx->onIceEventCallbackFunc )
+            {
+                pCtx->onIceEventCallbackFunc( pCtx->pOnIceEventCustomContext,
+                                              ICE_CONTROLLER_CB_EVENT_ICE_CLOSE_NOTIFY,
+                                              NULL );
+                /* Re-set the timer. */
+                IceController_UpdateTimerInterval( pCtx,
+                                                   ICE_CONTROLLER_CLOSING_INTERVAL_MS );
+            }
+            else
+            {
+                LogError( ( "There is no ICE event callback function set." ) );
+            }
+
+            ret = ICE_CONTROLLER_RESULT_CONNECTIVITY_CHECK_TIMEOUT;
+        }
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        /* Re-set the timer. */
+        IceController_UpdateTimerInterval( pCtx,
+                                           ICE_CONTROLLER_CONNECTIVITY_TIMER_INTERVAL_MS );
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        if( currentTimeMs > pCtx->metrics.printCandidatePairsStatusMs )
         {
             LogInfo( ( "========== Print Candidates / Pairs States ==========" ) );
             PrintCandidatesStatus( pCtx );
             PrintCandidatePairsStatus( pCtx );
             LogInfo( ( "========== Print Candidates / Pairs States ==========" ) );
 
-            pCtx->metrics.printCandidatePairsStatusMs = NetworkingUtils_GetCurrentTimeUs( NULL ) / 1000 + ICE_CONTROLLER_PRINT_CONNECTIVITY_CHECK_PERIOD_MS;
+            pCtx->metrics.printCandidatePairsStatusMs = currentTimeMs + ICE_CONTROLLER_PRINT_CONNECTIVITY_CHECK_PERIOD_MS;
         }
     }
 
@@ -967,7 +1000,7 @@ IceControllerResult_t IceController_AddressClosing( IceControllerContext_t * pCt
             if( pCtx->onIceEventCallbackFunc )
             {
                 pCtx->onIceEventCallbackFunc( pCtx->pOnIceEventCustomContext,
-                                              ICE_CONTROLLER_CB_EVENT_CLOSED,
+                                              ICE_CONTROLLER_CB_EVENT_ICE_CLOSED,
                                               NULL );
             }
             else
@@ -1060,7 +1093,7 @@ IceControllerResult_t IceController_Destroy( IceControllerContext_t * pCtx )
         if( pCtx->onIceEventCallbackFunc )
         {
             pCtx->onIceEventCallbackFunc( pCtx->pOnIceEventCustomContext,
-                                          ICE_CONTROLLER_CB_EVENT_CLOSED,
+                                          ICE_CONTROLLER_CB_EVENT_ICE_CLOSED,
                                           NULL );
         }
         else
@@ -1369,6 +1402,7 @@ IceControllerResult_t IceController_Start( IceControllerContext_t * pCtx,
     IceResult_t iceResult;
     IceInitInfo_t iceInitInfo;
     uint8_t i;
+    uint64_t currentTimeMs = NetworkingUtils_GetCurrentTimeUs( NULL ) / 1000;
 
     if( ( pCtx == NULL ) ||
         ( pLocalUserName == NULL ) || ( pLocalPassword == NULL ) ||
@@ -1454,12 +1488,18 @@ IceControllerResult_t IceController_Start( IceControllerContext_t * pCtx,
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
         IceController_UpdateState( pCtx, ICE_CONTROLLER_STATE_PROCESS_CANDIDATES_AND_PAIRS );
-        pCtx->metrics.printCandidatePairsStatusMs = NetworkingUtils_GetCurrentTimeUs( NULL ) / 1000 + ICE_CONTROLLER_PRINT_CONNECTIVITY_CHECK_PERIOD_MS;
+        pCtx->metrics.printCandidatePairsStatusMs = currentTimeMs + ICE_CONTROLLER_PRINT_CONNECTIVITY_CHECK_PERIOD_MS;
     }
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
         IceControllerNet_AddLocalCandidates( pCtx );
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        /* Update the connectivity timeout before starting connectivity check. */
+        pCtx->connectivityCheckTimeoutMs = currentTimeMs + ICE_CONTROLLER_CONNECTIVITY_CHECK_TIMEOUT_MS;
     }
 
     if( ret == ICE_CONTROLLER_RESULT_OK )

@@ -35,7 +35,7 @@ static PeerConnectionResult_t PeerConnectionSrtcp_MatchRemoteBySsrc( PeerConnect
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
 
-    if( ( pSession == NULL ) )
+    if( pSession == NULL )
     {
         LogError( ( "Invalid input, pSession: %p", pSession ) );
         ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
@@ -160,6 +160,7 @@ static PeerConnectionResult_t ResendSrtpPacket( PeerConnectionSession_t * pSessi
 
             pSrtpPacket = srtpBuffer;
             srtpPacketLength = PEER_CONNECTION_SRTP_RTP_PACKET_MAX_LENGTH;
+
             /* PeerConnectionSrtp_ConstructSrtpPacket() serializes RTP packet and encrypt it. */
             ret = PeerConnectionSrtp_ConstructSrtpPacket( pSession,
                                                           &pRollingBufferPacket->rtpPacket,
@@ -310,7 +311,7 @@ static PeerConnectionResult_t OnRtcpNackEvent( PeerConnectionSession_t * pSessio
 }
 #if ENABLE_TWCC_SUPPORT
     static PeerConnectionResult_t OnRtcpTwccEvent( PeerConnectionSession_t * pSession,
-                                                   RtcpPacket_t * pRtcpPacket )
+                                                RtcpPacket_t * pRtcpPacket )
     {
         PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
         RtcpResult_t resultRtcp;
@@ -339,8 +340,8 @@ static PeerConnectionResult_t OnRtcpNackEvent( PeerConnectionSession_t * pSessio
             twccPacket.pArrivalInfoList = packetArrivalInfo;
             twccPacket.arrivalInfoListLength = PEER_CONNECTION_RTCP_TWCC_MAX_ARRAY;
             resultRtcp = Rtcp_ParseTwccPacket( &pSession->pCtx->rtcpContext,
-                                               pRtcpPacket,
-                                               &twccPacket );
+                                            pRtcpPacket,
+                                            &twccPacket );
             if( resultRtcp != RTCP_RESULT_OK )
             {
                 LogError( ( "Fail to parse RTCP TWCC packet, result: %d", resultRtcp ) );
@@ -367,8 +368,8 @@ static PeerConnectionResult_t OnRtcpNackEvent( PeerConnectionSession_t * pSessio
         if( ret == PEER_CONNECTION_RESULT_OK )
         {
             resultRtcpTwccManager = RtcpTwccManager_HandleTwccPacket( &pSession->pCtx->rtcpTwccManager,
-                                                                      &twccPacket,
-                                                                      &twccBandwidthInfo );
+                                                                    &twccPacket,
+                                                                    &twccBandwidthInfo );
             if( resultRtcpTwccManager != RTCP_TWCC_MANAGER_RESULT_OK )
             {
                 LogError( ( "Fail to handle RTCP TWCC packet, result: %d", resultRtcpTwccManager ) );
@@ -382,9 +383,8 @@ static PeerConnectionResult_t OnRtcpNackEvent( PeerConnectionSession_t * pSessio
             {
                 /* Call the bandwidth estimation callback */
                 pSession->pCtx->onBandwidthEstimationCallback( pSession->pCtx->onBandwidthEstimationCallback,
-                                                               &twccBandwidthInfo );
+                                                            &twccBandwidthInfo );
             }
-
 
             LogDebug( ( "TWCC Bandwidth Info : SentBytes - %llu, ReceivedBytes - %llu, SentPackets - %llu, ReceivedPackets - %llu, Duration - %lld", twccBandwidthInfo.sentBytes, twccBandwidthInfo.receivedBytes, twccBandwidthInfo.sentPackets, twccBandwidthInfo.receivedPackets, twccBandwidthInfo.duration ) );
         }
@@ -392,6 +392,7 @@ static PeerConnectionResult_t OnRtcpNackEvent( PeerConnectionSession_t * pSessio
         return ret;
     }
 #endif
+
 static PeerConnectionResult_t OnRtcpPliEvent( PeerConnectionSession_t * pSession,
                                               RtcpPacket_t * pRtcpPacket )
 {
@@ -609,7 +610,12 @@ static PeerConnectionResult_t OnRtcpSenderReportEvent( PeerConnectionSession_t *
         ret = PeerConnectionSrtcp_MatchRemoteBySsrc( pSession,
                                                      senderReport.senderSsrc );
 
-        LogVerbose( ( "RTCP_PACKET_SENDER_REPORT %lu %llu  rtpTs: %lu  %lu pkts  %lu bytes", senderReport.senderSsrc, senderReport.senderInfo.ntpTime, senderReport.senderInfo.rtpTime, senderReport.senderInfo.packetCount, senderReport.senderInfo.octetCount ) );
+        LogVerbose( ( "RTCP_PACKET_SENDER_REPORT, SSRC: %u, NTP Time %lu RTP Time: %u, PacketCount: %u, OctetCount: %u",
+                      senderReport.senderSsrc,
+                      senderReport.senderInfo.ntpTime,
+                      senderReport.senderInfo.rtpTime,
+                      senderReport.senderInfo.packetCount,
+                      senderReport.senderInfo.octetCount ) );
 
         if( ret == PEER_CONNECTION_RESULT_UNKNOWN_SSRC )
         {
@@ -681,7 +687,15 @@ static PeerConnectionResult_t OnRtcpReceiverReportEvent( PeerConnectionSession_t
                                                          receiverReport.pReceptionReports[ 0 ].sourceSsrc,
                                                          &pTransceiver );
 
-            LogDebug( ( "RTCP_PACKET_TYPE_RECEIVER_REPORT %lu %lu  loss: %u  %lu seq:  %lu jit: %lu  lsr: %lu  dlsr: %lu", receiverReport.senderSsrc, receiverReport.pReceptionReports[ 0 ].sourceSsrc, receiverReport.pReceptionReports[ 0 ].fractionLost, receiverReport.pReceptionReports[ 0 ].cumulativePacketsLost, receiverReport.pReceptionReports[ 0 ].extendedHighestSeqNumReceived, receiverReport.pReceptionReports[ 0 ].interArrivalJitter, receiverReport.pReceptionReports[ 0 ].lastSR, receiverReport.pReceptionReports[ 0 ].delaySinceLastSR ) );
+            LogDebug( ( "RTCP_PACKET_TYPE_RECEIVER_REPORT, sender SSRC: %u, source SSRC: %u, fraction loss: %u, cumulative loss: %u, highest seq: %u, jit: %u, lsr: %u, dlsr: %u",
+                        receiverReport.senderSsrc,
+                        receiverReport.pReceptionReports[ 0 ].sourceSsrc,
+                        receiverReport.pReceptionReports[ 0 ].fractionLost,
+                        receiverReport.pReceptionReports[ 0 ].cumulativePacketsLost,
+                        receiverReport.pReceptionReports[ 0 ].extendedHighestSeqNumReceived,
+                        receiverReport.pReceptionReports[ 0 ].interArrivalJitter,
+                        receiverReport.pReceptionReports[ 0 ].lastSR,
+                        receiverReport.pReceptionReports[ 0 ].delaySinceLastSR ) );
 
             if( ret == PEER_CONNECTION_RESULT_UNKNOWN_SSRC )
             {

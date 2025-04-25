@@ -789,19 +789,18 @@ static PeerConnectionResult_t PopulateMediaDescriptions( PeerConnectionSession_t
         }
         #if ENABLE_SCTP_DATA_CHANNEL
         {
-
             if( ( ret == PEER_CONNECTION_RESULT_OK ) && ( pSession->ucEnableDataChannelLocal != 0 ) )
             {
                 if( i < SDP_CONTROLLER_MAX_SDP_MEDIA_DESCRIPTIONS_COUNT )
                 {
                     populateConfiguration.pTransceiver = NULL;
                     retSdpController = SdpController_PopulateSingleMedia( NULL,
-                                                                        populateConfiguration,
-                                                                        &pLocalBufferSessionDescription->sdpDescription.mediaDescriptions[ i ],
-                                                                        i,
-                                                                        ppBuffer,
-                                                                        pBufferLength,
-                                                                        TRANSCEIVER_TRACK_KIND_DATA_CHANNEL );
+                                                                          populateConfiguration,
+                                                                          &pLocalBufferSessionDescription->sdpDescription.mediaDescriptions[ i ],
+                                                                          i,
+                                                                          ppBuffer,
+                                                                          pBufferLength,
+                                                                          TRANSCEIVER_TRACK_KIND_DATA_CHANNEL );
                     if( retSdpController != SDP_CONTROLLER_RESULT_OK )
                     {
                         LogError( ( "Fail to populate single media data channel description, result: %d", retSdpController ) );

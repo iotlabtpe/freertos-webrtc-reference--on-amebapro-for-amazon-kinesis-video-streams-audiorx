@@ -381,21 +381,25 @@ PeerConnectionResult_t PeerConnectionSrtp_DeInit( PeerConnectionSession_t * pSes
     }
 
     /* Clean up Video SRTP Sender */
-    if( xSemaphoreTake( pSession->videoSrtpSender.senderMutex,
-                        portMAX_DELAY ) == pdTRUE )
+    if( ( pSession->videoSrtpSender.senderMutex != NULL ) &&
+        ( xSemaphoreTake( pSession->videoSrtpSender.senderMutex,
+                          portMAX_DELAY ) == pdTRUE ) )
     {
         PeerConnectionRollingBuffer_Free( &pSession->videoSrtpSender.txRollingBuffer );
         xSemaphoreGive( pSession->videoSrtpSender.senderMutex );
         vSemaphoreDelete( pSession->videoSrtpSender.senderMutex );
+        pSession->videoSrtpSender.senderMutex = NULL;
     }
 
     /* Clean up Audio SRTP Sender */
-    if( xSemaphoreTake( pSession->audioSrtpSender.senderMutex,
-                        portMAX_DELAY ) == pdTRUE )
+    if( ( pSession->videoSrtpSender.senderMutex != NULL ) &&
+        ( xSemaphoreTake( pSession->audioSrtpSender.senderMutex,
+                          portMAX_DELAY ) == pdTRUE ) )
     {
         PeerConnectionRollingBuffer_Free( &pSession->audioSrtpSender.txRollingBuffer );
         xSemaphoreGive( pSession->audioSrtpSender.senderMutex );
         vSemaphoreDelete( pSession->audioSrtpSender.senderMutex );
+        pSession->videoSrtpSender.senderMutex = NULL;
     }
 
     /* Clean up Video SRTP Receiver */

@@ -147,8 +147,6 @@ PeerConnectionResult_t PeerConnectionG711Helper_WriteG711Frame( PeerConnectionSe
     uint32_t packetSent = 0;
     uint32_t bytesSent = 0;
     uint32_t randomRtpTimeoffset = 0;    // TODO : Spec required random rtp time offset ( current implementation of KVS SDK )
-    /* For TWCC ID extension info. */
-    uint32_t extensionPayload;
 
     if( ( pSession == NULL ) ||
         ( pTransceiver == NULL ) ||
@@ -270,9 +268,9 @@ PeerConnectionResult_t PeerConnectionG711Helper_WriteG711Frame( PeerConnectionSe
                 pRollingBufferPacket->rtpPacket.header.flags |= RTP_HEADER_FLAG_EXTENSION;
                 pRollingBufferPacket->rtpPacket.header.extension.extensionProfile = PEER_CONNECTION_SRTP_TWCC_EXT_PROFILE;
                 pRollingBufferPacket->rtpPacket.header.extension.extensionPayloadLength = 1;
-                extensionPayload = PEER_CONNECTION_SRTP_GET_TWCC_PAYLOAD( pSession->rtpConfig.twccId,
-                                                                          pSession->rtpConfig.twccSequence );
-                pRollingBufferPacket->rtpPacket.header.extension.pExtensionPayload = &extensionPayload;
+                pRollingBufferPacket->twccExtensionPayload = PEER_CONNECTION_SRTP_GET_TWCC_PAYLOAD( pSession->rtpConfig.twccId,
+                                                                                                    pSession->rtpConfig.twccSequence );
+                pRollingBufferPacket->rtpPacket.header.extension.pExtensionPayload = &pRollingBufferPacket->twccExtensionPayload;
                 pSession->rtpConfig.twccSequence++;
             }
 
