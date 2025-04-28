@@ -53,8 +53,6 @@
 #define ICE_SERVER_TYPE_TURNS                     "turns:"
 #define ICE_SERVER_TYPE_TURNS_LENGTH              ( 6 )
 
-#define SIGNALING_CONNECT_STATE_TIMEOUT_SEC ( 15 )
-
 /**
  * EMA (Exponential Moving Average) alpha value and 1-alpha value - over appx 20 samples
  */
@@ -105,8 +103,6 @@ static DemoPeerConnectionSession_t * GetCreatePeerConnectionSession( DemoContext
                                                                      uint8_t allowCreate );
 static void HandleRemoteCandidate( DemoContext_t * pDemoContext,
                                    const SignalingMessage_t * pSignalingMessage );
-static void HandleIceServerReconnect( DemoContext_t * pDemoContext,
-                                      const SignalingMessage_t * pSignalingMessage );
 static void HandleLocalCandidateReady( void * pCustomContext,
                                        PeerConnectionIceLocalCandidate_t * pIceLocalCandidate );
 static void HandleSdpOffer( DemoContext_t * pDemoContext,
@@ -1224,31 +1220,6 @@ static void HandleRemoteCandidate( DemoContext_t * pDemoContext,
     }
 }
 
-static void HandleIceServerReconnect( DemoContext_t * pDemoContext,
-                                      const SignalingMessage_t * pSignalingMessage )
-{
-    SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
-    uint64_t initTimeSec = NetworkingUtils_GetCurrentTimeSec( NULL );
-    uint64_t currTimeSec = initTimeSec;
-
-    while( currTimeSec < initTimeSec + SIGNALING_CONNECT_STATE_TIMEOUT_SEC )
-    {
-        ret = SignalingController_RefreshIceServerConfigs( &demoContext.signalingControllerContext );
-
-        if( ret == SIGNALING_CONTROLLER_RESULT_OK )
-        {
-            LogInfo( ( "Ice-Server Reconnection Successful." ) );
-            break;
-        }
-        else
-        {
-            LogError( ( "Unable to Reconnect Ice Server." ) );
-
-            currTimeSec = NetworkingUtils_GetCurrentTimeSec( NULL );
-        }
-    }
-}
-
 static const char * GetCandidateTypeString( IceCandidateType_t candidateType )
 {
     const char * ret;
@@ -1447,11 +1418,6 @@ static int OnSignalingMessageReceived( SignalingMessage_t * pSignalingMessage,
         case SIGNALING_TYPE_MESSAGE_ICE_CANDIDATE:
             HandleRemoteCandidate( &demoContext,
                                    pSignalingMessage );
-            break;
-
-        case SIGNALING_TYPE_MESSAGE_RECONNECT_ICE_SERVER:
-            HandleIceServerReconnect( &demoContext,
-                                      pSignalingMessage );
             break;
 
         case SIGNALING_TYPE_MESSAGE_STATUS_RESPONSE:

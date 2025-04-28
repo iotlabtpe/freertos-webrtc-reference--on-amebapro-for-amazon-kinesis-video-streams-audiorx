@@ -25,6 +25,8 @@
 #define SIGNALING_CONTROLLER_SDP_EVENT_MESSAGE_CONTENT_KEY "sdp"
 #define SIGNALING_CONTROLLER_SDP_EVENT_MESSAGE_NEWLINE_ENDING "\\n"
 
+#define SIGNALING_CONTROLLER_REFRESH_ICE_SERVER_CONFIGS_TIMEOUT ( 15 )
+
 static SignalingControllerResult_t UpdateIceServerConfigs( SignalingControllerContext_t * pCtx,
                                                            SignalingIceServer_t * pIceServerList,
                                                            size_t iceServerListNum );
@@ -46,7 +48,7 @@ static WebsocketResult_t HandleWssMessage( char * pMessage,
     bool needCallback = true;
     MessageQueueResult_t retMessageQueue;
     SignalingControllerEventMessage_t eventMessage = {
-        .event = SIGNALING_CONTROLLER_EVENT_RECONNECT_WSS,
+        .event = SIGNALING_CONTROLLER_EVENT_NONE,
         .onCompleteCallback = NULL,
         .pOnCompleteCallbackContext = NULL,
     };
@@ -84,7 +86,7 @@ static WebsocketResult_t HandleWssMessage( char * pMessage,
         switch( wssRecvMessage.messageType )
         {
             case SIGNALING_TYPE_MESSAGE_GO_AWAY:
-
+                eventMessage.event = SIGNALING_CONTROLLER_EVENT_RECONNECT_WSS;
                 retMessageQueue = MessageQueue_Send( &pCtx->sendMessageQueue, &eventMessage, sizeof( SignalingControllerEventMessage_t ) );
 
                 needCallback = false;
@@ -114,6 +116,24 @@ static WebsocketResult_t HandleWssMessage( char * pMessage,
                                wssRecvMessage.statusResponse.pStatusCode,
                                ( int ) wssRecvMessage.statusResponse.descriptionLength,
                                wssRecvMessage.statusResponse.pDescription ) );
+                }
+                break;
+
+            case SIGNALING_TYPE_MESSAGE_RECONNECT_ICE_SERVER:
+                eventMessage.event = SIGNALING_CONTROLLER_EVENT_FORCE_REFRESH_ICE_SERVER_CONFIGS;
+                retMessageQueue = MessageQueue_Send( &pCtx->sendMessageQueue, &eventMessage, sizeof( SignalingControllerEventMessage_t ) );
+
+                needCallback = false;
+
+                if( retMessageQueue != MESSAGE_QUEUE_RESULT_OK )
+                {
+                    ret = WEBSOCKET_RESULT_FAIL;
+                }
+
+                if( ret == WEBSOCKET_RESULT_OK )
+                {
+                    /* Wake the running thread up to handle event. */
+                    ( void ) Websocket_Signal( &( pCtx->websocketContext ) );
                 }
                 break;
             default:
@@ -901,6 +921,30 @@ static SignalingControllerResult_t ConnectToWssEndpoint( SignalingControllerCont
     return ret;
 }
 
+static void HandleForceRefreshIceServerConfigs( SignalingControllerContext_t * pCtx )
+{
+    SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
+    uint64_t initTimeSec = NetworkingUtils_GetCurrentTimeSec( NULL );
+    uint64_t currTimeSec = initTimeSec;
+
+    while( currTimeSec < initTimeSec + SIGNALING_CONTROLLER_REFRESH_ICE_SERVER_CONFIGS_TIMEOUT )
+    {
+        ret = SignalingController_RefreshIceServerConfigs( pCtx );
+
+        if( ret == SIGNALING_CONTROLLER_RESULT_OK )
+        {
+            LogInfo( ( "Ice-Server Reconnection Successful." ) );
+            break;
+        }
+        else
+        {
+            LogError( ( "Unable to Reconnect Ice Server." ) );
+
+            currTimeSec = NetworkingUtils_GetCurrentTimeSec( NULL );
+        }
+    }
+}
+
 static SignalingControllerResult_t handleEvent( SignalingControllerContext_t * pCtx,
                                                 SignalingControllerEventMessage_t * pEventMsg )
 {
@@ -997,6 +1041,9 @@ static SignalingControllerResult_t handleEvent( SignalingControllerContext_t * p
             {
                 LogInfo( ( "Reconnection Succesfull. " ) );
             }
+            break;
+        case SIGNALING_CONTROLLER_EVENT_FORCE_REFRESH_ICE_SERVER_CONFIGS:
+            HandleForceRefreshIceServerConfigs( pCtx );
             break;
         default:
             /* Ignore unknown event. */

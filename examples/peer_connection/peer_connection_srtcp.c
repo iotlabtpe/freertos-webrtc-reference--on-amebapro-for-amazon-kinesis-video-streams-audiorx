@@ -610,7 +610,7 @@ static PeerConnectionResult_t OnRtcpSenderReportEvent( PeerConnectionSession_t *
         ret = PeerConnectionSrtcp_MatchRemoteBySsrc( pSession,
                                                      senderReport.senderSsrc );
 
-        LogVerbose( ( "RTCP_PACKET_SENDER_REPORT, SSRC: %u, NTP Time %lu RTP Time: %u, PacketCount: %u, OctetCount: %u",
+        LogVerbose( ( "RTCP_PACKET_SENDER_REPORT, SSRC: %lu, NTP Time %llu RTP Time: %lu, PacketCount: %lu, OctetCount: %lu",
                       senderReport.senderSsrc,
                       senderReport.senderInfo.ntpTime,
                       senderReport.senderInfo.rtpTime,
@@ -687,7 +687,7 @@ static PeerConnectionResult_t OnRtcpReceiverReportEvent( PeerConnectionSession_t
                                                          receiverReport.pReceptionReports[ 0 ].sourceSsrc,
                                                          &pTransceiver );
 
-            LogDebug( ( "RTCP_PACKET_TYPE_RECEIVER_REPORT, sender SSRC: %u, source SSRC: %u, fraction loss: %u, cumulative loss: %u, highest seq: %u, jit: %u, lsr: %u, dlsr: %u",
+            LogDebug( ( "RTCP_PACKET_TYPE_RECEIVER_REPORT, sender SSRC: %lu, source SSRC: %lu, fraction loss: %u, cumulative loss: %lu, highest seq: %lu, jit: %lu, lsr: %lu, dlsr: %lu",
                         receiverReport.senderSsrc,
                         receiverReport.pReceptionReports[ 0 ].sourceSsrc,
                         receiverReport.pReceptionReports[ 0 ].fractionLost,

@@ -106,6 +106,7 @@ typedef enum SignalingControllerEvent
     SIGNALING_CONTROLLER_EVENT_NONE = 0,
     SIGNALING_CONTROLLER_EVENT_SEND_WSS_MESSAGE,
     SIGNALING_CONTROLLER_EVENT_RECONNECT_WSS,
+    SIGNALING_CONTROLLER_EVENT_FORCE_REFRESH_ICE_SERVER_CONFIGS,
 } SignalingControllerEvent_t;
 
 typedef struct SignalingControllerEventMessage
@@ -235,8 +236,6 @@ typedef struct SignalingControllerConnectInfo
     /* Configurations. */
     uint8_t enableStorageSession;
 } SignalingControllerConnectInfo_t;
-
-
 
 SignalingControllerResult_t SignalingController_Init( SignalingControllerContext_t * pCtx,
                                                       const SSLCredentials_t * pSslCreds );
