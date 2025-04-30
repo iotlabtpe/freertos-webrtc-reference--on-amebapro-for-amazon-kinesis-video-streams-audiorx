@@ -57,9 +57,9 @@ extern "C" {
 #define PEER_CONNECTION_MIN_AUDIO_BITRATE_BPS                      4000    // Unit bits/sec. Value could change based on codec.
 #define PEER_CONNECTION_MAX_AUDIO_BITRATE_BPS                      650000  // Unit bits/sec. Value could change based on codec.
 
-#define PEER_CONNECTION_WAIT_SDP_MESSAGE_TIMEOUT_MS    ( 12000 )
+#define PEER_CONNECTION_WAIT_SDP_MESSAGE_TIMEOUT_MS    ( 24000 )
 #define PEER_CONNECTION_INACTIVE_CONNECTION_TIMEOUT_MS ( 30000 )
-#define PEER_CONNECTION_DTLS_HANDSHAKING_TIMEOUT_MS    ( 12000 )
+#define PEER_CONNECTION_DTLS_HANDSHAKING_TIMEOUT_MS    ( 24000 )
 
 #define PEER_CONNECTION_START_UP_BARRIER_BIT ( 1 << 0 )
 
@@ -117,6 +117,8 @@ typedef enum PeerConnectionResult
     PEER_CONNECTION_RESULT_FAIL_RTCP_HANDLE_TWCC,
     PEER_CONNECTION_RESULT_FAIL_CREATE_SENDER_MUTEX,
     PEER_CONNECTION_RESULT_FAIL_TAKE_SENDER_MUTEX,
+    PEER_CONNECTION_RESULT_FAIL_CREATE_SRTP_MUTEX,
+    PEER_CONNECTION_RESULT_FAIL_TAKE_SRTP_MUTEX,
     PEER_CONNECTION_RESULT_FAIL_PACKET_INFO_NO_ENOUGH_MEMORY,
     PEER_CONNECTION_RESULT_FAIL_RTP_PACKET_QUEUE_INIT,
     PEER_CONNECTION_RESULT_FAIL_RTP_PACKET_QUEUE_RETRIEVE,
@@ -407,6 +409,7 @@ typedef struct PeerConnectionSession
     /* DTLS session. */
     DtlsSession_t dtlsSession;
     /* SRTP sessions. */
+    SemaphoreHandle_t srtpSessionMutex;
     srtp_t srtpTransmitSession;
     srtp_t srtpReceiveSession;
     /* RTP config. */

@@ -169,6 +169,9 @@ static IceControllerResult_t UpdateNominatedSocketContext( IceControllerContext_
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     IceCandidatePair_t * pOriginalCandidatePair = NULL;
+    #if LIBRARY_LOG_LEVEL >= LOG_INFO
+    char ipBuffer[ INET_ADDRSTRLEN ];
+    #endif
 
     /* Find valid candidate pair pointer for current packet.
      * There are two scenarios:
@@ -184,6 +187,10 @@ static IceControllerResult_t UpdateNominatedSocketContext( IceControllerContext_
             if( pCandidatePair == NULL )
             {
                 LogWarn( ( "Invalid to find candidate pair for the remote endpoint." ) );
+                
+                LogInfo( ( "Target remote endpoint IP address: %s, port: %u",
+                           IceControllerNet_LogIpAddressInfo( pRemoteIceEndpoint, ipBuffer, sizeof( ipBuffer ) ),
+                           pRemoteIceEndpoint->transportAddress.port ) );
                 ret = ICE_CONTROLLER_RESULT_INVALID_PACKET;
             }
         }

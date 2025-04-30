@@ -1284,8 +1284,8 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
                 LogWarn( ( "Invalid Type of Packet received" ) );
                 break;
             case ICE_HANDLE_STUN_PACKET_RESULT_CANDIDATE_PAIR_NOT_FOUND:
-                LogInfo( ( "Valid Candidate Pair is not found, it might be a duplicate response, local candidate ID: 0x%04x",
-                           pSocketContext->pLocalCandidate->candidateId ) );
+                LogDebug( ( "Valid Candidate Pair is not found, it might be a duplicate response, local candidate ID: 0x%04x",
+                            pSocketContext->pLocalCandidate->candidateId ) );
                 break;
             case ICE_HANDLE_STUN_PACKET_RESULT_CANDIDATE_NOT_FOUND:
                 LogError( ( "Error : Valid Server Reflexive Candidate is not found, local candidate ID: 0x%04x",
@@ -1354,8 +1354,17 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
             case ICE_HANDLE_STUN_PACKET_RESULT_NOT_STUN_PACKET:
                 ret = ICE_CONTROLLER_RESULT_NOT_STUN_PACKET;
                 break;
+            case ICE_HANDLE_STUN_PACKET_RESULT_MATCHING_TRANSACTION_ID_NOT_FOUND:
+                LogVerbose( ( "Transaction ID not matching, might be a duplicate response" ) );
+                break;
+            case ICE_HANDLE_STUN_PACKET_RESULT_FRESH_CHANNEL_BIND_COMPLETE:
+                LogVerbose( ( "Channel binding success response, this might be a duplicate response." ) );
+                break;
             default:
-                LogWarn( ( "Unknown case: %d", iceHandleStunResult ) );
+                LogWarn( ( "Unknown case: %d, packet length: %u, first two bytes: 0x%02x 0x%02x",
+                           iceHandleStunResult,
+                           receiveBufferLength,
+                           pReceiveBuffer[ 0 ], pReceiveBuffer[ 1 ] ) );
                 break;
         }
     }

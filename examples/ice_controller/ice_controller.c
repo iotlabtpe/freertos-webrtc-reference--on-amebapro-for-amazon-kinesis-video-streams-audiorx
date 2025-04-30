@@ -822,22 +822,33 @@ IceControllerResult_t IceController_AddRemoteCandidate( IceControllerContext_t *
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
-        iceResult = Ice_AddRemoteCandidate( &pCtx->iceContext,
-                                            pRemoteCandidate );
-        if( iceResult != ICE_RESULT_OK )
+        if( xSemaphoreTake( pCtx->iceMutex, portMAX_DELAY ) == pdTRUE )
         {
-            LogError( ( "Fail to add remote candidate, result: %d", iceResult ) );
-            ret = ICE_CONTROLLER_RESULT_FAIL_ADD_REMOTE_CANDIDATE;
+            iceResult = Ice_AddRemoteCandidate( &pCtx->iceContext,
+                                                pRemoteCandidate );
+    
+            xSemaphoreGive( pCtx->iceMutex );
+
+            if( iceResult != ICE_RESULT_OK )
+            {
+                LogError( ( "Fail to add remote candidate, result: %d", iceResult ) );
+                ret = ICE_CONTROLLER_RESULT_FAIL_ADD_REMOTE_CANDIDATE;
+            }
+            else
+            {
+                LogVerbose( ( "Received remote candidate with ID: 0x%04x, IP/port: %s/%d",
+                              IceControllerNet_LogIpAddressInfo( pRemoteCandidate->pEndpoint,
+                                                                 ipBuffer,
+                                                                 sizeof( ipBuffer ) ),
+                              pRemoteCandidate->pEndpoint->transportAddress.port ) );
+
+                LogDebug( ( "Added new remote candidate with ID: 0x%04x", pCtx->iceContext.pRemoteCandidates[ pCtx->iceContext.numRemoteCandidates - 1 ].candidateId ) );
+            }
         }
         else
         {
-            LogVerbose( ( "Received remote candidate with IP/port: %s/%d",
-                          IceControllerNet_LogIpAddressInfo( pRemoteCandidate->pEndpoint,
-                                                             ipBuffer,
-                                                             sizeof( ipBuffer ) ),
-                          pRemoteCandidate->pEndpoint->transportAddress.port ) );
-
-            LogDebug( ( "Added new remote candidate with ID: 0x%04x", pCtx->iceContext.pRemoteCandidates[ pCtx->iceContext.numRemoteCandidates - 1 ].candidateId ) );
+            LogError( ( "Failed to add remote candidate: unable to acquire lock." ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL_MUTEX_TAKE;
         }
     }
 
