@@ -435,6 +435,11 @@ int32_t AppMediaSource_Init( AppMediaSourcesContext_t * pCtx,
         pCtx->pOnMediaSinkHookCustom = pOnMediaSinkHookCustom;
     }
 
+    if( ret == 0 )
+    {
+        ret = AppMediaSourcePort_Init();
+    }
+
     return ret;
 }
 

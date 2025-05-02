@@ -30,7 +30,7 @@ typedef struct AppMediaSourceContext
 
 typedef struct AppMediaSourcesContext
 {
-    /* Mutex to protect numReadyPeer because we might receive multiple ready/close message from different tasks. */
+    /* Mutex to protect totalNumReadyPeer because we might receive multiple ready/close message from different tasks. */
     SemaphoreHandle_t mediaMutex;
 
     AppMediaSourceContext_t videoContext;

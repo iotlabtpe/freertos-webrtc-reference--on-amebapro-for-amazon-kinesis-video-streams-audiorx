@@ -193,12 +193,220 @@ mm_module_t webrtcMmModule = {
     .name = "KVS_WebRTC"
 };
 
-static int32_t InitializeMmfModules( void )
+static int HandleModuleFrameHook( void * p,
+                                  void * input,
+                                  void * output )
+{
+    int ret = 0;
+    MediaModuleContext_t * pCtx = ( MediaModuleContext_t * )p;
+    MediaFrame_t frame;
+    mm_queue_item_t * pInputItem = ( mm_queue_item_t * )input;
+
+    ( void ) output;
+
+    if( pCtx->mediaStart != 0 )
+    {
+        do
+        {
+            /* Set SKB buffer threshold to manage memory allocation. Reference:
+             * https://github.com/Freertos-kvs-LTS/freertos-kvs-LTS/blob/bd0702130e0b8dfa386e011644ce1bc7e0d7fd09/component/example/kvs_webrtc_mmf/webrtc_app_src/AppMediaSrc_AmebaPro2.c#L86-L88 */
+            if( ( skbdata_used_num > ( max_skb_buf_num - MEDIA_PORT_SKB_BUFFER_THRESHOLD ) ) ||
+                ( skbbuf_used_num > ( max_local_skb_num - MEDIA_PORT_SKB_BUFFER_THRESHOLD ) ) )
+            {
+                ret = -1;
+                break; //skip this frame and wait for skb resource release.
+            }
+
+            frame.size = pInputItem->size;
+            frame.pData = ( uint8_t * ) pvPortMalloc( frame.size );
+            if( !frame.pData )
+            {
+                LogWarn( ( "Fail to allocate memory for webrtc media frame, size: %lu", frame.size ) );
+                ret = -1;
+                break;
+            }
+
+            memcpy( frame.pData,
+                    ( uint8_t * )pInputItem->data_addr,
+                    frame.size );
+            frame.freeData = 1;
+            frame.timestampUs = NetworkingUtils_GetCurrentTimeUs( &pInputItem->timestamp );
+
+            if( pInputItem->type == AV_CODEC_ID_H264 )
+            {
+                if( pCtx->onVideoFrameReadyToSendFunc )
+                {
+                    frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
+                    ( void ) pCtx->onVideoFrameReadyToSendFunc( pCtx->pOnVideoFrameReadyToSendCustomContext,
+                                                                &frame );
+                }
+                else
+                {
+                    LogError( ( "No available ready to send callback function pointer for video." ) );
+                    vPortFree( frame.pData );
+                    ret = -1;
+                }
+            }
+            else if( ( pInputItem->type == AV_CODEC_ID_OPUS ) ||
+                     ( pInputItem->type == AV_CODEC_ID_PCMU ) )
+            {
+                if( pCtx->onAudioFrameReadyToSendFunc )
+                {
+                    frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
+                    ( void ) pCtx->onAudioFrameReadyToSendFunc( pCtx->pOnAudioFrameReadyToSendCustomContext,
+                                                                &frame );
+                }
+                else
+                {
+                    LogError( ( "No available ready to send callback function pointer for audio." ) );
+                    vPortFree( frame.pData );
+                    ret = -1;
+                }
+            }
+            else
+            {
+                LogWarn( ( "Input type cannot be handled: %ld", pInputItem->type ) );
+                vPortFree( frame.pData );
+                ret = -1;
+            }
+        } while( pdFALSE );
+    }
+
+    return ret;
+}
+
+static int ControlModuleHook( void * p,
+                              int cmd,
+                              int arg )
+{
+    MediaModuleContext_t * pCtx = ( MediaModuleContext_t * )p;
+
+    switch( cmd )
+    {
+        case CMD_KVS_WEBRTC_START:
+            /* If loopback is enabled, we don't need the camera to provide frames.
+             * Instead, we loopback the received frames. */
+#ifdef ENABLE_STREAMING_LOOPBACK
+            pCtx->mediaStart = 0;
+#else
+            pCtx->mediaStart = 1;
+#endif
+            break;
+        case CMD_KVS_WEBRTC_STOP:
+            pCtx->mediaStart = 0;
+            break;
+        case CMD_KVS_WEBRTC_REG_VIDEO_SEND_CALLBACK:
+            pCtx->onVideoFrameReadyToSendFunc = ( OnFrameReadyToSend_t ) arg;
+            break;
+        case CMD_KVS_WEBRTC_REG_VIDEO_SEND_CALLBACK_CUSTOM_CONTEXT:
+            pCtx->pOnVideoFrameReadyToSendCustomContext = ( void * ) arg;
+            break;
+        case CMD_KVS_WEBRTC_REG_AUDIO_SEND_CALLBACK:
+            pCtx->onAudioFrameReadyToSendFunc = ( OnFrameReadyToSend_t ) arg;
+            break;
+        case CMD_KVS_WEBRTC_REG_AUDIO_SEND_CALLBACK_CUSTOM_CONTEXT:
+            pCtx->pOnAudioFrameReadyToSendCustomContext = ( void * ) arg;
+            break;
+        default:
+            LogWarn( ( "Unknown module command: %d", cmd ) );
+            break;
+    }
+    return 0;
+}
+
+static void * DestroyModuleHook( void * p )
+{
+    MediaModuleContext_t * ctx = ( MediaModuleContext_t * )p;
+    if( ctx )
+    {
+        vPortFree( ctx );
+    }
+    return NULL;
+}
+
+static void * CreateModuleHook( void * parent )
+{
+    MediaModuleContext_t * ctx = pvPortMalloc( sizeof( MediaModuleContext_t ) );
+
+    if( ctx )
+    {
+        memset( ctx,
+                0,
+                sizeof( MediaModuleContext_t ) );
+        ctx->pParent = parent;
+    }
+
+    return ctx;
+}
+
+static void * NewModuleItemHook( void * p )
+{
+    ( void ) p;
+    return NULL;
+}
+
+static void * DeleteModuleItemHook( void * p,
+                                    void * d )
+{
+    ( void ) p;
+    ( void ) d;
+    return NULL;
+}
+
+void AppMediaSourcePort_Destroy( void )
+{
+    // Pause Linkers
+    siso_pause( pSisoAudioA1 );
+    miso_pause( pMisoWebrtc,
+                MM_OUTPUT );
+#if MEDIA_PORT_ENABLE_AUDIO_RECV
+    siso_pause( pSisoWebrtcA2 );
+    siso_pause( pSisoAudioA2 );
+#endif /* MEDIA_PORT_ENABLE_AUDIO_RECV */
+
+    // Stop modules
+    mm_module_ctrl( pWebrtcMmContext,
+                    CMD_KVS_WEBRTC_STOP,
+                    0 );
+    mm_module_ctrl( pVideoContext,
+                    CMD_VIDEO_STREAM_STOP,
+                    MEDIA_PORT_V1_CHANNEL );
+    mm_module_ctrl( pAudioContext,
+                    CMD_AUDIO_SET_TRX,
+                    0 );
+
+    // Delete linkers
+    pSisoAudioA1 = siso_delete( pSisoAudioA1 );
+    pMisoWebrtc = miso_delete( pMisoWebrtc );
+#if MEDIA_PORT_ENABLE_AUDIO_RECV
+    pSisoWebrtcA2 = siso_delete( pSisoWebrtcA2 );
+    pSisoAudioA2 = siso_delete( pSisoAudioA2 );
+#endif /* MEDIA_PORT_ENABLE_AUDIO_RECV */
+
+    // Close modules
+    pWebrtcMmContext = mm_module_close( pWebrtcMmContext );
+    pVideoContext = mm_module_close( pVideoContext );
+    pAudioContext = mm_module_close( pAudioContext );
+#if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
+    pG711eContext = mm_module_close( pG711eContext );
+#if MEDIA_PORT_ENABLE_AUDIO_RECV
+    pG711dContext = mm_module_close( pG711dContext );
+#endif /* MEDIA_PORT_ENABLE_AUDIO_RECV */
+#elif AUDIO_OPUS
+    pOpuscContext = mm_module_close( pOpuscContext );
+#if MEDIA_PORT_ENABLE_AUDIO_RECV
+    pOpusdContext = mm_module_close( pOpusdContext );
+#endif /* MEDIA_PORT_ENABLE_AUDIO_RECV */
+#endif
+
+    // Video Deinit
+    video_deinit();
+}
+
+int32_t AppMediaSourcePort_Init( void )
 {
     int32_t ret = 0;
     int voe_heap_size;
-
-    LogInfo( ( "Initializing mmf modules." ) );
 
     pWebrtcMmContext = mm_module_open( &webrtcMmModule );
     if( pWebrtcMmContext )
@@ -515,218 +723,6 @@ static int32_t InitializeMmfModules( void )
     return ret;
 }
 
-static int HandleModuleFrameHook( void * p,
-                                  void * input,
-                                  void * output )
-{
-    int ret = 0;
-    MediaModuleContext_t * pCtx = ( MediaModuleContext_t * )p;
-    MediaFrame_t frame;
-    mm_queue_item_t * pInputItem = ( mm_queue_item_t * )input;
-
-    ( void ) output;
-
-    if( pCtx->mediaStart != 0 )
-    {
-        do
-        {
-            /* Set SKB buffer threshold to manage memory allocation. Reference:
-             * https://github.com/Freertos-kvs-LTS/freertos-kvs-LTS/blob/bd0702130e0b8dfa386e011644ce1bc7e0d7fd09/component/example/kvs_webrtc_mmf/webrtc_app_src/AppMediaSrc_AmebaPro2.c#L86-L88 */
-            if( ( skbdata_used_num > ( max_skb_buf_num - MEDIA_PORT_SKB_BUFFER_THRESHOLD ) ) ||
-                ( skbbuf_used_num > ( max_local_skb_num - MEDIA_PORT_SKB_BUFFER_THRESHOLD ) ) )
-            {
-                ret = -1;
-                break; //skip this frame and wait for skb resource release.
-            }
-
-            frame.size = pInputItem->size;
-            frame.pData = ( uint8_t * ) pvPortMalloc( frame.size );
-            if( !frame.pData )
-            {
-                LogWarn( ( "Fail to allocate memory for webrtc media frame, size: %lu", frame.size ) );
-                ret = -1;
-                break;
-            }
-
-            memcpy( frame.pData,
-                    ( uint8_t * )pInputItem->data_addr,
-                    frame.size );
-            frame.freeData = 1;
-            frame.timestampUs = NetworkingUtils_GetCurrentTimeUs( &pInputItem->timestamp );
-
-            if( pInputItem->type == AV_CODEC_ID_H264 )
-            {
-                if( pCtx->onVideoFrameReadyToSendFunc )
-                {
-                    frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
-                    ( void ) pCtx->onVideoFrameReadyToSendFunc( pCtx->pOnVideoFrameReadyToSendCustomContext,
-                                                                &frame );
-                }
-                else
-                {
-                    LogError( ( "No available ready to send callback function pointer for video." ) );
-                    vPortFree( frame.pData );
-                    ret = -1;
-                }
-            }
-            else if( ( pInputItem->type == AV_CODEC_ID_OPUS ) ||
-                     ( pInputItem->type == AV_CODEC_ID_PCMU ) )
-            {
-                if( pCtx->onAudioFrameReadyToSendFunc )
-                {
-                    frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
-                    ( void ) pCtx->onAudioFrameReadyToSendFunc( pCtx->pOnAudioFrameReadyToSendCustomContext,
-                                                                &frame );
-                }
-                else
-                {
-                    LogError( ( "No available ready to send callback function pointer for audio." ) );
-                    vPortFree( frame.pData );
-                    ret = -1;
-                }
-            }
-            else
-            {
-                LogWarn( ( "Input type cannot be handled: %ld", pInputItem->type ) );
-                vPortFree( frame.pData );
-                ret = -1;
-            }
-        } while( pdFALSE );
-    }
-
-    return ret;
-}
-
-static int ControlModuleHook( void * p,
-                              int cmd,
-                              int arg )
-{
-    MediaModuleContext_t * pCtx = ( MediaModuleContext_t * )p;
-
-    switch( cmd )
-    {
-        case CMD_KVS_WEBRTC_START:
-            /* If loopback is enabled, we don't need the camera to provide frames.
-             * Instead, we loopback the received frames. */
-#ifdef ENABLE_STREAMING_LOOPBACK
-            pCtx->mediaStart = 0;
-#else
-            pCtx->mediaStart = 1;
-#endif
-            break;
-        case CMD_KVS_WEBRTC_STOP:
-            pCtx->mediaStart = 0;
-            break;
-        case CMD_KVS_WEBRTC_REG_VIDEO_SEND_CALLBACK:
-            pCtx->onVideoFrameReadyToSendFunc = ( OnFrameReadyToSend_t ) arg;
-            break;
-        case CMD_KVS_WEBRTC_REG_VIDEO_SEND_CALLBACK_CUSTOM_CONTEXT:
-            pCtx->pOnVideoFrameReadyToSendCustomContext = ( void * ) arg;
-            break;
-        case CMD_KVS_WEBRTC_REG_AUDIO_SEND_CALLBACK:
-            pCtx->onAudioFrameReadyToSendFunc = ( OnFrameReadyToSend_t ) arg;
-            break;
-        case CMD_KVS_WEBRTC_REG_AUDIO_SEND_CALLBACK_CUSTOM_CONTEXT:
-            pCtx->pOnAudioFrameReadyToSendCustomContext = ( void * ) arg;
-            break;
-        default:
-            LogWarn( ( "Unknown module command: %d", cmd ) );
-            break;
-    }
-    return 0;
-}
-
-static void * DestroyModuleHook( void * p )
-{
-    MediaModuleContext_t * ctx = ( MediaModuleContext_t * )p;
-    if( ctx )
-    {
-        vPortFree( ctx );
-    }
-    return NULL;
-}
-
-static void * CreateModuleHook( void * parent )
-{
-    MediaModuleContext_t * ctx = pvPortMalloc( sizeof( MediaModuleContext_t ) );
-
-    if( ctx )
-    {
-        memset( ctx,
-                0,
-                sizeof( MediaModuleContext_t ) );
-        ctx->pParent = parent;
-    }
-
-    return ctx;
-}
-
-static void * NewModuleItemHook( void * p )
-{
-    ( void ) p;
-    return NULL;
-}
-
-static void * DeleteModuleItemHook( void * p,
-                                    void * d )
-{
-    ( void ) p;
-    ( void ) d;
-    return NULL;
-}
-
-void AppMediaSourcePort_Destroy( void )
-{
-    LogInfo( ( "Closing mmf modules." ) );
-
-    // Pause Linkers
-    siso_pause( pSisoAudioA1 );
-    miso_pause( pMisoWebrtc,
-                MM_OUTPUT );
-#if MEDIA_PORT_ENABLE_AUDIO_RECV
-    siso_pause( pSisoWebrtcA2 );
-    siso_pause( pSisoAudioA2 );
-#endif /* MEDIA_PORT_ENABLE_AUDIO_RECV */
-
-    // Stop modules
-    mm_module_ctrl( pWebrtcMmContext,
-                    CMD_KVS_WEBRTC_STOP,
-                    0 );
-    mm_module_ctrl( pVideoContext,
-                    CMD_VIDEO_STREAM_STOP,
-                    MEDIA_PORT_V1_CHANNEL );
-    mm_module_ctrl( pAudioContext,
-                    CMD_AUDIO_SET_TRX,
-                    0 );
-
-    // Delete linkers
-    pSisoAudioA1 = siso_delete( pSisoAudioA1 );
-    pMisoWebrtc = miso_delete( pMisoWebrtc );
-#if MEDIA_PORT_ENABLE_AUDIO_RECV
-    pSisoWebrtcA2 = siso_delete( pSisoWebrtcA2 );
-    pSisoAudioA2 = siso_delete( pSisoAudioA2 );
-#endif /* MEDIA_PORT_ENABLE_AUDIO_RECV */
-
-    // Close modules
-    pWebrtcMmContext = mm_module_close( pWebrtcMmContext );
-    pVideoContext = mm_module_close( pVideoContext );
-    pAudioContext = mm_module_close( pAudioContext );
-#if ( AUDIO_G711_MULAW || AUDIO_G711_ALAW )
-    pG711eContext = mm_module_close( pG711eContext );
-#if MEDIA_PORT_ENABLE_AUDIO_RECV
-    pG711dContext = mm_module_close( pG711dContext );
-#endif /* MEDIA_PORT_ENABLE_AUDIO_RECV */
-#elif AUDIO_OPUS
-    pOpuscContext = mm_module_close( pOpuscContext );
-#if MEDIA_PORT_ENABLE_AUDIO_RECV
-    pOpusdContext = mm_module_close( pOpusdContext );
-#endif /* MEDIA_PORT_ENABLE_AUDIO_RECV */
-#endif
-
-    // Video Deinit
-    video_deinit();
-}
-
 int32_t AppMediaSourcePort_Start( OnFrameReadyToSend_t onVideoFrameReadyToSendFunc,
                                   void * pOnVideoFrameReadyToSendCustomContext,
                                   OnFrameReadyToSend_t onAudioFrameReadyToSendFunc,
@@ -735,10 +731,6 @@ int32_t AppMediaSourcePort_Start( OnFrameReadyToSend_t onVideoFrameReadyToSendFu
     int32_t ret = 0;
 
     Metric_StartEvent( METRIC_EVENT_MEDIA_PORT_START );
-    InitializeMmfModules();
-    mm_module_ctrl( pWebrtcMmContext,
-                    CMD_KVS_WEBRTC_START,
-                    0 );
     mm_module_ctrl( pWebrtcMmContext,
                     CMD_KVS_WEBRTC_REG_VIDEO_SEND_CALLBACK,
                     ( int ) onVideoFrameReadyToSendFunc );
@@ -751,6 +743,9 @@ int32_t AppMediaSourcePort_Start( OnFrameReadyToSend_t onVideoFrameReadyToSendFu
     mm_module_ctrl( pWebrtcMmContext,
                     CMD_KVS_WEBRTC_REG_AUDIO_SEND_CALLBACK_CUSTOM_CONTEXT,
                     ( int ) pOnAudioFrameReadyToSendCustomContext );
+    mm_module_ctrl( pWebrtcMmContext,
+                    CMD_KVS_WEBRTC_START,
+                    0 );
     Metric_EndEvent( METRIC_EVENT_MEDIA_PORT_START );
 
     return ret;
@@ -762,6 +757,5 @@ void AppMediaSourcePort_Stop( void )
     mm_module_ctrl( pWebrtcMmContext,
                     CMD_KVS_WEBRTC_STOP,
                     0 );
-    AppMediaSourcePort_Destroy();
     Metric_EndEvent( METRIC_EVENT_MEDIA_PORT_STOP );
 }
