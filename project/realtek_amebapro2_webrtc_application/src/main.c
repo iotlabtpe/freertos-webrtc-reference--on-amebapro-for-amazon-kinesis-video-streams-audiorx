@@ -9,6 +9,22 @@
 #include "video_boot.h"
 #include "mmf2_mediatime_8735b.h"
 
+#if DEBUG != 0
+    void vAssert( uint32_t ulLine, const char *pcfile )
+    {
+        char * pNullPtr = NULL;
+        printf("Assertion trigged at line %d file: %s\n\r", ulLine, pcfile);
+        printf("pNullPtr %c\n\r", *pNullPtr);
+    }
+#else /* DEBUG != 0 */
+    void vAssert(uint32_t ulLine, const char *pcfile)
+    {
+        volatile static int lock_assert = 1;
+        rt_printf("Assertion trigged at line %d file: %s\n\r", ulLine, pcfile);
+        while (lock_assert);
+    }
+#endif /* DEBUG != 0 */
+
 #if CONFIG_WLAN
 #include <wifi_fast_connect.h>
 extern void wlan_network(void);

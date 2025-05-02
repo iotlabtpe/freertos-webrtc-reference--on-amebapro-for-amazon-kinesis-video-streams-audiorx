@@ -183,8 +183,8 @@ standard names - or at least those used in the unmodified vector table. */
 #define portGET_RUN_TIME_COUNTER_VALUE()			xTickCount
 #define configTICK_RATE_HZ							( ( TickType_t ) 1000 )
 
-extern void vAssertCalled(uint32_t ulLine, const char *pcFile);
-#define configASSERT( x ) if( ( x ) == 0 ) vAssertCalled( __LINE__, __FILE__ )
+extern void vAssert(uint32_t ulLine, const char *pcFile);
+#define configASSERT( x ) if( ( x ) == 0 ) vAssert( __LINE__, __FILE__ )
 
 /* defined by Realtek, for offseting wlan task priority */
 #define PRIORITIE_OFFSET				( 4 )

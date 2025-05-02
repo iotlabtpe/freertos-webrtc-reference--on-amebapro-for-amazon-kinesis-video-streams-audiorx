@@ -10,6 +10,13 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
 endif()
 
+if( CMAKE_BUILD_TYPE STREQUAL "Debug" )
+  add_definitions( -DDEBUG=1 )
+  message(STATUS "Enabling DEBUG functionality")
+else()
+  add_definitions( -DDEBUG=0 )
+endif()
+
 # root of repository
 set (repo_root "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
 # root of realtek_amebapro2_webrtc_application
