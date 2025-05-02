@@ -219,9 +219,7 @@ static SignalingControllerResult_t HttpSend( SignalingControllerContext_t * pCtx
 
     for( i = 0; i < SIGNALING_CONTROLLER_HTTP_NUM_RETRIES; i++ )
     {
-
         retHttp = Http_Send( &( pCtx->httpContext ), pRequest, &( awsCreds ), timeoutMs, pResponse );
-
 
         if( retHttp == HTTP_RESULT_OK )
         {
@@ -449,9 +447,7 @@ static SignalingControllerResult_t FetchTemporaryCredentials( SignalingControlle
     HttpResponse_t response;
     SignalingCredential_t retCredentials;
 
-    // Prepare URL buffer
-    signalRequest.pUrl = pCtx->httpUrlBuffer;
-    signalRequest.urlLength = SIGNALING_CONTROLLER_HTTP_URL_BUFFER_LENGTH;
+    LogInfo( ( "Fetching Temporary Credentials." ) );
 
     if( pCtx == NULL )
     {
@@ -459,16 +455,23 @@ static SignalingControllerResult_t FetchTemporaryCredentials( SignalingControlle
         ret = SIGNALING_CONTROLLER_RESULT_BAD_PARAM;
     }
 
-    retSignal = Signaling_ConstructFetchTempCredsRequestForAwsIot( pCtx->pIotCredentialsEndpoint,
-                                                                   pCtx->credEndpointLength,
-                                                                   pCtx->pRoleAlias,
-                                                                   pCtx->iotThingRoleAliasLength,
-                                                                   &signalRequest );
-
-    if( retSignal != SIGNALING_RESULT_OK )
+    if( ret == SIGNALING_CONTROLLER_RESULT_OK )
     {
-        LogError( ( "Fail to construct Fetch Temporary Credential request, return=0x%x", retSignal ) );
-        ret = SIGNALING_CONTROLLER_RESULT_FAIL;
+        // Prepare URL buffer
+        signalRequest.pUrl = pCtx->httpUrlBuffer;
+        signalRequest.urlLength = SIGNALING_CONTROLLER_HTTP_URL_BUFFER_LENGTH;
+
+        retSignal = Signaling_ConstructFetchTempCredsRequestForAwsIot( pCtx->pIotCredentialsEndpoint,
+                                                                       pCtx->credEndpointLength,
+                                                                       pCtx->pRoleAlias,
+                                                                       pCtx->iotThingRoleAliasLength,
+                                                                       &signalRequest );
+
+        if( retSignal != SIGNALING_RESULT_OK )
+        {
+            LogError( ( "Fail to construct Fetch Temporary Credential request, return=0x%x", retSignal ) );
+            ret = SIGNALING_CONTROLLER_RESULT_FAIL;
+        }
     }
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )
@@ -586,6 +589,8 @@ static SignalingControllerResult_t describeSignalingChannel( SignalingController
     HttpResponse_t response;
     SignalingChannelInfo_t signalingChannelInfo;
 
+    LogInfo( ( "Describing Signaling Channel." ) );
+
     // Prepare AWS region
     awsRegion.pAwsRegion = pCtx->awsConfig.pRegion;
     awsRegion.awsRegionLength = pCtx->awsConfig.regionLen;
@@ -686,6 +691,8 @@ static SignalingControllerResult_t getSignalingChannelEndpoints( SignalingContro
     HttpRequest_t request;
     HttpResponse_t response;
     SignalingChannelEndpoints_t signalingEndpoints;
+
+    LogInfo( ( "Getting Signaling Channel Endpoints." ) );
 
     // Prepare AWS region
     awsRegion.pAwsRegion = pCtx->awsConfig.pRegion;
@@ -875,6 +882,8 @@ static SignalingControllerResult_t ConnectToWssEndpoint( SignalingControllerCont
     ConnectWssEndpointRequestInfo_t wssEndpointRequestInfo;
     SignalingRequest_t signalRequest;
     WebsocketServerInfo_t serverInfo;
+
+    LogInfo( ( "Connecting to Websocket Endpoint." ) );
 
     // Prepare WSS endpoint
     wssEndpoint.pEndpoint = &( pCtx->wssEndpoint[ 0 ] );
@@ -1322,40 +1331,43 @@ SignalingControllerResult_t SignalingController_StartListening( SignalingControl
     SignalingControllerEventMessage_t eventMsg;
     size_t eventMsgLength;
 
-    ret = SignalingController_ConnectServers( pCtx, pConnectInfo );
-
-    if( ret != SIGNALING_CONTROLLER_RESULT_OK )
+    for( ;; )
     {
-        LogError( ( "Fail to connect with signaling controller." ) );
-    }
-    else
-    {
-        for( ;; )
+        ret = SignalingController_ConnectServers( pCtx, pConnectInfo );
+    
+        if( ret != SIGNALING_CONTROLLER_RESULT_OK )
         {
-            websocketRet = Websocket_Recv( &( pCtx->websocketContext ) );
-
-            if( websocketRet != WEBSOCKET_RESULT_OK )
+            LogError( ( "Fail to connect with signaling controller." ) );
+        }
+        else
+        {
+            for( ;; )
             {
-                LogError( ( "Websocket_Recv fail, return 0x%x", websocketRet ) );
-                ret = SIGNALING_CONTROLLER_RESULT_FAIL;
-                break;
-            }
-
-            messageQueueRet = MessageQueue_IsEmpty( &pCtx->sendMessageQueue );
-
-            while( messageQueueRet == MESSAGE_QUEUE_RESULT_MQ_HAVE_MESSAGE )
-            {
-                /* Handle event. */
-                eventMsgLength = sizeof( SignalingControllerEventMessage_t );
-                messageQueueRet = MessageQueue_Recv( &pCtx->sendMessageQueue, &eventMsg, &eventMsgLength );
-                if( messageQueueRet == MESSAGE_QUEUE_RESULT_OK )
+                websocketRet = Websocket_Recv( &( pCtx->websocketContext ) );
+        
+                if( websocketRet != WEBSOCKET_RESULT_OK )
                 {
-                    /* Received message, process it. */
-                    LogDebug( ( "EventMsg: event: %d, pOnCompleteCallbackContext: %p", eventMsg.event, eventMsg.pOnCompleteCallbackContext ) );
-                    ret = handleEvent( pCtx, &eventMsg );
+                    LogError( ( "Websocket_Recv fail, return 0x%x", websocketRet ) );
+                    ret = SIGNALING_CONTROLLER_RESULT_FAIL;
+                    break;
                 }
-
+        
                 messageQueueRet = MessageQueue_IsEmpty( &pCtx->sendMessageQueue );
+        
+                while( messageQueueRet == MESSAGE_QUEUE_RESULT_MQ_HAVE_MESSAGE )
+                {
+                    /* Handle event. */
+                    eventMsgLength = sizeof( SignalingControllerEventMessage_t );
+                    messageQueueRet = MessageQueue_Recv( &pCtx->sendMessageQueue, &eventMsg, &eventMsgLength );
+                    if( messageQueueRet == MESSAGE_QUEUE_RESULT_OK )
+                    {
+                        /* Received message, process it. */
+                        LogDebug( ( "EventMsg: event: %d, pOnCompleteCallbackContext: %p", eventMsg.event, eventMsg.pOnCompleteCallbackContext ) );
+                        ret = handleEvent( pCtx, &eventMsg );
+                    }
+        
+                    messageQueueRet = MessageQueue_IsEmpty( &pCtx->sendMessageQueue );
+                }
             }
         }
     }
@@ -1398,6 +1410,8 @@ SignalingControllerResult_t SignalingController_QueryIceServerConfigs( Signaling
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
     uint64_t currentTimeSec;
+
+    LogInfo( ( "Quering Ice Server Configurations." ) );
 
     if( ( pCtx == NULL ) || ( ppIceServerConfigs == NULL ) || ( pIceServerConfigsCount == NULL ) )
     {
@@ -1665,6 +1679,8 @@ static SignalingControllerResult_t JoinStorageSession( SignalingControllerContex
     HttpRequest_t httpRequest;
     HttpResponse_t httpResponse;
 
+    LogInfo( ( "Joining Storage Session." ) );
+
     signalingRequest.pUrl = &( pCtx->httpUrlBuffer[ 0 ] );
     signalingRequest.urlLength = SIGNALING_CONTROLLER_HTTP_URL_BUFFER_LENGTH;
 
@@ -1680,8 +1696,9 @@ static SignalingControllerResult_t JoinStorageSession( SignalingControllerContex
     webrtcEndpoint.pEndpoint = &( pCtx->webrtcEndpoint[ 0 ] );
     webrtcEndpoint.endpointLength = pCtx->webrtcEndpointLength;
 
-    LogInfo( ( "Joining storage session for channel: %s with length: %d", pCtx->signalingChannelArn,
-                                                                           pCtx->signalingChannelArnLength ) );
+    LogDebug( ( "Joining storage session for channel: %s with length: %d",
+                pCtx->signalingChannelArn,
+                pCtx->signalingChannelArnLength ) );
     signalingResult = Signaling_ConstructJoinStorageSessionRequest( &( webrtcEndpoint ),
                                                                     &( joinSessionRequestInfo ),
                                                                     &( signalingRequest ) );
@@ -1690,11 +1707,6 @@ static SignalingControllerResult_t JoinStorageSession( SignalingControllerContex
     {
         LogError( ( "Failed to construct join storage session request, return=0x%x", signalingResult ) );
         ret = SIGNALING_CONTROLLER_RESULT_FAIL;
-    }
-    else
-    {
-        LogInfo( ( "Constructed join storage session request: %.*s", ( int ) signalingRequest.bodyLength,
-                                                                             signalingRequest.pBody ) );
     }
 
     if( ret == SIGNALING_CONTROLLER_RESULT_OK )

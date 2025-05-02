@@ -143,8 +143,8 @@ HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
             credentials.privateKeySize = pAwsCredentials->iotThingPrivateKeySize;
         }
 
-        LogInfo( ( "Establishing a TLS session with %s:443.",
-                   pHttpCtx->hostName ) );
+        LogDebug( ( "Establishing a TLS session with %s:443.",
+                    pHttpCtx->hostName ) );
 
         /* Attempt to create a server-authenticated TLS connection. */
         xNetworkStatus = TLS_FreeRTOS_Connect( &pHttpCtx->xTlsNetworkContext,
@@ -386,6 +386,14 @@ HttpResult_t Http_Send( NetworkingCorehttpContext_t * pHttpCtx,
             LogError( ( "Failed to send HTTP POST request to %.*s for obtaining temporary credentials: Error=%s.",
                         ( int ) pRequest->urlLength, pRequest->pUrl,
                         HTTPClient_strerror( xHttpStatus ) ) );
+            ret = NETWORKING_COREHTTP_RESULT_FAIL_HTTP_SEND;
+        }
+        else if( corehttpResponse.statusCode != 200 )
+        {
+            LogError( ( "HTTP Request Failed - Status Code: %u (Expected: 200), Response: %.*s",
+                        corehttpResponse.statusCode,
+                        ( int ) corehttpResponse.bodyLen,
+                        corehttpResponse.pBody ) );
             ret = NETWORKING_COREHTTP_RESULT_FAIL_HTTP_SEND;
         }
         else

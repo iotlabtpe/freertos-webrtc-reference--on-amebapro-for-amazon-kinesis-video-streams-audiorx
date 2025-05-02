@@ -115,6 +115,7 @@ typedef struct NetworkingWslayContext
     size_t sigv4AuthBufferLength;
 
     wslay_event_context_ptr wslayContext;
+    uint8_t connectionEstablished;
 
     TickType_t lastPingTick;
     int socketWakeUp;

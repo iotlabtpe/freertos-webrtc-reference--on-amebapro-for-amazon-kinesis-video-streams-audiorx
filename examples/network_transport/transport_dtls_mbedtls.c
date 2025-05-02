@@ -524,7 +524,7 @@ void DTLS_Disconnect( DtlsNetworkContext_t * pNetworkContext )
         {
             if( dtlsStatus == 0 )
             {
-                LogInfo( ( "(Network connection %p) DTLS close-notify sent.", pNetworkContext ) );
+                LogDebug( ( "(Network connection %p) DTLS close-notify sent.", pNetworkContext ) );
             }
             else
             {
@@ -538,10 +538,10 @@ void DTLS_Disconnect( DtlsNetworkContext_t * pNetworkContext )
         else
         {
             /* WANT_READ and WANT_WRITE can be ignored. Logging for debugging purposes. */
-            LogInfo( ( "(Network connection %p) TLS close-notify sent; "
-                       "received %s as the TLS status can be ignored for close-notify.",
-                       pNetworkContext,
-                       ( dtlsStatus == MBEDTLS_ERR_SSL_WANT_READ ) ? "WANT_READ" : "WANT_WRITE" ) );
+            LogDebug( ( "(Network connection %p) DTLS close-notify sent; "
+                        "received %s as the DTLS status can be ignored for close-notify.",
+                        pNetworkContext,
+                        ( dtlsStatus == MBEDTLS_ERR_SSL_WANT_READ ) ? "WANT_READ" : "WANT_WRITE" ) );
         }
 
         /* Free mbed DTLS contexts. */

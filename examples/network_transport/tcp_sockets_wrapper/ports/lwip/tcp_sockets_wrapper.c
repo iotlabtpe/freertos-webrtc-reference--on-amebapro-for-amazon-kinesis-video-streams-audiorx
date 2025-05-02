@@ -101,7 +101,7 @@ BaseType_t TCP_Sockets_Connect( Socket_t * pTcpSocket,
         if( connect( xFd, pxCur->ai_addr, pxCur->ai_addrlen ) == 0 )
         {
             xRet = TCP_SOCKETS_ERRNO_NONE;
-            LogInfo( ( "Established TCP connection with %s.", pHostName ) );
+            LogDebug( ( "Established TCP connection with %s.", pHostName ) );
             break;
         }
 

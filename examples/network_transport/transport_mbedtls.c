@@ -597,8 +597,8 @@ static TlsTransportStatus_t tlsHandshake( TlsNetworkContext_t * pNetworkContext,
         }
         else
         {
-            LogInfo( ( "(Network connection %p) TLS handshake successful.",
-                       pNetworkContext ) );
+            LogDebug( ( "(Network connection %p) TLS handshake successful.",
+                        pNetworkContext ) );
         }
     }
 
@@ -768,9 +768,9 @@ TlsTransportStatus_t TLS_FreeRTOS_Connect( TlsNetworkContext_t * pNetworkContext
     }
     else
     {
-        LogInfo( ( "(Network connection %p) Connection to %s established.",
-                   pNetworkContext,
-                   pHostName ) );
+        LogDebug( ( "(Network connection %p) Connection to %s established.",
+                    pNetworkContext,
+                    pHostName ) );
     }
 
     return returnStatus;
@@ -795,8 +795,8 @@ TlsTransportStatus_t TLS_FreeRTOS_Disconnect( TlsNetworkContext_t * pNetworkCont
         {
             if( tlsStatus == 0 )
             {
-                LogInfo( ( "(Network connection %p) TLS close-notify sent.",
-                           pNetworkContext ) );
+                LogDebug( ( "(Network connection %p) TLS close-notify sent.",
+                            pNetworkContext ) );
             }
             else
             {
@@ -811,10 +811,10 @@ TlsTransportStatus_t TLS_FreeRTOS_Disconnect( TlsNetworkContext_t * pNetworkCont
         else
         {
             /* WANT_READ and WANT_WRITE can be ignored. Logging for debugging purposes. */
-            LogInfo( ( "(Network connection %p) TLS close-notify sent; "
-                       "received %s as the TLS status can be ignored for close-notify.",
-                       pNetworkContext,
-                       ( tlsStatus == MBEDTLS_ERR_SSL_WANT_READ ) ? "WANT_READ" : "WANT_WRITE" ) );
+            LogDebug( ( "(Network connection %p) TLS close-notify sent; "
+                        "received %s as the TLS status can be ignored for close-notify.",
+                        pNetworkContext,
+                        ( tlsStatus == MBEDTLS_ERR_SSL_WANT_READ ) ? "WANT_READ" : "WANT_WRITE" ) );
         }
 
         /* Call socket shutdown function to close connection. */

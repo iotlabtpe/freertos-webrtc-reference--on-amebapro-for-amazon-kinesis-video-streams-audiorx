@@ -1281,6 +1281,7 @@ WebsocketResult_t Websocket_Connect( NetworkingWslayContext_t * pWebsocketCtx,
         .pContext = &connectResponseContext
     };
     TlsTransportStatus_t xNetworkStatus;
+    uint8_t isTlsConnectionEstablished = 0U;
 
     if( ( pServerInfo == NULL ) || ( pServerInfo->pUrl == NULL ) )
     {
@@ -1289,248 +1290,308 @@ WebsocketResult_t Websocket_Connect( NetworkingWslayContext_t * pWebsocketCtx,
 
     if( ret == NETWORKING_WSLAY_RESULT_OK )
     {
-        /* Get host pointer & length */
-        retUtils = NetworkingUtils_GetUrlHost( pServerInfo->pUrl, pServerInfo->urlLength, &pHost, &hostLength );
-
-        if( ( retUtils == NETWORKING_UTILS_RESULT_OK ) && ( hostLength < NETWORKING_WSLAY_HOST_NAME_MAX_LENGTH ) )
+        do
         {
-            memcpy( host, pHost, hostLength );
-            host[ hostLength ] = '\0';
-        }
-        else
-        {
-            LogError( ( "Fail to find valid host name from URL: %.*s", ( int ) pServerInfo->urlLength, pServerInfo->pUrl ) );
-            ret = NETWORKING_WSLAY_RESULT_NO_HOST_IN_URL;
-        }
+            /* Connection check before starting. Will skip following process if connection is already there.
+             * This might happen when fail happening at join storage session request for any reason. */
+            if( pWebsocketCtx->connectionEstablished != 0U )
+            {
+                LogDebug( ( "Websocket connection is already there, skip the connect process." ) );
+                break;
+            }
+
+            /* Get host pointer & length */
+            retUtils = NetworkingUtils_GetUrlHost( pServerInfo->pUrl, pServerInfo->urlLength, &pHost, &hostLength );
+
+            if( retUtils == NETWORKING_UTILS_RESULT_OK )
+            {
+                if( hostLength < NETWORKING_WSLAY_HOST_NAME_MAX_LENGTH )
+                {
+                    memcpy( host, pHost, hostLength );
+                    host[ hostLength ] = '\0';
+                }
+                else
+                {
+                    LogError( ( "uriHost buffer is not large enough to fit the host, hostLength = %u!", hostLength ) );
+                    ret = NETWORKING_WSLAY_RESULT_NO_HOST_IN_URL;
+                    break;
+                }
+            }
+            else
+            {
+                LogError( ( "Fail to find valid host name from URL: %.*s", ( int ) pServerInfo->urlLength, pServerInfo->pUrl ) );
+                ret = NETWORKING_WSLAY_RESULT_NO_HOST_IN_URL;
+                break;
+            }
+
+            retUtils = NetworkingUtils_GetPathFromUrl( pServerInfo->pUrl, pServerInfo->urlLength, &pPath, &pathLength );
+            if( retUtils != NETWORKING_UTILS_RESULT_OK )
+            {
+                LogError( ( "Fail to find valid path from URL: %.*s", ( int ) pServerInfo->urlLength, pServerInfo->pUrl ) );
+                ret = NETWORKING_WSLAY_RESULT_NO_PATH_IN_URL;
+                break;
+            }
+
+            ret = GenerateWebSocketClientKey( clientKey, NETWORKING_WSLAY_CLIENT_KEY_LENGTH + 1 );
+            if( ret != NETWORKING_WSLAY_RESULT_OK )
+            {
+                LogError( ( "Fail to generate websocket client key, ret: %d", ret ) );
+                break;
+            }
+
+            /* Try connect with websocket server. */
+            {
+                memset( &credentials, 0, sizeof( NetworkCredentials_t ) );
+                credentials.pRootCa = pAwsCredentials->pRootCa;
+                credentials.rootCaSize = pAwsCredentials->rootCaSize;
+        
+                if( pAwsCredentials->iotThingCertSize > 0 )
+                {
+                    credentials.pClientCert = pAwsCredentials->pIotThingCert;
+                    credentials.clientCertSize = pAwsCredentials->iotThingCertSize;
+                    credentials.pPrivateKey = pAwsCredentials->pIotThingPrivateKey;
+                    credentials.privateKeySize = pAwsCredentials->iotThingPrivateKeySize;
+                }
+        
+                LogDebug( ( "Establishing a TLS session with %s:443.",
+                            host ) );
+        
+                /* Attempt to create a server-authenticated TLS connection. */
+                xNetworkStatus = TLS_FreeRTOS_Connect( &pWebsocketCtx->xTlsNetworkContext,
+                                                       host,
+                                                       443,
+                                                       &credentials,
+                                                       NETWORKING_WSLAY_SEND_TIMEOUT_MS,
+                                                       NETWORKING_WSLAY_RECV_TIMEOUT_MS );
+        
+                if( xNetworkStatus != TLS_TRANSPORT_SUCCESS )
+                {
+                    LogError( ( "Fail to connect with server with return %d", xNetworkStatus ) );
+                    ret = NETWORKING_WSLAY_RESULT_FAIL_CONNECT;
+                    break;
+                }
+                else
+                {
+                    isTlsConnectionEstablished = 1U;
+                }
+            }
+
+            /* Follow https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html to create query parameters. */
+            ret = generateQueryParameters( pWebsocketCtx,
+                                           pAwsCredentials,
+                                           pServerInfo->pUrl,
+                                           pServerInfo->urlLength,
+                                           pHost,
+                                           hostLength,
+                                           pPath,
+                                           pathLength,
+                                           pWebsocketCtx->metaBuffer,
+                                           &queryParamsStringLength );
+            if( ret != NETWORKING_WSLAY_RESULT_OK )
+            {
+                LogError( ( "Fail to get query parameters, ret: %d", ret ) );
+                break;
+            }
+
+            /* Store query parameters into path buffer. */
+            pWebsocketCtx->websocketTxBuffer[ 0 ] = '/';
+            pWebsocketCtx->websocketTxBuffer[ 1 ] = '?';
+            memcpy( &pWebsocketCtx->websocketTxBuffer[ 2 ], pWebsocketCtx->metaBuffer, queryParamsStringLength );
+
+            pPath = pWebsocketCtx->websocketTxBuffer;
+            pathLength = 2U + queryParamsStringLength;
+
+            /* Prepare HTTP request for websocket connection */
+            {
+                /* Initialize Request header buffer. */
+                xRequestHeaders.pBuffer = ( uint8_t * ) pWebsocketCtx->websocketTxBuffer + pathLength;
+                xRequestHeaders.bufferLen = NETWORKING_WEBSOCKET_BUFFER_LENGTH - pathLength;
+    
+                /* Set HTTP request parameters to get temporary AWS IoT credentials. */
+                xRequestInfo.pMethod = HTTP_METHOD_GET;
+                xRequestInfo.methodLen = sizeof( HTTP_METHOD_GET ) - 1;
+                xRequestInfo.pPath = pPath;
+                xRequestInfo.pathLen = pathLength;
+                xRequestInfo.pHost = pHost;
+                xRequestInfo.hostLen = hostLength;
+                xRequestInfo.reqFlags = HTTP_REQUEST_NO_USER_AGENT_FLAG;
+                /* Note that host would be added to the header field by HTTPClient_InitializeRequestHeaders. */
+    
+                /* Initialize request headers. */
+                xHttpStatus = HTTPClient_InitializeRequestHeaders( &xRequestHeaders, &xRequestInfo );
+    
+                if( xHttpStatus != HTTPSuccess )
+                {
+                    LogError( ( "Failed to initialize request headers: Error=%s.",
+                                HTTPClient_strerror( xHttpStatus ) ) );
+                    ret = NETWORKING_WSLAY_RESULT_FAIL_HTTP_INIT_REQUEST_HEADER;
+                    break;
+                }
+            }
+
+            ret = AddHeader( &xRequestHeaders,
+                             "Pragma",
+                             strlen( "Pragma" ),
+                             "no-cache",
+                             strlen( "no-cache" ) );
+            if( ret != NETWORKING_WSLAY_RESULT_OK )
+            {
+                LogError( ( "Fail to append Pragma to HTTP header, ret: %d", ret ) );
+                break;
+            }
+
+            ret = AddHeader( &xRequestHeaders,
+                             "Cache-Control",
+                             strlen( "Cache-Control" ),
+                             "no-cache",
+                             strlen( "no-cache" ) );
+            if( ret != NETWORKING_WSLAY_RESULT_OK )
+            {
+                LogError( ( "Fail to append Cache-Control to HTTP header, ret: %d", ret ) );
+                break;
+            }
+
+            ret = AddHeader( &xRequestHeaders,
+                             "upgrade",
+                             strlen( "upgrade" ),
+                             "WebSocket",
+                             strlen( "WebSocket" ) );
+            if( ret != NETWORKING_WSLAY_RESULT_OK )
+            {
+                LogError( ( "Fail to append upgrade to HTTP header, ret: %d", ret ) );
+                break;
+            }
+
+            ret = AddHeader( &xRequestHeaders,
+                             "connection",
+                             strlen( "connection" ),
+                             "Upgrade",
+                             strlen( "Upgrade" ) );
+            if( ret != NETWORKING_WSLAY_RESULT_OK )
+            {
+                LogError( ( "Fail to append connection to HTTP header, ret: %d", ret ) );
+                break;
+            }
+
+            ret = AddHeader( &xRequestHeaders,
+                             "Sec-WebSocket-Key",
+                             strlen( "Sec-WebSocket-Key" ),
+                             clientKey,
+                             NETWORKING_WSLAY_CLIENT_KEY_LENGTH );
+            if( ret != NETWORKING_WSLAY_RESULT_OK )
+            {
+                LogError( ( "Fail to append Sec-WebSocket-Key to HTTP header, ret: %d", ret ) );
+                break;
+            }
+
+            ret = AddHeader( &xRequestHeaders,
+                             "Sec-WebSocket-Protocol",
+                             strlen( "Sec-WebSocket-Protocol" ),
+                             "wss",
+                             strlen( "wss" ) );
+            if( ret != NETWORKING_WSLAY_RESULT_OK )
+            {
+                LogError( ( "Fail to append Sec-WebSocket-Protocol to HTTP header, ret: %d", ret ) );
+                break;
+            }
+
+            ret = AddHeader( &xRequestHeaders,
+                             "Sec-WebSocket-Version",
+                             strlen( "Sec-WebSocket-Version" ),
+                             "13",
+                             strlen( "13" ) );
+            if( ret != NETWORKING_WSLAY_RESULT_OK )
+            {
+                LogError( ( "Fail to append Sec-WebSocket-Version to HTTP header, ret: %d", ret ) );
+                break;
+            }
+
+            /* Send HTTP request to websocket server and wait for resopnse. */
+            {
+                memset( &corehttpResponse, 0, sizeof( HTTPResponse_t ) );
+                corehttpResponse.pBuffer = ( uint8_t * ) pWebsocketCtx->websocketRxBuffer;
+                corehttpResponse.bufferLen = NETWORKING_WEBSOCKET_BUFFER_LENGTH;
+                corehttpResponse.pHeaderParsingCallback = &headerParsingCallback;
+
+                memset( &connectResponseContext, 0, sizeof( NetworkingWslayConnectResponseContext_t ) );
+                connectResponseContext.pClientKey = clientKey;
+                connectResponseContext.clientKeyLength = NETWORKING_WSLAY_CLIENT_KEY_LENGTH;
+
+                LogDebug( ( "Sending HTTP header: %.*s", ( int ) xRequestHeaders.headersLen, xRequestHeaders.pBuffer ) );
+
+                /* Send the request to AWS IoT Credentials Provider to obtain temporary credentials
+                * so that the demo application can access configured S3 bucket thereafter. */
+                xHttpStatus = HTTPClient_Send( &pWebsocketCtx->xTransportInterface,
+                                            &xRequestHeaders,
+                                            NULL,
+                                            0U,
+                                            &corehttpResponse,
+                                            HTTP_SEND_DISABLE_CONTENT_LENGTH_FLAG );
+
+                if( xHttpStatus != HTTPSuccess )
+                {
+                    LogError( ( "Failed to send Websocket connect request to %.*s for obtaining temporary credentials: Error=%s.",
+                                ( int ) hostLength, pHost,
+                                HTTPClient_strerror( xHttpStatus ) ) );
+                    ret = NETWORKING_WSLAY_RESULT_FAIL_HTTP_SEND;
+                    break;
+                }
+                else if( corehttpResponse.statusCode != 101 )
+                {
+                    LogError( ( "Websocket Connect Failed - Status Code: %u (Expected: 101), Response: %.*s",
+                                corehttpResponse.statusCode,
+                                ( int ) corehttpResponse.bodyLen,
+                                corehttpResponse.pBody ) );
+                    ret = NETWORKING_COREHTTP_RESULT_FAIL_HTTP_SEND;
+                    break;
+                }
+                else
+                {
+                    LogDebug( ( "Receiving Websocket headers(%d): %.*s", corehttpResponse.headersLen, ( int ) corehttpResponse.headersLen, corehttpResponse.pHeaders ) );
+                }
+            }
+
+            /* Check verified result in context. */
+            {
+                if( ( ( connectResponseContext.headersParsed | NETWORKING_WSLAY_HTTP_HEADER_CONNECTION ) == 0 ) ||
+                    ( ( connectResponseContext.headersParsed | NETWORKING_WSLAY_HTTP_HEADER_UPGRADE ) == 0 ) ||
+                    ( ( connectResponseContext.headersParsed | NETWORKING_WSLAY_HTTP_HEADER_WEBSOCKET_ACCEPT ) == 0 ) )
+                {
+                    LogError( ( "No valid response received, headersParsed=0x%x", connectResponseContext.headersParsed ) );
+                    ret = NETWORKING_WSLAY_RESULT_FAIL_HTTP_PARSE_RESPONSE;
+                    break;
+                }
+                else
+                {
+                    LogInfo( ( "Successfully connect with WSS endpoint %.*s.",
+                               ( int ) pServerInfo->urlLength, pServerInfo->pUrl ) );
+                }
+            }
+
+            /* Initialize wslay context. */
+            ret = InitializeWslayContext( pWebsocketCtx );
+            if( ret != NETWORKING_WSLAY_RESULT_OK )
+            {
+                LogError( ( "Fail to initialize wslay context, ret: %d", ret ) );
+                break;
+            }
+        
+            /* Initialize wake up socket for signal function. */
+            ret = InitializeWakeUpSocket( pWebsocketCtx );
+            if( ret != NETWORKING_WSLAY_RESULT_OK )
+            {
+                LogError( ( "Fail to initialize wake up socket handler, ret: %d", ret ) );
+                break;
+            }
+
+            pWebsocketCtx->connectionEstablished = 1U;
+        } while( pdFALSE );
     }
 
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
+    if( ( ret != NETWORKING_WSLAY_RESULT_OK ) &&
+        ( isTlsConnectionEstablished != 0U ) )
     {
-        ret = NetworkingUtils_GetPathFromUrl( pServerInfo->pUrl, pServerInfo->urlLength, &pPath, &pathLength );
-
-        if( retUtils != NETWORKING_UTILS_RESULT_OK )
-        {
-            LogError( ( "Fail to find valid path from URL: %.*s", ( int ) pServerInfo->urlLength, pServerInfo->pUrl ) );
-            ret = NETWORKING_WSLAY_RESULT_NO_PATH_IN_URL;
-        }
-    }
-
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        ret = GenerateWebSocketClientKey( clientKey, NETWORKING_WSLAY_CLIENT_KEY_LENGTH + 1 );
-    }
-
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        memset( &credentials, 0, sizeof( NetworkCredentials_t ) );
-        credentials.pRootCa = pAwsCredentials->pRootCa;
-        credentials.rootCaSize = pAwsCredentials->rootCaSize;
-
-        if( pAwsCredentials->iotThingCertSize > 0 )
-        {
-            credentials.pClientCert = pAwsCredentials->pIotThingCert;
-            credentials.clientCertSize = pAwsCredentials->iotThingCertSize;
-            credentials.pPrivateKey = pAwsCredentials->pIotThingPrivateKey;
-            credentials.privateKeySize = pAwsCredentials->iotThingPrivateKeySize;
-        }
-
-        LogInfo( ( "Establishing a TLS session with %s:443.",
-                   host ) );
-
-        /* Attempt to create a server-authenticated TLS connection. */
-        xNetworkStatus = TLS_FreeRTOS_Connect( &pWebsocketCtx->xTlsNetworkContext,
-                                               host,
-                                               443,
-                                               &credentials,
-                                               NETWORKING_WSLAY_SEND_TIMEOUT_MS,
-                                               NETWORKING_WSLAY_RECV_TIMEOUT_MS );
-
-        if( xNetworkStatus != TLS_TRANSPORT_SUCCESS )
-        {
-            LogError( ( "Fail to connect with server with return %d", xNetworkStatus ) );
-            ret = NETWORKING_WSLAY_RESULT_FAIL_CONNECT;
-        }
-    }
-
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        /* Follow https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html to create query parameters. */
-        ret = generateQueryParameters( pWebsocketCtx,
-                                       pAwsCredentials,
-                                       pServerInfo->pUrl,
-                                       pServerInfo->urlLength,
-                                       pHost,
-                                       hostLength,
-                                       pPath,
-                                       pathLength,
-                                       pWebsocketCtx->metaBuffer,
-                                       &queryParamsStringLength );
-    }
-
-    /* Store query parameters into path buffer. */
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        pWebsocketCtx->websocketTxBuffer[ 0 ] = '/';
-        pWebsocketCtx->websocketTxBuffer[ 1 ] = '?';
-        memcpy( &pWebsocketCtx->websocketTxBuffer[ 2 ], pWebsocketCtx->metaBuffer, queryParamsStringLength );
-
-        pPath = pWebsocketCtx->websocketTxBuffer;
-        pathLength = 2U + queryParamsStringLength;
-    }
-
-    /* Prepare HTTP request for websocket connection */
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        /* Initialize Request header buffer. */
-        xRequestHeaders.pBuffer = ( uint8_t * ) pWebsocketCtx->websocketTxBuffer + pathLength;
-        xRequestHeaders.bufferLen = NETWORKING_WEBSOCKET_BUFFER_LENGTH - pathLength;
-
-        /* Set HTTP request parameters to get temporary AWS IoT credentials. */
-        xRequestInfo.pMethod = HTTP_METHOD_GET;
-        xRequestInfo.methodLen = sizeof( HTTP_METHOD_GET ) - 1;
-        xRequestInfo.pPath = pPath;
-        xRequestInfo.pathLen = pathLength;
-        xRequestInfo.pHost = pHost;
-        xRequestInfo.hostLen = hostLength;
-        xRequestInfo.reqFlags = HTTP_REQUEST_NO_USER_AGENT_FLAG;
-        /* Note that host would be added to the header field by HTTPClient_InitializeRequestHeaders. */
-
-        /* Initialize request headers. */
-        xHttpStatus = HTTPClient_InitializeRequestHeaders( &xRequestHeaders, &xRequestInfo );
-
-        if( xHttpStatus != HTTPSuccess )
-        {
-            LogError( ( "Failed to initialize request headers: Error=%s.",
-                        HTTPClient_strerror( xHttpStatus ) ) );
-            ret = NETWORKING_WSLAY_RESULT_FAIL_HTTP_INIT_REQUEST_HEADER;
-        }
-    }
-
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        ret = AddHeader( &xRequestHeaders,
-                         "Pragma",
-                         strlen( "Pragma" ),
-                         "no-cache",
-                         strlen( "no-cache" ) );
-    }
-
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        ret = AddHeader( &xRequestHeaders,
-                         "Cache-Control",
-                         strlen( "Cache-Control" ),
-                         "no-cache",
-                         strlen( "no-cache" ) );
-    }
-
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        ret = AddHeader( &xRequestHeaders,
-                         "upgrade",
-                         strlen( "upgrade" ),
-                         "WebSocket",
-                         strlen( "WebSocket" ) );
-    }
-
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        ret = AddHeader( &xRequestHeaders,
-                         "connection",
-                         strlen( "connection" ),
-                         "Upgrade",
-                         strlen( "Upgrade" ) );
-    }
-
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        ret = AddHeader( &xRequestHeaders,
-                         "Sec-WebSocket-Key",
-                         strlen( "Sec-WebSocket-Key" ),
-                         clientKey,
-                         NETWORKING_WSLAY_CLIENT_KEY_LENGTH );
-    }
-
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        ret = AddHeader( &xRequestHeaders,
-                         "Sec-WebSocket-Protocol",
-                         strlen( "Sec-WebSocket-Protocol" ),
-                         "wss",
-                         strlen( "wss" ) );
-    }
-
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        ret = AddHeader( &xRequestHeaders,
-                         "Sec-WebSocket-Version",
-                         strlen( "Sec-WebSocket-Version" ),
-                         "13",
-                         strlen( "13" ) );
-    }
-
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        memset( &corehttpResponse, 0, sizeof( HTTPResponse_t ) );
-        corehttpResponse.pBuffer = ( uint8_t * ) pWebsocketCtx->websocketRxBuffer;
-        corehttpResponse.bufferLen = NETWORKING_WEBSOCKET_BUFFER_LENGTH;
-        corehttpResponse.pHeaderParsingCallback = &headerParsingCallback;
-
-        memset( &connectResponseContext, 0, sizeof( NetworkingWslayConnectResponseContext_t ) );
-        connectResponseContext.pClientKey = clientKey;
-        connectResponseContext.clientKeyLength = NETWORKING_WSLAY_CLIENT_KEY_LENGTH;
-
-        LogDebug( ( "Sending HTTP header: %.*s", ( int ) xRequestHeaders.headersLen, xRequestHeaders.pBuffer ) );
-
-        /* Send the request to AWS IoT Credentials Provider to obtain temporary credentials
-         * so that the demo application can access configured S3 bucket thereafter. */
-        xHttpStatus = HTTPClient_Send( &pWebsocketCtx->xTransportInterface,
-                                       &xRequestHeaders,
-                                       NULL,
-                                       0U,
-                                       &corehttpResponse,
-                                       HTTP_SEND_DISABLE_CONTENT_LENGTH_FLAG );
-
-        if( xHttpStatus != HTTPSuccess )
-        {
-            LogError( ( "Failed to send Websocket connect request to %.*s for obtaining temporary credentials: Error=%s.",
-                        ( int ) hostLength, pHost,
-                        HTTPClient_strerror( xHttpStatus ) ) );
-            ret = NETWORKING_WSLAY_RESULT_FAIL_HTTP_SEND;
-        }
-        else
-        {
-            LogDebug( ( "Receiving HTTP headers(%d): %.*s", corehttpResponse.headersLen, ( int ) corehttpResponse.headersLen, corehttpResponse.pHeaders ) );
-        }
-    }
-
-    /* Check verified result in context. */
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        if( ( ( connectResponseContext.headersParsed | NETWORKING_WSLAY_HTTP_HEADER_CONNECTION ) == 0 ) ||
-            ( ( connectResponseContext.headersParsed | NETWORKING_WSLAY_HTTP_HEADER_UPGRADE ) == 0 ) ||
-            ( ( connectResponseContext.headersParsed | NETWORKING_WSLAY_HTTP_HEADER_WEBSOCKET_ACCEPT ) == 0 ) )
-        {
-            LogError( ( "No valid response received, headersParsed=0x%x", connectResponseContext.headersParsed ) );
-            ret = NETWORKING_WSLAY_RESULT_FAIL_HTTP_PARSE_RESPONSE;
-        }
-        else
-        {
-            LogInfo( ( "Successfully connect with WSS endpoint %.*s.",
-                       ( int ) pServerInfo->urlLength, pServerInfo->pUrl ) );
-        }
-    }
-
-    /* Initialize wslay context. */
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        ret = InitializeWslayContext( pWebsocketCtx );
-    }
-
-    /* Initialize wake up socket for signal function. */
-    if( ret == NETWORKING_WSLAY_RESULT_OK )
-    {
-        ret = InitializeWakeUpSocket( pWebsocketCtx );
+        ( void ) TLS_FreeRTOS_Disconnect( &pWebsocketCtx->xTlsNetworkContext );
     }
 
     return ret;
@@ -1543,6 +1604,8 @@ WebsocketResult_t Websocket_Disconnect( NetworkingWslayContext_t * pWebsocketCtx
 
     if( pWebsocketCtx->wslayContext != NULL )
     {
+        pWebsocketCtx->connectionEstablished = 0U;
+
         /* Shutdown WebSocket read operations */
         wslay_event_shutdown_read( pWebsocketCtx->wslayContext );
 
@@ -1649,6 +1712,11 @@ WebsocketResult_t Websocket_Recv( NetworkingWslayContext_t * pWebsocketCtx )
         {
             /* Have something to read. */
             ret = ReadWebsocketMessage( pWebsocketCtx );
+            if( ret != NETWORKING_WSLAY_RESULT_OK )
+            {
+                LogError( ( "Fail to read websocket message, ret: %d", ret ) );
+                pWebsocketCtx->connectionEstablished = 0U;
+            } 
         }
 
         if( FD_ISSET( pWebsocketCtx->socketWakeUp, &rfds ) )
