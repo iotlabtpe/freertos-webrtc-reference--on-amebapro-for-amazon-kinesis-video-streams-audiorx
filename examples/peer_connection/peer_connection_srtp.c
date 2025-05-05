@@ -270,6 +270,11 @@ PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSessi
         }
     }
 
+    if( isLocked != 0U )
+    {
+        xSemaphoreGive( pSession->srtpSessionMutex );
+    }
+
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
         /* Initialize Rolling buffers. */
@@ -385,11 +390,6 @@ PeerConnectionResult_t PeerConnectionSrtp_Init( PeerConnectionSession_t * pSessi
         }
     }
 
-    if( isLocked != 0U )
-    {
-        xSemaphoreGive( pSession->srtpSessionMutex );
-    }
-
     return ret;
 }
 
@@ -463,14 +463,14 @@ PeerConnectionResult_t PeerConnectionSrtp_DeInit( PeerConnectionSession_t * pSes
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
         /* Clean up Audio SRTP Sender */
-        if( ( pSession->videoSrtpSender.senderMutex != NULL ) &&
+        if( ( pSession->audioSrtpSender.senderMutex != NULL ) &&
             ( xSemaphoreTake( pSession->audioSrtpSender.senderMutex,
                               portMAX_DELAY ) == pdTRUE ) )
         {
             PeerConnectionRollingBuffer_Free( &pSession->audioSrtpSender.txRollingBuffer );
             xSemaphoreGive( pSession->audioSrtpSender.senderMutex );
             vSemaphoreDelete( pSession->audioSrtpSender.senderMutex );
-            pSession->videoSrtpSender.senderMutex = NULL;
+            pSession->audioSrtpSender.senderMutex = NULL;
         }
     }
 

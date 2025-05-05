@@ -61,7 +61,6 @@ static PeerConnectionResult_t ResendSrtpPacket( PeerConnectionSession_t * pSessi
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
     PeerConnectionSrtpSender_t * pSrtpSender = NULL;
     uint8_t isSenderLocked = 0;
-    uint8_t isSessionLocked = 0;
     PeerConnectionRollingBufferPacket_t * pRollingBufferPacket = NULL;
     IceControllerResult_t resultIceController;
     uint8_t bufferAfterEncrypt = 1;
@@ -122,20 +121,6 @@ static PeerConnectionResult_t ResendSrtpPacket( PeerConnectionSession_t * pSessi
         {
             LogError( ( "Fail to take sender mutex" ) );
             ret = PEER_CONNECTION_RESULT_FAIL_TAKE_SENDER_MUTEX;
-        }
-    }
-
-    if( ret == PEER_CONNECTION_RESULT_OK )
-    {
-        if( xSemaphoreTake( pSession->srtpSessionMutex,
-                            portMAX_DELAY ) == pdTRUE )
-        {
-            isSessionLocked = 1U;
-        }
-        else
-        {
-            LogError( ( "Fail to take SRTP session mutex for resending" ) );
-            ret = PEER_CONNECTION_RESULT_FAIL_TAKE_SRTP_MUTEX;
         }
     }
 
@@ -208,11 +193,6 @@ static PeerConnectionResult_t ResendSrtpPacket( PeerConnectionSession_t * pSessi
         {
             LogDebug( ( "Re-send RTP successfully, RTP seq: %u, SSRC: 0x%lx", rtpSeq, ssrc ) );
         }
-    }
-
-    if( isSessionLocked != 0U )
-    {
-        xSemaphoreGive( pSession->srtpSessionMutex );
     }
 
     if( isSenderLocked )
