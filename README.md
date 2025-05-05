@@ -36,6 +36,9 @@ Choose ONE of the following authentication options:
    * Set `AWS_IOT_THING_CERT` to your IOT Core Certificate.
    * Set `AWS_IOT_THING_PRIVATE_KEY` to your IOT Core Private Key.
 
+NOTE :    To add the `AWS_IOT_THING_CERT` and `AWS_IOT_THING_PRIVATE_KEY` in the correct format, run the `format_cert_and_key.sh`.\
+A `formatted_certificate_and_ket.txt` file will be generated inside the `examples/master/` path. You can copy the content and paste it in the `demo_config.h`
+
 ## Compile commands
 1. Download toolchain (based on your environment)
    - https://github.com/Ameba-AIoT/ameba-toolchain/releases/tag/V10.3.0-amebe-rtos-pro2
