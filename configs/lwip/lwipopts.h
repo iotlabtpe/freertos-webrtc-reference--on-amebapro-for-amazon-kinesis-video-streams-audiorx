@@ -1,3 +1,14 @@
+/******************************************************************************
+  *
+  * This module is a confidential and proprietary property of RealTek and
+  * possession or use of this module requires written permission of RealTek.
+  *
+  * Copyright(c) 2016, Realtek Semiconductor Corporation. All rights reserved.
+  *
+******************************************************************************/
+// Original Copyright 2012 2016, Realtek Semiconductor Corporation. Licensed under [Realtek's Disclaimer](https://github.com/Freertos-kvs-LTS/freertos-kvs-LTS/blob/bd0702130e0b8dfa386e011644ce1bc7e0d7fd09/Realtek_Disclaimer-2019.pdf).
+// Modifications Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
 #ifndef LWIPOPTS_H
 #define LWIPOPTS_H
 
