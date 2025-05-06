@@ -17,5 +17,4 @@
 #define MBEDTLS_PLATFORM_C
 #define MBEDTLS_ERROR_C
 
-
 #endif /* MBEDTLS_CUSTOM_CONFIG_H */
