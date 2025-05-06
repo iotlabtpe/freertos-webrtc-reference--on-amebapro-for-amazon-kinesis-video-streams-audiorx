@@ -66,6 +66,7 @@ static void GetLocalIPAdresses( IceEndpoint_t * pLocalIceEndpoints,
     if( localEndpointsSize >= 1 )
     {
         pIpv4Address = LwIP_GetIP( 0 );
+        memset( &pLocalIceEndpoints[ 0 ], 0, sizeof( IceEndpoint_t ) );
         pLocalIceEndpoints[ 0 ].transportAddress.family = STUN_ADDRESS_IPv4;
         pLocalIceEndpoints[ 0 ].transportAddress.port = 0;
         memcpy( pLocalIceEndpoints[ 0 ].transportAddress.address, pIpv4Address, STUN_IPV4_ADDRESS_SIZE );
@@ -1031,6 +1032,17 @@ IceControllerResult_t IceControllerNet_SendPacket( IceControllerContext_t * pCtx
     if( isLocked != 0 )
     {
         xSemaphoreGive( pCtx->socketMutex );
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_FAIL_SOCKET_SENDTO )
+    {
+        /* 
+         * Socket read error detected.
+         * This typically indicates the remote peer closed the connection.
+         * Action required: Close the local socket to properly terminate the connection.
+         */
+        ( void ) Ice_CloseCandidate( &pCtx->iceContext, pSocketContext->pLocalCandidate );
+        IceControllerNet_FreeSocketContext( pCtx, pSocketContext );
     }
 
     return ret;
