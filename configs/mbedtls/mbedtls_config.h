@@ -12,7 +12,10 @@
 
 #define MBEDTLS_HAVE_ASM
 
-#if DEBUG == 0
+#if DEBUG != 0
+    #define MBEDTLS_DEBUG_C
+    #define MBEDTLS_DTLS_DEBUG_C
+#else /* DEBUG != 0 */
     #undef MBEDTLS_DEBUG_C
 #endif /* DEBUG != 0 */
 
