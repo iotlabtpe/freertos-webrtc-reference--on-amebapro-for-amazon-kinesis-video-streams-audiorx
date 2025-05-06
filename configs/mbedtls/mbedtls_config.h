@@ -12,7 +12,9 @@
 
 #define MBEDTLS_HAVE_ASM
 
-#undef MBEDTLS_DEBUG_C
+#if DEBUG == 0
+    #undef MBEDTLS_DEBUG_C
+#endif /* DEBUG != 0 */
 
 #define MBEDTLS_PLATFORM_C
 #define MBEDTLS_ERROR_C
