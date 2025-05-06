@@ -10,9 +10,12 @@
 
 #include "mbedtls/config_rsa.h"
 
-#define MBEDTLS_DEBUG_C
-#define MBEDTLS_DTLS_DEBUG_C
+#define MBEDTLS_HAVE_ASM
+
+#undef MBEDTLS_DEBUG_C
+
 #define MBEDTLS_PLATFORM_C
 #define MBEDTLS_ERROR_C
+
 
 #endif /* MBEDTLS_CUSTOM_CONFIG_H */
