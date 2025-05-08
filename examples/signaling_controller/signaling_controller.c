@@ -991,7 +991,7 @@ static void HandleForceRefreshIceServerConfigs( SignalingControllerContext_t * p
     }
 }
 
-static SignalingControllerResult_t handleEvent( SignalingControllerContext_t * pCtx,
+static SignalingControllerResult_t HandleEvent( SignalingControllerContext_t * pCtx,
                                                 SignalingControllerEventMessage_t * pEventMsg )
 {
     SignalingControllerResult_t ret = SIGNALING_CONTROLLER_RESULT_OK;
@@ -1378,7 +1378,7 @@ SignalingControllerResult_t SignalingController_StartListening( SignalingControl
                         {
                             /* Received message, process it. */
                             LogDebug( ( "EventMsg: event: %d, pOnCompleteCallbackContext: %p", eventMsg.event, eventMsg.pOnCompleteCallbackContext ) );
-                            ret = handleEvent( pCtx, &eventMsg );
+                            ret = HandleEvent( pCtx, &eventMsg );
                         }
             
                         messageQueueRet = MessageQueue_IsEmpty( &pCtx->sendMessageQueue );
