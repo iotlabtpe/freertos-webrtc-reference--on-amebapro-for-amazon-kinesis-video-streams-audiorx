@@ -107,7 +107,7 @@ static int32_t RecvPacketTls( IceControllerSocketContext_t * pSocketContext,
 {
     int32_t ret;
 
-    memcpy( pRemoteEndpoint, pSocketContext->pIceServerEndpoint, sizeof( IceEndpoint_t ) );
+    memcpy( pRemoteEndpoint, &( pSocketContext->pIceServer->iceEndpoint ), sizeof( IceEndpoint_t ) );
     ret = TLS_FreeRTOS_recv( ( NetworkContext_t * ) &pSocketContext->tlsSession.xTlsNetworkContext,
                              pBuffer,
                              bufferSize );
@@ -203,7 +203,7 @@ static IceControllerResult_t UpdateNominatedSocketContext( IceControllerContext_
             if( pCandidatePair == NULL )
             {
                 LogWarn( ( "Invalid to find candidate pair for the remote endpoint." ) );
-                
+
                 LogInfo( ( "Target remote endpoint IP address: %s, port: %u",
                            IceControllerNet_LogIpAddressInfo( pRemoteIceEndpoint, ipBuffer, sizeof( ipBuffer ) ),
                            pRemoteIceEndpoint->transportAddress.port ) );
@@ -461,7 +461,7 @@ static void HandleRxPacket( IceControllerContext_t * pCtx,
 
     if( readBytes < 0 )
     {
-        /* 
+        /*
          * Socket read error detected (readBytes < 0).
          * This typically indicates the remote peer closed the connection.
          * Action required: Close the local socket to properly terminate the connection.
@@ -488,6 +488,7 @@ static void pollingSockets( IceControllerContext_t * pCtx )
     void * pOnRecvNonStunPacketCallbackContext = NULL;
     OnIceEventCallback_t onIceEventCallbackFunc;
     void * pOnIceEventCallbackCustomContext = NULL;
+    IceControllerSocketContext_t * pSocketContext;
 
     FD_ZERO( &rfds );
 
@@ -552,12 +553,21 @@ static void pollingSockets( IceControllerContext_t * pCtx )
         {
             if( ( fds[i] >= 0 ) && FD_ISSET( fds[i], &rfds ) )
             {
-                HandleRxPacket( pCtx,
-                                &pCtx->socketsContexts[i],
-                                onRecvNonStunPacketFunc,
-                                pOnRecvNonStunPacketCallbackContext,
-                                onIceEventCallbackFunc,
-                                pOnIceEventCallbackCustomContext );
+                pSocketContext = &( pCtx->socketsContexts[ i ] );
+
+                if( pSocketContext->state == ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CONNECTION_IN_PROGRESS )
+                {
+                    ( void ) IceControllerNet_ExecuteTlsHandshake( pCtx, pSocketContext, 0U );
+                }
+                else
+                {
+                    HandleRxPacket( pCtx,
+                                    pSocketContext,
+                                    onRecvNonStunPacketFunc,
+                                    pOnRecvNonStunPacketCallbackContext,
+                                    onIceEventCallbackFunc,
+                                    pOnIceEventCallbackCustomContext );
+                }
             }
         }
     }
