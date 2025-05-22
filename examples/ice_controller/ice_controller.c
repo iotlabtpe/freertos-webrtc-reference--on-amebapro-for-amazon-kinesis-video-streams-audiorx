@@ -1666,7 +1666,6 @@ IceControllerResult_t IceController_AddIceServerConfig( IceControllerContext_t *
                                                         IceControllerIceServerConfig_t * pIceServersConfig )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
-    IceControllerResult_t dnsResult;
     int i;
 
     if( ( pCtx == NULL ) ||
@@ -1723,14 +1722,10 @@ IceControllerResult_t IceController_AddIceServerConfig( IceControllerContext_t *
             memcpy( &pCtx->iceServers[ pCtx->iceServersCount ],
                     &pIceServersConfig->pIceServers[i],
                     sizeof( IceControllerIceServer_t ) );
-            dnsResult = IceControllerNet_DnsLookUp( pCtx->iceServers[ pCtx->iceServersCount ].url,
-                                                    &pCtx->iceServers[ pCtx->iceServersCount ].iceEndpoint.transportAddress );
-            if( dnsResult == ICE_CONTROLLER_RESULT_OK )
-            {
-                /* Use the server configuration only if the IP address is successfully resolved. */
-                pCtx->iceServersCount++;
-            }
+            pCtx->iceServersCount++;
         }
+
+        /* TODO: memcpy the entire table. */
     }
 
     return ret;

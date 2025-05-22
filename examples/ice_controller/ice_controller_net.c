@@ -596,6 +596,7 @@ static void AddSrflxCandidate( IceControllerContext_t * pCtx,
     #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
     char ipBuffer[ INET_ADDRSTRLEN ];
     #endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE  */
+    IceControllerResult_t dnsResult;
 
     for( i = 0; i < pCtx->iceServersCount; i++ )
     {
@@ -605,6 +606,16 @@ static void AddSrflxCandidate( IceControllerContext_t * pCtx,
         if( pCtx->iceServers[ i ].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_STUN )
         {
             /* Not STUN server, no need to create srflx candidate for this server. */
+            continue;
+        }
+
+        dnsResult = IceControllerNet_DnsLookUp( pCtx->iceServers[ i ].url,
+                                                &pCtx->iceServers[ i ].iceEndpoint.transportAddress );
+        if( dnsResult != ICE_CONTROLLER_RESULT_OK )
+        {
+            LogWarn( ( "Fail to get the DNS result of STUN server: %.*s", 
+                       ( int ) pCtx->iceServers[ i ].urlLength,
+                       pCtx->iceServers[ i ].url ) );
             continue;
         }
         else if( pCtx->iceServers[ i ].iceEndpoint.transportAddress.family != STUN_ADDRESS_IPv4 )
@@ -673,6 +684,7 @@ static void AddRelayCandidates( IceControllerContext_t * pCtx )
     #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
     char ipBuffer[ INET_ADDRSTRLEN ];
     #endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE  */
+    IceControllerResult_t dnsResult;
 
     if( pCtx == NULL )
     {
@@ -688,13 +700,8 @@ static void AddRelayCandidates( IceControllerContext_t * pCtx )
             /* Reset ret for every round. */
             ret = ICE_CONTROLLER_RESULT_OK;
 
-            if( pCtx->iceServers[i].iceEndpoint.transportAddress.family != STUN_ADDRESS_IPv4 )
-            {
-                LogInfo( ( "Only IPv4 TURN server is supported." ) );
-                continue;
-            }
-            else if( ( pCtx->iceServers[i].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURN ) &&
-                     ( pCtx->iceServers[i].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURNS ) )
+            if( ( pCtx->iceServers[i].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURN ) &&
+                ( pCtx->iceServers[i].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURNS ) )
             {
                 /* Skip STUN servers. */
                 continue;
@@ -734,6 +741,25 @@ static void AddRelayCandidates( IceControllerContext_t * pCtx )
                            ( int ) pCtx->iceServers[i].urlLength,
                            pCtx->iceServers[i].url,
                            pCtx->iceServers[i].protocol == ICE_SOCKET_PROTOCOL_UDP ? "UDP" : "TLS" ) );
+            }
+
+            dnsResult = IceControllerNet_DnsLookUp( pCtx->iceServers[ i ].url,
+                                                    &pCtx->iceServers[ i ].iceEndpoint.transportAddress );
+            if( dnsResult != ICE_CONTROLLER_RESULT_OK )
+            {
+                LogWarn( ( "Fail to get the DNS result of STUN server: %.*s", 
+                        ( int ) pCtx->iceServers[ i ].urlLength,
+                        pCtx->iceServers[ i ].url ) );
+                continue;
+            }
+            else if( pCtx->iceServers[ i ].iceEndpoint.transportAddress.family != STUN_ADDRESS_IPv4 )
+            {
+                /* For srflx candidate, we only support IPv4 for now. */
+                continue;
+            }
+            else
+            {
+                /* Do nothing, coverity happy. */
             }
 
             ret = CreateSocketContext( pCtx, STUN_ADDRESS_IPv4, NULL, &pCtx->iceServers[i].iceEndpoint, pCtx->iceServers[i].protocol, &pSocketContext );
