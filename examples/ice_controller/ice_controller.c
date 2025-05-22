@@ -881,6 +881,7 @@ IceControllerResult_t IceController_AddRemoteCandidate( IceControllerContext_t *
     return ret;
 }
 
+extern void AddRelayCandidates( IceControllerContext_t * pCtx );
 IceControllerResult_t IceController_ProcessIceCandidatesAndPairs( IceControllerContext_t * pCtx )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
@@ -890,6 +891,15 @@ IceControllerResult_t IceController_ProcessIceCandidatesAndPairs( IceControllerC
     {
         LogError( ( "Invalid input, pCtx: %p", pCtx ) );
         ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        if( pCtx->addRelayCandidates != 0U )
+        {
+            pCtx->addRelayCandidates = 0U;
+            AddRelayCandidates( pCtx );
+        }
     }
 
     if( ret == ICE_CONTROLLER_RESULT_OK )

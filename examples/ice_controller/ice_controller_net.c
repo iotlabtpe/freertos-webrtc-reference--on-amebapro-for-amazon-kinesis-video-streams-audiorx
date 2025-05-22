@@ -675,7 +675,7 @@ static void AddSrflxCandidate( IceControllerContext_t * pCtx,
     }
 }
 
-static void AddRelayCandidates( IceControllerContext_t * pCtx )
+void AddRelayCandidates( IceControllerContext_t * pCtx )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     IceResult_t iceResult;
@@ -1161,6 +1161,7 @@ void IceControllerNet_AddLocalCandidates( IceControllerContext_t * pCtx )
             #if METRIC_PRINT_ENABLED
             Metric_StartEvent( METRIC_EVENT_ICE_GATHER_RELAY_CANDIDATES );
             #endif
+            pCtx->addRelayCandidates = 1U;
             AddRelayCandidates( pCtx );
         }
     }
