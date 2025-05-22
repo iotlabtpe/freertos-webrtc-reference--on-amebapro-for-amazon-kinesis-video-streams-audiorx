@@ -49,7 +49,6 @@ set( WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS
      "${REPO_ROOT_DIRECTORY}/examples/networking/networking_utils"
      "${REPO_ROOT_DIRECTORY}/examples/logging"
      "${REPO_ROOT_DIRECTORY}/configs/mbedtls"
-     "${REPO_ROOT_DIRECTORY}/configs/sigv4"
      "${REPO_ROOT_DIRECTORY}/examples/message_queue"
      "${REPO_ROOT_DIRECTORY}/examples/base64"
      "${REPO_ROOT_DIRECTORY}/examples/sdp_controller"
@@ -73,21 +72,20 @@ endif()
  
 # Include dependencies
 # Include coreHTTP
-include( ${REPO_ROOT_DIRECTORY}/libraries/coreHTTP/httpFilePaths.cmake )
+include( ${REPO_ROOT_DIRECTORY}/CMake/coreHTTP.cmake )
 
 # Include sigV4
-include( ${REPO_ROOT_DIRECTORY}/libraries/crypto/SigV4-for-AWS-IoT-embedded-sdk/sigv4FilePaths.cmake )
+include( ${REPO_ROOT_DIRECTORY}/CMake/sigV4.cmake )
 
 ## Include coreJSON
-include( ${REPO_ROOT_DIRECTORY}/libraries/coreJSON/jsonFilePaths.cmake )
+include( ${REPO_ROOT_DIRECTORY}/CMake/coreJSON.cmake )
 
-# Include signaling
-include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-signaling/signalingFilePaths.cmake )
+## Include Signaling
+include( ${REPO_ROOT_DIRECTORY}/CMake/signaling.cmake )
 
 # Suppress warnings for some Libraries
 file(GLOB_RECURSE WARNING_SUPPRESSED_SOURCES
     "${REPO_ROOT_DIRECTORY}/libraries/ambpro2_sdk/*.c"
-    "${REPO_ROOT_DIRECTORY}/libraries/coreHTTP/source/dependency/3rdparty/llhttp/src/llhttp.c"
 )
 
 set_source_files_properties(
@@ -97,31 +95,19 @@ set_source_files_properties(
 )
 
 # Include wslay
-file(
-  GLOB
-  WSLAY_SOURCE_FILES
-  "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/*.c" )
-
-configure_file(${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay/wslayver.h.in
-               ${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay/wslayver.h @ONLY)
-
-set( WSLAY_INCLUDE_DIRS
-     "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/"
-     "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes"
-     "${REPO_ROOT_DIRECTORY}/libraries/wslay/lib/includes/wslay"
-     "${REPO_ROOT_DIRECTORY}/configs/wslay" )
+include( ${REPO_ROOT_DIRECTORY}/CMake/wslay.cmake )
 
 # Include SDP
-include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-sdp/sdpFilePaths.cmake )
+include( ${REPO_ROOT_DIRECTORY}/CMake/sdp.cmake )
 
 # Include STUN
-include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-stun/stunFilePaths.cmake )
+include( ${REPO_ROOT_DIRECTORY}/CMake/stun.cmake )
 
 # Include RTP
-include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-rtp/rtpFilePaths.cmake )
+include( ${REPO_ROOT_DIRECTORY}/CMake/rtp.cmake )
 
 # Include RTCP
-include( ${REPO_ROOT_DIRECTORY}/libraries/components/amazon-kinesis-video-streams-rtcp/rtcpFilePaths.cmake )
+include( ${REPO_ROOT_DIRECTORY}/CMake/rtcp.cmake )
 
 # Include ICE
 include( ${REPO_ROOT_DIRECTORY}/CMake/ice.cmake )
@@ -129,40 +115,11 @@ include( ${REPO_ROOT_DIRECTORY}/CMake/ice.cmake )
 # Include libsrtp
 include( ${REPO_ROOT_DIRECTORY}/CMake/libsrtp.cmake )
 
-## Include sigV4
-include( ${REPO_ROOT_DIRECTORY}/CMake/sigV4.cmake )
-
-list(
-	APPEND app_flags
-     SDP_DO_NOT_USE_CUSTOM_CONFIG
-     HAVE_ARPA_INET_H
-)
-
 set( webrtc_master_demo_src
-     ${WEBRTC_APPLICATION_MASTER_SOURCE_FILES}
-     ${HTTP_SOURCES}
-     ${SIGV4_SOURCES}
-     ${SIGNALING_SOURCES}
-     ${JSON_SOURCES}
-     ${WSLAY_SOURCE_FILES}
-     ${SDP_SOURCES}
-     ${STUN_SOURCES}
-     ${ICE_SOURCES}
-     ${RTP_SOURCES}
-     ${RTCP_SOURCES} )
+     ${WEBRTC_APPLICATION_MASTER_SOURCE_FILES} )
 
 set( webrtc_master_demo_include
-     ${WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS}
-     ${HTTP_INCLUDE_PUBLIC_DIRS}
-     ${SIGV4_INCLUDE_PUBLIC_DIRS}
-     ${SIGNALING_INCLUDE_PUBLIC_DIRS}
-     ${JSON_INCLUDE_PUBLIC_DIRS}
-     ${WSLAY_INCLUDE_DIRS}
-     ${SDP_INCLUDE_PUBLIC_DIRS}
-     ${STUN_INCLUDE_PUBLIC_DIRS}
-     ${ICE_INCLUDE_PUBLIC_DIRS}
-     ${RTP_INCLUDE_PUBLIC_DIRS}
-     ${RTCP_INCLUDE_PUBLIC_DIRS} )
+     ${WEBRTC_APPLICATION_MASTER_INCLUDE_DIRS} )
 
 if(BUILD_USRSCTP_LIBRARY)
      # Include DCEP
@@ -173,11 +130,6 @@ if(BUILD_USRSCTP_LIBRARY)
      list(
           APPEND app_flags
           ENABLE_SCTP_DATA_CHANNEL=1
-     )
-
-     list( 
-          APPEND webrtc_master_demo_include
-          ${DCEP_INCLUDE_PUBLIC_DIRS}
      )
 else()
      list(
@@ -207,5 +159,8 @@ set_source_files_properties(
 )
 
 if( ENABLE_STREAMING_LOOPBACK )
-     add_definitions(-DENABLE_STREAMING_LOOPBACK)
+     list(
+          APPEND app_flags
+          ENABLE_STREAMING_LOOPBACK
+     )
 endif()
