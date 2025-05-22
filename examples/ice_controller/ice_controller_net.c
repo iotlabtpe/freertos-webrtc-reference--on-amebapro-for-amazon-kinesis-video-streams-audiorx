@@ -664,7 +664,7 @@ static void AddSrflxCandidate( IceControllerContext_t * pCtx,
     }
 }
 
-static void AddRelayCandidates( IceControllerContext_t * pCtx )
+void AddRelayCandidates( IceControllerContext_t * pCtx )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     IceResult_t iceResult;
@@ -1109,10 +1109,11 @@ void IceControllerNet_AddLocalCandidates( IceControllerContext_t * pCtx )
 
         if( ICE_CONTROLLER_IS_NAT_CONFIG_SET( pCtx, ICE_CANDIDATE_NAT_TRAVERSAL_CONFIG_SEND_RELAY ) )
         {
-            #if METRIC_PRINT_ENABLED
-            Metric_StartEvent( METRIC_EVENT_ICE_GATHER_RELAY_CANDIDATES );
-            #endif
-            AddRelayCandidates( pCtx );
+            // #if METRIC_PRINT_ENABLED
+            // Metric_StartEvent( METRIC_EVENT_ICE_GATHER_RELAY_CANDIDATES );
+            // #endif
+            // AddRelayCandidates( pCtx );
+            pCtx->gatherRelayCandidate = 1U;
         }
     }
 }
