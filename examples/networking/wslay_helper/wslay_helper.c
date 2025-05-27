@@ -29,6 +29,8 @@
 #include "lwip/sockets.h"
 #include "lwip_netconf.h"
 
+#include "metric.h"
+
 #define NETWORKING_WSLAY_SEND_TIMEOUT_MS ( 10000 )
 #define NETWORKING_WSLAY_RECV_TIMEOUT_MS ( 10000 )
 #define NETWORKING_WSLAY_USER_AGENT_NAME_MAX_LENGTH ( 128 )
@@ -105,6 +107,10 @@ static ssize_t WslaySendCallback( wslay_event_context_ptr pCtx,
     else
     {
         /* Sent successfully. */
+        if( r > 2048 )
+        {
+            Metric_EndEvent( METRIC_EVENT_SEND_SDP_ANSWER );
+        } 
     }
 
     return r;
@@ -133,6 +139,10 @@ static ssize_t WslayRecvCallback( wslay_event_context_ptr pCtx,
     else
     {
         /* Recv successfully. */
+        if( r > 2048 )
+        {
+            Metric_StartEvent( METRIC_EVENT_RECEIVE_SDP_OFFER_TO_CALLBACK );
+        }
     }
 
     return r;
@@ -1141,6 +1151,7 @@ static WebsocketResult_t ReadWebsocketMessage( NetworkingWslayContext_t * pWebso
             ret = NETWORKING_WSLAY_RESULT_FAIL_RECV;
         }
     }
+    Metric_EndEvent( METRIC_EVENT_RECEIVE_SDP_OFFER_TO_WSLAY_EXIT );
 
     return ret;
 }
@@ -1239,7 +1250,7 @@ static void ClearWakeUpSocketEvents( NetworkingWslayContext_t * pWebsocketCtx )
     while( ( recvLength = recvfrom( pWebsocketCtx->socketWakeUp, tempBuffer, sizeof( tempBuffer ), 0,
                                     ( struct sockaddr * ) &addr, ( socklen_t * )&addrLength ) ) > 0 )
     {
-        LogDebug( ( "Clear %d byte on wake up socket", recvLength ) );
+        LogInfo( ( "Clear %d byte on wake up socket", recvLength ) );
     }
 }
 
