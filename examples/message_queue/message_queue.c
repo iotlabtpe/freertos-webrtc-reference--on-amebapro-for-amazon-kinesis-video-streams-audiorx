@@ -23,7 +23,8 @@
 void MessageQueue_Destroy( MessageQueueHandler_t * pMessageQueueHandler,
                            const char * pQueueName )
 {
-    if( pMessageQueueHandler != NULL )
+    if( ( pMessageQueueHandler != NULL ) &&
+        ( pMessageQueueHandler->messageQueue != NULL ) )
     {
         vQueueDelete( pMessageQueueHandler->messageQueue );
     }

@@ -46,8 +46,6 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
                                                          size_t receiveBufferLength,
                                                          IceEndpoint_t * pRemoteIceEndpoint,
                                                          IceCandidatePair_t * pCandidatePair );
-IceControllerResult_t IceControllerNet_DnsLookUp( char * pUrl,
-                                                  IceTransportAddress_t * pIceTransportAddress );
 IceControllerResult_t IceControllerNet_SendPacket( IceControllerContext_t * pCtx,
                                                    IceControllerSocketContext_t * pSocketContext,
                                                    IceEndpoint_t * pRemoteEndpoint,

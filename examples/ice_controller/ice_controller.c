@@ -1666,8 +1666,7 @@ IceControllerResult_t IceController_AddIceServerConfig( IceControllerContext_t *
                                                         IceControllerIceServerConfig_t * pIceServersConfig )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
-    IceControllerResult_t dnsResult;
-    int i;
+    size_t copyCount = 0;
 
     if( ( pCtx == NULL ) ||
         ( pIceServersConfig == NULL ) )
@@ -1709,28 +1708,11 @@ IceControllerResult_t IceController_AddIceServerConfig( IceControllerContext_t *
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
-        memset( pCtx->iceServers, 0, sizeof( pCtx->iceServers ) );
-        pCtx->iceServersCount = 0;
-
-        for( i = 0; i < pIceServersConfig->iceServersCount; i++ )
-        {
-            if( pCtx->iceServersCount >= ICE_CONTROLLER_MAX_ICE_SERVER_COUNT )
-            {
-                LogInfo( ( "No more space to store extra Ice server." ) );
-                break;
-            }
-
-            memcpy( &pCtx->iceServers[ pCtx->iceServersCount ],
-                    &pIceServersConfig->pIceServers[i],
-                    sizeof( IceControllerIceServer_t ) );
-            dnsResult = IceControllerNet_DnsLookUp( pCtx->iceServers[ pCtx->iceServersCount ].url,
-                                                    &pCtx->iceServers[ pCtx->iceServersCount ].iceEndpoint.transportAddress );
-            if( dnsResult == ICE_CONTROLLER_RESULT_OK )
-            {
-                /* Use the server configuration only if the IP address is successfully resolved. */
-                pCtx->iceServersCount++;
-            }
-        }
+        copyCount = pIceServersConfig->iceServersCount > ICE_CONTROLLER_MAX_ICE_SERVER_COUNT ? ICE_CONTROLLER_MAX_ICE_SERVER_COUNT : pIceServersConfig->iceServersCount;
+        memcpy( pCtx->iceServers,
+                pIceServersConfig->pIceServers,
+                copyCount * sizeof( IceControllerIceServer_t ) );
+        pCtx->iceServersCount = copyCount;
     }
 
     return ret;

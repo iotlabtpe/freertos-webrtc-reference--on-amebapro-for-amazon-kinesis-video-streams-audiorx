@@ -33,6 +33,7 @@
 #include "peer_connection_h264_helper.h"
 #include "peer_connection_opus_helper.h"
 #include "networking_utils.h"
+#include "dns_controller.h"
 
 #include "lwip/sockets.h"
 
@@ -1471,6 +1472,7 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionSession_t * pSession,
     char tempName[ 20 ];
     DtlsSession_t * pDtlsSession = NULL;
     static uint8_t initSeq = 0;
+    DnsControllerResult_t dnsResult = DNS_CONTROLLER_RESULT_OK;
 
     /* Avoid unused variable warning. */
     ( void ) pSessionConfig;
@@ -1607,6 +1609,16 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionSession_t * pSession,
         {
             pSession->state = PEER_CONNECTION_SESSION_STATE_INITED;
             pSession->pCtx = &peerConnectionContext;
+        }
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        dnsResult = DnsController_Init();
+        if( dnsResult != DNS_CONTROLLER_RESULT_OK )
+        {
+            LogError( ( "Fail to initialize DNS Controller, result: %d", dnsResult ) );
+            ret = PEER_CONNECTION_RESULT_FAIL_INIT;
         }
     }
 

@@ -28,6 +28,7 @@
 #include "metric.h"
 #endif
 #include "networking_utils.h"
+#include "dns_controller.h"
 
 #define ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_UNKNOWN "UNKNOWN"
 #define ICE_CONTROLLER_STUN_MESSAGE_TYPE_STRING_BINDING_REQUEST "BINDING_REQUEST"
@@ -586,215 +587,382 @@ static void AddHostCandidate( IceControllerContext_t * pCtx,
     }
 }
 
-static void AddSrflxCandidate( IceControllerContext_t * pCtx,
-                               IceEndpoint_t * pLocalIceEndpoint )
+void AddSrflxCandidate( IceControllerContext_t * pCtx,
+                        IceControllerIceServer_t * pIceServer )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
+    IceEndpoint_t localEndpoint = { 0 };
+    size_t localEndpointCount = 1;
     IceResult_t iceResult;
-    uint32_t i;
     IceControllerSocketContext_t * pSocketContext;
     #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
     char ipBuffer[ INET_ADDRSTRLEN ];
     #endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE  */
 
-    for( i = 0; i < pCtx->iceServersCount; i++ )
+    if( ( pCtx == NULL ) ||
+        ( pIceServer == NULL ) )
     {
-        /* Reset ret for every round. */
-        ret = ICE_CONTROLLER_RESULT_OK;
+        LogError( ( "Invalid input, pCtx: %p, pIceServer: %p", pCtx, pIceServer ) );
+        ret = ICE_CONTROLLER_RESULT_FAIL;
+    }
 
-        if( pCtx->iceServers[ i ].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_STUN )
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        /* Collect information from local network interfaces. */
+        localEndpointCount = ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT;
+        GetLocalIPAdresses( &localEndpoint, &localEndpointCount );
+
+        /* Only support IPv4 STUN for now. */
+        if( ( pIceServer->iceEndpoint.transportAddress.family == STUN_ADDRESS_IPv4 ) &&
+            ( localEndpoint.transportAddress.family == pIceServer->iceEndpoint.transportAddress.family ) )
         {
-            /* Not STUN server, no need to create srflx candidate for this server. */
-            continue;
-        }
-        else if( pCtx->iceServers[ i ].iceEndpoint.transportAddress.family != STUN_ADDRESS_IPv4 )
-        {
-            /* For srflx candidate, we only support IPv4 for now. */
-            continue;
+            ret = CreateSocketContext( pCtx, localEndpoint.transportAddress.family, &localEndpoint, NULL, ICE_SOCKET_PROTOCOL_UDP, &pSocketContext );
         }
         else
         {
-            /* Do nothing, coverity happy. */
+            LogWarn( ( "Non IPv4 STUN server, Ice server's family: %d, local endpoint's family: %d", pIceServer->iceEndpoint.transportAddress.family, localEndpoint.transportAddress.family ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL_ADD_SRFLX_CANDIDATE;
         }
+    }
 
-        /* Only support IPv4 STUN for now. */
-        if( ( pCtx->iceServers[ i ].iceEndpoint.transportAddress.family == STUN_ADDRESS_IPv4 ) &&
-            ( pLocalIceEndpoint->transportAddress.family == pCtx->iceServers[ i ].iceEndpoint.transportAddress.family ) )
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        if( xSemaphoreTake( pCtx->iceMutex, portMAX_DELAY ) == pdTRUE )
         {
-            ret = CreateSocketContext( pCtx, pLocalIceEndpoint->transportAddress.family, pLocalIceEndpoint, NULL, ICE_SOCKET_PROTOCOL_UDP, &pSocketContext );
-        }
+            iceResult = Ice_AddServerReflexiveCandidate( &pCtx->iceContext,
+                                                         &localEndpoint );
+            xSemaphoreGive( pCtx->iceMutex );
 
-        if( ret == ICE_CONTROLLER_RESULT_OK )
-        {
-            if( xSemaphoreTake( pCtx->iceMutex, portMAX_DELAY ) == pdTRUE )
+            if( iceResult != ICE_RESULT_OK )
             {
-                iceResult = Ice_AddServerReflexiveCandidate( &pCtx->iceContext,
-                                                             pLocalIceEndpoint );
-                xSemaphoreGive( pCtx->iceMutex );
-
-                if( iceResult != ICE_RESULT_OK )
-                {
-                    /* Free resource that already created. */
-                    LogError( ( "Ice_AddServerReflexiveCandidate fail, result: %d", iceResult ) );
-                    IceControllerNet_FreeSocketContext( pCtx, pSocketContext );
-                    ret = ICE_CONTROLLER_RESULT_FAIL_ADD_HOST_CANDIDATE;
-                    break;
-                }
-            }
-            else
-            {
-                LogError( ( "Failed to add server reflexive candidate: mutex lock acquisition." ) );
-                ret = ICE_CONTROLLER_RESULT_FAIL_MUTEX_TAKE;
+                /* Free resource that already created. */
+                LogError( ( "Ice_AddServerReflexiveCandidate fail, result: %d", iceResult ) );
+                IceControllerNet_FreeSocketContext( pCtx, pSocketContext );
+                ret = ICE_CONTROLLER_RESULT_FAIL_ADD_SRFLX_CANDIDATE;
             }
         }
-
-        if( ret == ICE_CONTROLLER_RESULT_OK )
+        else
         {
-            IceControllerNet_UpdateSocketContext( pCtx, pSocketContext, ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CREATE, &pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ], NULL, &pCtx->iceServers[ i ] );
-
-            LogInfo( ( "Created srflx candidate with fd %d, ID: 0x%04x",
-                       pSocketContext->socketFd,
-                       pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ].candidateId ) );
-
-            LogVerbose( ( "srflx candidate's local IP/port: %s/%d",
-                          IceControllerNet_LogIpAddressInfo( pLocalIceEndpoint, ipBuffer, sizeof( ipBuffer ) ),
-                          pLocalIceEndpoint->transportAddress.port ) );
-            pCtx->metrics.pendingSrflxCandidateNum++;
+            LogError( ( "Failed to add server reflexive candidate: mutex lock acquisition." ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL_MUTEX_TAKE;
         }
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        IceControllerNet_UpdateSocketContext( pCtx, pSocketContext, ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CREATE, &pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ], NULL, pIceServer );
+
+        LogInfo( ( "Created srflx candidate with fd %d, ID: 0x%04x",
+                   pSocketContext->socketFd,
+                   pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ].candidateId ) );
+
+        LogVerbose( ( "srflx candidate's local IP/port: %s/%d",
+                      IceControllerNet_LogIpAddressInfo( &localEndpoint, ipBuffer, sizeof( ipBuffer ) ),
+                      localEndpoint.transportAddress.port ) );
+        pCtx->metrics.pendingSrflxCandidateNum++;
     }
 }
 
-static void AddRelayCandidates( IceControllerContext_t * pCtx )
+void AddRelayCandidate( IceControllerContext_t * pCtx,
+                        IceControllerIceServer_t * pIceServer )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     IceResult_t iceResult;
-    uint32_t i;
-    IceControllerSocketContext_t * pSocketContext = NULL;
+    IceControllerSocketContext_t * pSocketContext;
     #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
     char ipBuffer[ INET_ADDRSTRLEN ];
     #endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE  */
 
-    if( pCtx == NULL )
+    if( ( pCtx == NULL ) ||
+        ( pIceServer == NULL ) )
     {
-        LogError( ( "Invalid input, pCtx: %p", pCtx ) );
-        ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
+        LogError( ( "Invalid input, pCtx: %p, pIceServer: %p", pCtx, pIceServer ) );
+        ret = ICE_CONTROLLER_RESULT_FAIL;
     }
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
         /* Loop through all ICE server configs and start allocate TURN with UDP and TLS TURN servers. */
-        for( i = 0; i < pCtx->iceServersCount; i++ )
+        if( pIceServer->iceEndpoint.transportAddress.family != STUN_ADDRESS_IPv4 )
         {
-            /* Reset ret for every round. */
-            ret = ICE_CONTROLLER_RESULT_OK;
-
-            if( pCtx->iceServers[i].iceEndpoint.transportAddress.family != STUN_ADDRESS_IPv4 )
-            {
-                LogInfo( ( "Only IPv4 TURN server is supported." ) );
-                continue;
-            }
-            else if( ( pCtx->iceServers[i].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURN ) &&
-                     ( pCtx->iceServers[i].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURNS ) )
-            {
-                /* Skip STUN servers. */
-                continue;
-            }
-            else if( ( pCtx->iceServers[i].protocol != ICE_SOCKET_PROTOCOL_UDP ) &&
-                     ( pCtx->iceServers[i].protocol != ICE_SOCKET_PROTOCOL_TCP ) )
-            {
-                LogInfo( ( "Unknown TURN Server, protocol: %d, Server URL: %.*s",
-                           pCtx->iceServers[i].protocol,
-                           ( int ) pCtx->iceServers[i].urlLength,
-                           pCtx->iceServers[i].url ) );
-                continue;
-            }
-            else if( ( pCtx->iceServers[i].protocol == ICE_SOCKET_PROTOCOL_UDP ) &&
-                     ( pCtx->iceServers[i].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURN ) )
-            {
-                /* For now we do not support DTLS connection over TURN server. */
-                LogInfo( ( "Only pure UDP TURN server is supported, serverType: %d, Server URL: %.*s",
-                           pCtx->iceServers[i].serverType,
-                           ( int ) pCtx->iceServers[i].urlLength,
-                           pCtx->iceServers[i].url ) );
-                continue;
-            }
-            else if( ( pCtx->iceServers[i].protocol == ICE_SOCKET_PROTOCOL_TCP ) &&
-                     ( pCtx->iceServers[i].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURNS ) )
-            {
-                /* For now we only support TLS connection over TURN server. */
-                LogInfo( ( "Only TLS/TCP TURN server is supported, serverType: %d, Server URL: %.*s",
-                           pCtx->iceServers[i].serverType,
-                           ( int ) pCtx->iceServers[i].urlLength,
-                           pCtx->iceServers[i].url ) );
-                continue;
-            }
-            else
-            {
-                LogInfo( ( "Creating connection with TURN server %.*s, protocol: %s.",
-                           ( int ) pCtx->iceServers[i].urlLength,
-                           pCtx->iceServers[i].url,
-                           pCtx->iceServers[i].protocol == ICE_SOCKET_PROTOCOL_UDP ? "UDP" : "TLS" ) );
-            }
-
-            ret = CreateSocketContext( pCtx, STUN_ADDRESS_IPv4, NULL, &pCtx->iceServers[i].iceEndpoint, pCtx->iceServers[i].protocol, &pSocketContext );
-
-            if( ret == ICE_CONTROLLER_RESULT_OK )
-            {
-                if( xSemaphoreTake( pCtx->iceMutex, portMAX_DELAY ) == pdTRUE )
-                {
-                    iceResult = Ice_AddRelayCandidate( &pCtx->iceContext, &pCtx->iceServers[i].iceEndpoint, pCtx->iceServers[i].userName, pCtx->iceServers[i].userNameLength, pCtx->iceServers[i].password, pCtx->iceServers[i].passwordLength );
-                    xSemaphoreGive( pCtx->iceMutex );
-
-                    if( iceResult != ICE_RESULT_OK )
-                    {
-                        /* Free resource that already created. */
-                        LogError( ( "Ice_AddRelayCandidate fail, result: %d", iceResult ) );
-                        IceControllerNet_FreeSocketContext( pCtx, pSocketContext );
-                        ret = ICE_CONTROLLER_RESULT_FAIL_ADD_RELAY_CANDIDATE;
-                        break;
-                    }
-                }
-                else
-                {
-                    LogError( ( "Failed to add relay candidate: mutex lock acquisition." ) );
-                    ret = ICE_CONTROLLER_RESULT_FAIL_MUTEX_TAKE;
-                }
-            }
-
-            if( ret == ICE_CONTROLLER_RESULT_OK )
-            {
-                IceControllerNet_UpdateSocketContext( pCtx,
-                                                      pSocketContext,
-                                                      ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CREATE,
-                                                      &( pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ] ),
-                                                      NULL,
-                                                      &( pCtx->iceServers[ i ] ) );
-
-                LogInfo( ( "Created relay candidate with fd %d, ID: 0x%04x",
-                           pSocketContext->socketFd,
-                           pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ].candidateId ) );
-                LogVerbose( ( "relay candidate's local IP/port: %s/%d",
-                              IceControllerNet_LogIpAddressInfo( &pCtx->iceServers[ i ].iceEndpoint, ipBuffer, sizeof( ipBuffer ) ),
-                              pCtx->iceServers[ i ].iceEndpoint.transportAddress.port ) );
-
-                pCtx->metrics.pendingRelayCandidateNum++;
-            }
-            else if( ret == ICE_CONTROLLER_RESULT_CONNECTION_IN_PROGRESS )
-            {
-                IceControllerNet_UpdateSocketContext( pCtx,
-                                                      pSocketContext,
-                                                      ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CONNECTION_IN_PROGRESS,
-                                                      NULL,
-                                                      NULL,
-                                                      &( pCtx->iceServers[ i ] ) );
-
-                LogVerbose( ( "Connection in-progress with TURN server for socket fd %d...", pSocketContext->socketFd ) );
-
-                pCtx->metrics.pendingRelayCandidateNum++;
-            }
+            LogInfo( ( "Only IPv4 TURN server is supported." ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL_ADD_RELAY_CANDIDATE;
         }
     }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        LogInfo( ( "Creating connection with TURN server %.*s, protocol: %s.",
+                   ( int ) pIceServer->urlLength,
+                   pIceServer->url,
+                   pIceServer->protocol == ICE_SOCKET_PROTOCOL_UDP ? "UDP" : "TLS" ) );
+        ret = CreateSocketContext( pCtx, STUN_ADDRESS_IPv4, NULL, &pIceServer->iceEndpoint, pIceServer->protocol, &pSocketContext );
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        if( xSemaphoreTake( pCtx->iceMutex, portMAX_DELAY ) == pdTRUE )
+        {
+            iceResult = Ice_AddRelayCandidate( &pCtx->iceContext, &pIceServer->iceEndpoint, pIceServer->userName, pIceServer->userNameLength, pIceServer->password, pIceServer->passwordLength );
+            xSemaphoreGive( pCtx->iceMutex );
+
+            if( iceResult != ICE_RESULT_OK )
+            {
+                /* Free resource that already created. */
+                LogError( ( "Ice_AddRelayCandidate fail, result: %d", iceResult ) );
+                IceControllerNet_FreeSocketContext( pCtx, pSocketContext );
+                ret = ICE_CONTROLLER_RESULT_FAIL_ADD_RELAY_CANDIDATE;
+            }
+        }
+        else
+        {
+            LogError( ( "Failed to add relay candidate: mutex lock acquisition." ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL_MUTEX_TAKE;
+        }
+    }
+
+    if( ret == ICE_CONTROLLER_RESULT_OK )
+    {
+        IceControllerNet_UpdateSocketContext( pCtx,
+                                              pSocketContext,
+                                              ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CREATE,
+                                              &( pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ] ),
+                                              NULL,
+                                              pIceServer );
+
+        LogInfo( ( "Created relay candidate with fd %d, ID: 0x%04x",
+                   pSocketContext->socketFd,
+                   pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ].candidateId ) );
+        LogVerbose( ( "relay candidate's local IP/port: %s/%d",
+                      IceControllerNet_LogIpAddressInfo( pIceServer->iceEndpoint, ipBuffer, sizeof( ipBuffer ) ),
+                      pIceServer->iceEndpoint.transportAddress.port ) );
+
+        pCtx->metrics.pendingRelayCandidateNum++;
+    }
+    else if( ret == ICE_CONTROLLER_RESULT_CONNECTION_IN_PROGRESS )
+    {
+        IceControllerNet_UpdateSocketContext( pCtx,
+                                              pSocketContext,
+                                              ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CONNECTION_IN_PROGRESS,
+                                              NULL,
+                                              NULL,
+                                              pIceServer );
+
+        LogVerbose( ( "Connection in-progress with TURN server for socket fd %d...", pSocketContext->socketFd ) );
+
+        pCtx->metrics.pendingRelayCandidateNum++;
+    }
 }
+
+// void AddSrflxCandidate( IceControllerContext_t * pCtx,
+//                         IceEndpoint_t * pLocalIceEndpoint )
+// {
+//     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
+//     IceResult_t iceResult;
+//     uint32_t i;
+//     IceControllerSocketContext_t * pSocketContext;
+//     #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+//     char ipBuffer[ INET_ADDRSTRLEN ];
+//     #endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE  */
+
+//     for( i = 0; i < pCtx->iceServersCount; i++ )
+//     {
+//         /* Reset ret for every round. */
+//         ret = ICE_CONTROLLER_RESULT_OK;
+
+//         if( pCtx->iceServers[ i ].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_STUN )
+//         {
+//             /* Not STUN server, no need to create srflx candidate for this server. */
+//             continue;
+//         }
+//         else if( pCtx->iceServers[ i ].iceEndpoint.transportAddress.family != STUN_ADDRESS_IPv4 )
+//         {
+//             /* For srflx candidate, we only support IPv4 for now. */
+//             continue;
+//         }
+//         else
+//         {
+//             /* Do nothing, coverity happy. */
+//         }
+
+//         /* Only support IPv4 STUN for now. */
+//         if( ( pCtx->iceServers[ i ].iceEndpoint.transportAddress.family == STUN_ADDRESS_IPv4 ) &&
+//             ( pLocalIceEndpoint->transportAddress.family == pCtx->iceServers[ i ].iceEndpoint.transportAddress.family ) )
+//         {
+//             ret = CreateSocketContext( pCtx, pLocalIceEndpoint->transportAddress.family, pLocalIceEndpoint, NULL, ICE_SOCKET_PROTOCOL_UDP, &pSocketContext );
+//         }
+
+//         if( ret == ICE_CONTROLLER_RESULT_OK )
+//         {
+//             if( xSemaphoreTake( pCtx->iceMutex, portMAX_DELAY ) == pdTRUE )
+//             {
+//                 iceResult = Ice_AddServerReflexiveCandidate( &pCtx->iceContext,
+//                                                              pLocalIceEndpoint );
+//                 xSemaphoreGive( pCtx->iceMutex );
+
+//                 if( iceResult != ICE_RESULT_OK )
+//                 {
+//                     /* Free resource that already created. */
+//                     LogError( ( "Ice_AddServerReflexiveCandidate fail, result: %d", iceResult ) );
+//                     IceControllerNet_FreeSocketContext( pCtx, pSocketContext );
+//                     ret = ICE_CONTROLLER_RESULT_FAIL_ADD_HOST_CANDIDATE;
+//                     break;
+//                 }
+//             }
+//             else
+//             {
+//                 LogError( ( "Failed to add server reflexive candidate: mutex lock acquisition." ) );
+//                 ret = ICE_CONTROLLER_RESULT_FAIL_MUTEX_TAKE;
+//             }
+//         }
+
+//         if( ret == ICE_CONTROLLER_RESULT_OK )
+//         {
+//             IceControllerNet_UpdateSocketContext( pCtx, pSocketContext, ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CREATE, &pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ], NULL, &pCtx->iceServers[ i ] );
+
+//             LogInfo( ( "Created srflx candidate with fd %d, ID: 0x%04x",
+//                        pSocketContext->socketFd,
+//                        pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ].candidateId ) );
+
+//             LogVerbose( ( "srflx candidate's local IP/port: %s/%d",
+//                           IceControllerNet_LogIpAddressInfo( pLocalIceEndpoint, ipBuffer, sizeof( ipBuffer ) ),
+//                           pLocalIceEndpoint->transportAddress.port ) );
+//             pCtx->metrics.pendingSrflxCandidateNum++;
+//         }
+//     }
+// }
+
+// static void AddRelayCandidates( IceControllerContext_t * pCtx )
+// {
+//     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
+//     IceResult_t iceResult;
+//     uint32_t i;
+//     IceControllerSocketContext_t * pSocketContext = NULL;
+//     #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE
+//     char ipBuffer[ INET_ADDRSTRLEN ];
+//     #endif /* #if LIBRARY_LOG_LEVEL >= LOG_VERBOSE  */
+
+//     if( pCtx == NULL )
+//     {
+//         LogError( ( "Invalid input, pCtx: %p", pCtx ) );
+//         ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
+//     }
+
+//     if( ret == ICE_CONTROLLER_RESULT_OK )
+//     {
+//         /* Loop through all ICE server configs and start allocate TURN with UDP and TLS TURN servers. */
+//         for( i = 0; i < pCtx->iceServersCount; i++ )
+//         {
+//             /* Reset ret for every round. */
+//             ret = ICE_CONTROLLER_RESULT_OK;
+
+//             if( pCtx->iceServers[i].iceEndpoint.transportAddress.family != STUN_ADDRESS_IPv4 )
+//             {
+//                 LogInfo( ( "Only IPv4 TURN server is supported." ) );
+//                 continue;
+//             }
+//             else if( ( pCtx->iceServers[i].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURN ) &&
+//                      ( pCtx->iceServers[i].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURNS ) )
+//             {
+//                 /* Skip STUN servers. */
+//                 continue;
+//             }
+//             else if( ( pCtx->iceServers[i].protocol != ICE_SOCKET_PROTOCOL_UDP ) &&
+//                      ( pCtx->iceServers[i].protocol != ICE_SOCKET_PROTOCOL_TCP ) )
+//             {
+//                 LogInfo( ( "Unknown TURN Server, protocol: %d, Server URL: %.*s",
+//                            pCtx->iceServers[i].protocol,
+//                            ( int ) pCtx->iceServers[i].urlLength,
+//                            pCtx->iceServers[i].url ) );
+//                 continue;
+//             }
+//             else if( ( pCtx->iceServers[i].protocol == ICE_SOCKET_PROTOCOL_UDP ) &&
+//                      ( pCtx->iceServers[i].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURN ) )
+//             {
+//                 /* For now we do not support DTLS connection over TURN server. */
+//                 LogInfo( ( "Only pure UDP TURN server is supported, serverType: %d, Server URL: %.*s",
+//                            pCtx->iceServers[i].serverType,
+//                            ( int ) pCtx->iceServers[i].urlLength,
+//                            pCtx->iceServers[i].url ) );
+//                 continue;
+//             }
+//             else if( ( pCtx->iceServers[i].protocol == ICE_SOCKET_PROTOCOL_TCP ) &&
+//                      ( pCtx->iceServers[i].serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURNS ) )
+//             {
+//                 /* For now we only support TLS connection over TURN server. */
+//                 LogInfo( ( "Only TLS/TCP TURN server is supported, serverType: %d, Server URL: %.*s",
+//                            pCtx->iceServers[i].serverType,
+//                            ( int ) pCtx->iceServers[i].urlLength,
+//                            pCtx->iceServers[i].url ) );
+//                 continue;
+//             }
+//             else
+//             {
+//                 LogInfo( ( "Creating connection with TURN server %.*s, protocol: %s.",
+//                            ( int ) pCtx->iceServers[i].urlLength,
+//                            pCtx->iceServers[i].url,
+//                            pCtx->iceServers[i].protocol == ICE_SOCKET_PROTOCOL_UDP ? "UDP" : "TLS" ) );
+//             }
+
+//             ret = CreateSocketContext( pCtx, STUN_ADDRESS_IPv4, NULL, &pCtx->iceServers[i].iceEndpoint, pCtx->iceServers[i].protocol, &pSocketContext );
+
+//             if( ret == ICE_CONTROLLER_RESULT_OK )
+//             {
+//                 if( xSemaphoreTake( pCtx->iceMutex, portMAX_DELAY ) == pdTRUE )
+//                 {
+//                     iceResult = Ice_AddRelayCandidate( &pCtx->iceContext, &pCtx->iceServers[i].iceEndpoint, pCtx->iceServers[i].userName, pCtx->iceServers[i].userNameLength, pCtx->iceServers[i].password, pCtx->iceServers[i].passwordLength );
+//                     xSemaphoreGive( pCtx->iceMutex );
+
+//                     if( iceResult != ICE_RESULT_OK )
+//                     {
+//                         /* Free resource that already created. */
+//                         LogError( ( "Ice_AddRelayCandidate fail, result: %d", iceResult ) );
+//                         IceControllerNet_FreeSocketContext( pCtx, pSocketContext );
+//                         ret = ICE_CONTROLLER_RESULT_FAIL_ADD_RELAY_CANDIDATE;
+//                         break;
+//                     }
+//                 }
+//                 else
+//                 {
+//                     LogError( ( "Failed to add relay candidate: mutex lock acquisition." ) );
+//                     ret = ICE_CONTROLLER_RESULT_FAIL_MUTEX_TAKE;
+//                 }
+//             }
+
+//             if( ret == ICE_CONTROLLER_RESULT_OK )
+//             {
+//                 IceControllerNet_UpdateSocketContext( pCtx,
+//                                                       pSocketContext,
+//                                                       ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CREATE,
+//                                                       &( pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ] ),
+//                                                       NULL,
+//                                                       &( pCtx->iceServers[ i ] ) );
+
+//                 LogInfo( ( "Created relay candidate with fd %d, ID: 0x%04x",
+//                            pSocketContext->socketFd,
+//                            pCtx->iceContext.pLocalCandidates[ pCtx->iceContext.numLocalCandidates - 1 ].candidateId ) );
+//                 LogVerbose( ( "relay candidate's local IP/port: %s/%d",
+//                               IceControllerNet_LogIpAddressInfo( &pCtx->iceServers[ i ].iceEndpoint, ipBuffer, sizeof( ipBuffer ) ),
+//                               pCtx->iceServers[ i ].iceEndpoint.transportAddress.port ) );
+
+//                 pCtx->metrics.pendingRelayCandidateNum++;
+//             }
+//             else if( ret == ICE_CONTROLLER_RESULT_CONNECTION_IN_PROGRESS )
+//             {
+//                 IceControllerNet_UpdateSocketContext( pCtx,
+//                                                       pSocketContext,
+//                                                       ICE_CONTROLLER_SOCKET_CONTEXT_STATE_CONNECTION_IN_PROGRESS,
+//                                                       NULL,
+//                                                       NULL,
+//                                                       &( pCtx->iceServers[ i ] ) );
+
+//                 LogVerbose( ( "Connection in-progress with TURN server for socket fd %d...", pSocketContext->socketFd ) );
+
+//                 pCtx->metrics.pendingRelayCandidateNum++;
+//             }
+//         }
+//     }
+// }
 
 static IceControllerResult_t SendBindingResponse( IceControllerContext_t * pCtx,
                                                   IceControllerSocketContext_t * pSocketContext,
@@ -1067,8 +1235,8 @@ IceControllerResult_t IceControllerNet_SendPacket( IceControllerContext_t * pCtx
         {
             /* Disconnecting nominated socket connection, closing. */
             LogWarn( ( "Unable to send packet through nominated socket, closing session: %.*s",
-                     ( int ) pCtx->iceContext.creds.combinedUsernameLength,
-                     pCtx->iceContext.creds.pCombinedUsername ) );
+                       ( int ) pCtx->iceContext.creds.combinedUsernameLength,
+                       pCtx->iceContext.creds.pCombinedUsername ) );
 
             /* Notify peer connection for closing the connection. */
             if( pCtx->onIceEventCallbackFunc )
@@ -1090,10 +1258,156 @@ IceControllerResult_t IceControllerNet_SendPacket( IceControllerContext_t * pCtx
     return ret;
 }
 
+static IceControllerResult_t AllowIceServer( IceControllerContext_t * pCtx,
+                                             IceControllerIceServer_t * pIceServer )
+{
+    IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
+
+    /* We allow STUN for srflx candidate, and UDP/TLS TURN servers for relay candidates. */
+    if( pIceServer->serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_STUN )
+    {
+        if( !ICE_CONTROLLER_IS_NAT_CONFIG_SET( pCtx, ICE_CANDIDATE_NAT_TRAVERSAL_CONFIG_SEND_SRFLX ) )
+        {
+            LogDebug( ( "Server Reflexive candidate is disabled." ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL;
+        }
+    }
+    else if( ( pIceServer->serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_TURN ) ||
+             ( pIceServer->serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_TURNS ) )
+    {
+        if( !ICE_CONTROLLER_IS_NAT_CONFIG_SET( pCtx, ICE_CANDIDATE_NAT_TRAVERSAL_CONFIG_SEND_RELAY ) )
+        {
+            LogDebug( ( "Relay candidate is disabled." ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL;
+        }
+        else if( ( pIceServer->protocol != ICE_SOCKET_PROTOCOL_UDP ) &&
+                 ( pIceServer->protocol != ICE_SOCKET_PROTOCOL_TCP ) )
+        {
+            LogInfo( ( "Unknown TURN Server, protocol: %d, Server URL: %.*s",
+                       pIceServer->protocol,
+                       ( int ) pIceServer->urlLength,
+                       pIceServer->url ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL;
+        }
+        else if( ( pIceServer->protocol == ICE_SOCKET_PROTOCOL_UDP ) &&
+                 ( pIceServer->serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURN ) )
+        {
+            /* For now we do not support DTLS connection over TURN server. */
+            LogInfo( ( "Only pure UDP TURN server is supported, serverType: %d, Server URL: %.*s",
+                       pIceServer->serverType,
+                       ( int ) pIceServer->urlLength,
+                       pIceServer->url ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL;
+        }
+        else if( ( pIceServer->protocol == ICE_SOCKET_PROTOCOL_TCP ) &&
+                 ( pIceServer->serverType != ICE_CONTROLLER_ICE_SERVER_TYPE_TURNS ) )
+        {
+            /* For now we only support TLS connection over TURN server. */
+            LogInfo( ( "Only TLS/TCP TURN server is supported, serverType: %d, Server URL: %.*s",
+                       pIceServer->serverType,
+                       ( int ) pIceServer->urlLength,
+                       pIceServer->url ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL;
+        }
+        else
+        {
+            /* Empty else marker. */
+        }
+    }
+    else
+    {
+        LogWarn( ( "Unknown ICE server type: %d", pIceServer->serverType ) );
+        ret = ICE_CONTROLLER_RESULT_FAIL;
+    }
+
+    return ret;
+}
+
+static IceControllerResult_t StoreDnsResponse( IceControllerIceServer_t * pIceServer,
+                                               DnsControllerIp_t * pIp )
+{
+    IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
+
+    do
+    {
+        if( pIp->type == DNS_ADDRESS_TYPE_IPV4 )
+        {
+            pIceServer->iceEndpoint.transportAddress.family = STUN_ADDRESS_IPv4;
+            memcpy( pIceServer->iceEndpoint.transportAddress.address, &pIp->address.ipv4, STUN_IPV4_ADDRESS_SIZE );
+            break;
+        }
+        else if( pIp->type == DNS_ADDRESS_TYPE_IPV6 )
+        {
+            pIceServer->iceEndpoint.transportAddress.family = STUN_ADDRESS_IPv6;
+            memcpy( pIceServer->iceEndpoint.transportAddress.address, &( pIp->address.ipv6[ 0 ] ), STUN_IPV6_ADDRESS_SIZE );
+            break;
+        }
+        else
+        {
+            LogWarn( ( "Unknown DNS response IP type: %d", pIp->type ) );
+            ret = ICE_CONTROLLER_RESULT_FAIL;
+        }
+    } while( 0 );
+
+    return ret;
+}
+
+static void HandleDnsResponseCallback( void * pCustomContext,
+                                       uint32_t requestId,
+                                       DnsControllerIp_t * pIp,
+                                       DnsControllerResult_t result )
+{
+    IceControllerContext_t * pCtx = ( IceControllerContext_t * ) pCustomContext;
+    IceControllerResult_t iceControllerResult = ICE_CONTROLLER_RESULT_OK;
+
+    if( result == DNS_CONTROLLER_RESULT_OK )
+    {
+        do
+        {
+            /* Input check. */
+            if( requestId >= ICE_CONTROLLER_MAX_ICE_SERVER_COUNT )
+            {
+                LogError( ( "Invalid DNS request ID: %lu", requestId ) );
+                break;
+            }
+
+            /* Store DNS result into context. */
+            iceControllerResult = StoreDnsResponse( &pCtx->iceServers[ requestId ], pIp );
+            if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
+            {
+                LogError( ( "Fail to store DNS response: %d", iceControllerResult ) );
+                break;
+            }
+
+            /* Create corresponding local candidate. */
+            if( pCtx->iceServers[ requestId ].serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_STUN )
+            {
+                AddSrflxCandidate( pCtx, &pCtx->iceServers[ requestId ] );
+            }
+            else if( ( pCtx->iceServers[ requestId ].serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_TURN ) ||
+                    ( pCtx->iceServers[ requestId ].serverType == ICE_CONTROLLER_ICE_SERVER_TYPE_TURNS ) )
+            {
+                AddRelayCandidate( pCtx, &pCtx->iceServers[ requestId ] );
+            }
+            else
+            {
+                LogError( ( "Unexpected DNS response for Ice server type: %d", pCtx->iceServers[ requestId ].serverType ) );
+            }
+        } while( 0 );
+    }
+}
+
 void IceControllerNet_AddLocalCandidates( IceControllerContext_t * pCtx )
 {
     IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
     uint32_t i;
+    IceEndpoint_t localEndpoint = { 0 };
+    size_t localEndpointCount = 1;
+    DnsControllerResult_t dnsResult = DNS_CONTROLLER_RESULT_OK;
+    DnsRequest_t dnsRequest = {
+        .callbackFunc = HandleDnsResponseCallback,
+        .pCustomContext = pCtx,
+    };
 
     if( pCtx == NULL )
     {
@@ -1104,38 +1418,77 @@ void IceControllerNet_AddLocalCandidates( IceControllerContext_t * pCtx )
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
         /* Collect information from local network interfaces. */
-        pCtx->localIceEndpointsCount = ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT;
-        GetLocalIPAdresses( pCtx->localEndpoints, &pCtx->localIceEndpointsCount );
+        localEndpointCount = ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT;
+        GetLocalIPAdresses( &localEndpoint, &localEndpointCount );
 
         /* Start gathering local candidates. */
-        for( i = 0; i < pCtx->localIceEndpointsCount; i++ )
+        for( i = 0; i < localEndpointCount; i++ )
         {
             if( ICE_CONTROLLER_IS_NAT_CONFIG_SET( pCtx, ICE_CANDIDATE_NAT_TRAVERSAL_CONFIG_SEND_HOST ) )
             {
                 #if METRIC_PRINT_ENABLED
                 Metric_StartEvent( METRIC_EVENT_ICE_GATHER_HOST_CANDIDATES );
                 #endif
-                AddHostCandidate( pCtx, &pCtx->localEndpoints[i] );
+                AddHostCandidate( pCtx, &localEndpoint );
                 #if METRIC_PRINT_ENABLED
                 Metric_EndEvent( METRIC_EVENT_ICE_GATHER_HOST_CANDIDATES );
                 #endif
             }
 
-            if( ICE_CONTROLLER_IS_NAT_CONFIG_SET( pCtx, ICE_CANDIDATE_NAT_TRAVERSAL_CONFIG_SEND_SRFLX ) )
-            {
-                #if METRIC_PRINT_ENABLED
-                Metric_StartEvent( METRIC_EVENT_ICE_GATHER_SRFLX_CANDIDATES );
-                #endif
-                AddSrflxCandidate( pCtx, &pCtx->localEndpoints[i] );
-            }
+            // if( ICE_CONTROLLER_IS_NAT_CONFIG_SET( pCtx, ICE_CANDIDATE_NAT_TRAVERSAL_CONFIG_SEND_SRFLX ) )
+            // {
+            //     #if METRIC_PRINT_ENABLED
+            //     Metric_StartEvent( METRIC_EVENT_ICE_GATHER_SRFLX_CANDIDATES );
+            //     #endif
+            //     AddSrflxCandidate( pCtx, &localEndpoint );
+            // }
         }
 
-        if( ICE_CONTROLLER_IS_NAT_CONFIG_SET( pCtx, ICE_CANDIDATE_NAT_TRAVERSAL_CONFIG_SEND_RELAY ) )
+        // if( ICE_CONTROLLER_IS_NAT_CONFIG_SET( pCtx, ICE_CANDIDATE_NAT_TRAVERSAL_CONFIG_SEND_RELAY ) )
+        // {
+        //     #if METRIC_PRINT_ENABLED
+        //     Metric_StartEvent( METRIC_EVENT_ICE_GATHER_RELAY_CANDIDATES );
+        //     #endif
+        //     AddRelayCandidates( pCtx );
+        // }
+        LogInfo( ( "Have %u Ice Servers, first URL: %.*s",
+                   pCtx->iceServersCount,
+                   pCtx->iceServers[0].urlLength,
+                   pCtx->iceServers[0].url ) );
+        for( i = 0; i < pCtx->iceServersCount; i++ )
         {
-            #if METRIC_PRINT_ENABLED
-            Metric_StartEvent( METRIC_EVENT_ICE_GATHER_RELAY_CANDIDATES );
-            #endif
-            AddRelayCandidates( pCtx );
+            if( pCtx->iceServers[ i ].urlLength > DNS_CONTROLLER_MAX_DOMAIN_NAME_LENGTH )
+            {
+                LogWarn( ( "Domain name length (%u) is more than max length", pCtx->iceServers[ i ].urlLength ) );
+                continue;
+            }
+
+            if( AllowIceServer( pCtx, &pCtx->iceServers[ i ] ) != ICE_CONTROLLER_RESULT_OK )
+            {
+                LogInfo( ( "Ice Server (%.*s) is not allowed",
+                           ( int ) pCtx->iceServers[ i ].urlLength,
+                           pCtx->iceServers[ i ].url ) );
+                continue;
+            }
+
+            LogInfo( ( "Querying URL %lu: %.*s", i,
+                       pCtx->iceServers[i].urlLength,
+                       pCtx->iceServers[i].url ) );
+            dnsRequest.requestId = ( uint32_t ) i;
+            /* domain name must be null terminated */
+            memcpy( &( dnsRequest.domainName[ 0 ] ),
+                    &( pCtx->iceServers[ i ].url[ 0 ] ),
+                    pCtx->iceServers[ i ].urlLength );
+            dnsRequest.domainName[ pCtx->iceServers[ i ].urlLength ] = '\0';
+            dnsResult = DnsController_SubmitQuery( &dnsRequest );
+            if( dnsResult != DNS_CONTROLLER_RESULT_OK )
+            {
+                LogWarn( ( "Fail to submit DNS query, result: %d, URL: %.*s",
+                           dnsResult,
+                           ( int ) pCtx->iceServers[ i ].urlLength,
+                           &( pCtx->iceServers[ i ].url[ 0 ] ) ) );
+                continue;
+            }
         }
     }
 }
@@ -1186,7 +1539,7 @@ IceControllerResult_t IceControllerNet_ExecuteTlsHandshake( IceControllerContext
             LogVerbose( ( "Connection with TURN server successful for socket fd %d", pSocketContext->socketFd ) );
 
             if( ( isIceLockTakenBeforeCall != 0U ) ||
-            ( xSemaphoreTake( pCtx->iceMutex, portMAX_DELAY ) == pdTRUE ) )
+                ( xSemaphoreTake( pCtx->iceMutex, portMAX_DELAY ) == pdTRUE ) )
             {
                 iceResult = Ice_AddRelayCandidate( &( pCtx->iceContext ),
                                                    &( pSocketContext->pIceServer->iceEndpoint ),
@@ -1551,60 +1904,6 @@ IceControllerResult_t IceControllerNet_HandleStunPacket( IceControllerContext_t 
                            pReceiveBuffer[ 0 ], pReceiveBuffer[ 1 ] ) );
                 break;
         }
-    }
-
-    return ret;
-}
-
-IceControllerResult_t IceControllerNet_DnsLookUp( char * pUrl,
-                                                  IceTransportAddress_t * pIceTransportAddress )
-{
-    IceControllerResult_t ret = ICE_CONTROLLER_RESULT_OK;
-    int dnsResult;
-    struct addrinfo * pResult = NULL;
-    struct addrinfo * pIterator;
-    struct sockaddr_in * ipv4Address;
-    struct sockaddr_in6 * ipv6Address;
-
-    if( ( pUrl == NULL ) || ( pIceTransportAddress == NULL ) )
-    {
-        ret = ICE_CONTROLLER_RESULT_BAD_PARAMETER;
-    }
-
-    if( ret == ICE_CONTROLLER_RESULT_OK )
-    {
-        dnsResult = getaddrinfo( pUrl, NULL, NULL, &pResult );
-        if( dnsResult != 0 )
-        {
-            LogWarn( ( "DNS query failing, url: %s, result: %d", pUrl, dnsResult ) );
-            ret = ICE_CONTROLLER_RESULT_FAIL_DNS_QUERY;
-        }
-    }
-
-    if( ret == ICE_CONTROLLER_RESULT_OK )
-    {
-        for( pIterator = pResult; pIterator; pIterator = pIterator->ai_next )
-        {
-            if( pIterator->ai_family == AF_INET )
-            {
-                ipv4Address = ( struct sockaddr_in * ) pIterator->ai_addr;
-                pIceTransportAddress->family = STUN_ADDRESS_IPv4;
-                memcpy( pIceTransportAddress->address, &ipv4Address->sin_addr, STUN_IPV4_ADDRESS_SIZE );
-                break;
-            }
-            else if( pIterator->ai_family == AF_INET6 )
-            {
-                ipv6Address = ( struct sockaddr_in6 * ) pIterator->ai_addr;
-                pIceTransportAddress->family = STUN_ADDRESS_IPv6;
-                memcpy( pIceTransportAddress->address, &ipv6Address->sin6_addr, STUN_IPV6_ADDRESS_SIZE );
-                break;
-            }
-        }
-    }
-
-    if( pResult )
-    {
-        freeaddrinfo( pResult );
     }
 
     return ret;
