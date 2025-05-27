@@ -81,6 +81,96 @@ static const char * ConvertEventToString( MetricEvent_t event )
         case METRIC_EVENT_SENDING_FIRST_FRAME:
             pRet = "First Frame";
             break;
+        case METRIC_EVENT_HANDLE_SDP_OFFER:
+            pRet = "Handle SDP Offer";
+            break;
+        case METRIC_EVENT_HANDLE_EXTRACT_SDP_OFFER:
+            pRet = "Extract SDP Offer";
+            break;
+        case METRIC_EVENT_HANDLE_DESERIALIZE_SDP_OFFER:
+            pRet = "Deserialize SDP Offer";
+            break;
+        case METRIC_EVENT_HANDLE_START_PEER_CONNECTION:
+            pRet = "Start Peer Connection";
+            break;
+        case METRIC_EVENT_HANDLE_SET_REMOTE_DESCRIPTION:
+            pRet = "Set Remote Description";
+            break;
+        case METRIC_EVENT_HANDLE_SET_LOCAL_DESCRIPTION:
+            pRet = "Set Local Description";
+            break;
+        case METRIC_EVENT_HANDLE_CREATE_SDP_ANSWER:
+            pRet = "Create SDP Answer";
+            break;
+        case METRIC_EVENT_HANDLE_SERIALIZE_SDP_ANSWER:
+            pRet = "Serialize SDP Answer";
+            break;
+        case METRIC_EVENT_HANDLE_SEND_SDP_ANSWER:
+            pRet = "Send SDP Answer";
+            break;
+        case METRIC_EVENT_HANDLE_PC_GET_ICE_SERVER_LIST:
+            pRet = "PC Get Ice Server List";
+            break;
+        case METRIC_EVENT_HANDLE_PC_ADD_ICE_SERVER_LIST:
+            pRet = "PC Add Ice Server List";
+            break;
+        case METRIC_EVENT_HANDLE_PC_SET_LOCAL_CANDIDATE_READY:
+            pRet = "PC Set Local Candidate Ready Callback";
+            break;
+        case METRIC_EVENT_HANDLE_PC_ADD_VIDEO_TRANSCEIVER:
+            pRet = "Add Video Transceiver";
+            break;
+        case METRIC_EVENT_HANDLE_PC_ADD_AUDIO_TRANSCEIVER:
+            pRet = "Add Audio Transceiver";
+            break;
+        case METRIC_EVENT_HANDLE_PC_START:
+            pRet = "PC Start";
+            break;
+        case METRIC_EVENT_HANDLE_PC_DESERIALIZE_SDP_OFFER:
+            pRet = "Deserialize Peer Connection SDP Offer";
+            break;
+        case METRIC_EVENT_HANDLE_SET_PAYLOAD_TYPES:
+            pRet = "Set Payload Types";
+            break;
+        case METRIC_EVENT_HANDLE_START_ICE_CONTROLLER:
+            pRet = "Start ICE Controller";
+            break;
+        case METRIC_EVENT_HANDLE_INIT_RTP:
+            pRet = "Init RTP Library";
+            break;
+        case METRIC_EVENT_HANDLE_INIT_RTCP:
+            pRet = "Init RTCP Library";
+            break;
+        case METRIC_EVENT_HANDLE_WRITE_STARTUP_BARRIER:
+            pRet = "Write StartUp Barrier";
+            break;
+        case METRIC_EVENT_HANDLE_ADD_REMOTE_CANDIDATES:
+            pRet = "Add Remote Candidates";
+            break;
+        case METRIC_EVENT_HANDLE_INIT_ICE:
+            pRet = "Init ICE Library";
+            break;
+        case METRIC_EVENT_HANDLE_FREE_SOCKET_CONTEXTS:
+            pRet = "Free Socket Contexts";
+            break;
+        case METRIC_EVENT_HANDLE_ADD_LOCAL_CANDIDATES:
+            pRet = "Add Local Candidates";
+            break;
+        case METRIC_EVENT_HANDLE_START_POLLING:
+            pRet = "Start Polling";
+            break;
+        case METRIC_EVENT_HANDLE_ON_TIMER_EXPIRE:
+            pRet = "On Timer Expire";
+            break;
+        case METRIC_EVENT_HANDLE_ADD_LOCAL_HOST_CANDIDATES:
+            pRet = "Add Local Host Canidates";
+            break;
+        case METRIC_EVENT_HANDLE_ADD_LOCAL_SRFLX_CANDIDATES:
+            pRet = "Add Local Server Reflexive Canidates";
+            break;
+        case METRIC_EVENT_HANDLE_ADD_LOCAL_RELAY_CANDIDATES:
+            pRet = "Add Local Relay Canidates";
+            break;
         default:
             pRet = "Unknown";
             break;

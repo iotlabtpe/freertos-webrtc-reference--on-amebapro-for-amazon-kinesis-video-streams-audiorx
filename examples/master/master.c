@@ -784,6 +784,7 @@ static int32_t StartPeerConnectionSession( DemoContext_t * pDemoContext,
 
     if( ret == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_PC_GET_ICE_SERVER_LIST );
         memset( &pcConfig,
                 0,
                 sizeof( PeerConnectionSessionConfiguration_t ) );
@@ -804,10 +805,12 @@ static int32_t StartPeerConnectionSession( DemoContext_t * pDemoContext,
         ret = GetIceServerList( pDemoContext,
                                 pcConfig.iceServers,
                                 &pcConfig.iceServersCount );
+        Metric_EndEvent( METRIC_EVENT_HANDLE_PC_GET_ICE_SERVER_LIST );
     }
 
     if( ret == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_PC_ADD_ICE_SERVER_LIST );
         peerConnectionResult = PeerConnection_AddIceServerConfig( &pDemoSession->peerConnectionSession,
                                                                   &pcConfig );
         if( peerConnectionResult != PEER_CONNECTION_RESULT_OK )
@@ -815,10 +818,12 @@ static int32_t StartPeerConnectionSession( DemoContext_t * pDemoContext,
             LogWarn( ( "PeerConnection_AddIceServerConfig fail, result: %d", peerConnectionResult ) );
             ret = -1;
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_PC_ADD_ICE_SERVER_LIST );
     }
 
     if( ret == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_PC_SET_LOCAL_CANDIDATE_READY );
         peerConnectionResult = PeerConnection_SetOnLocalCandidateReady( &pDemoSession->peerConnectionSession,
                                                                         HandleLocalCandidateReady,
                                                                         pDemoSession );
@@ -827,11 +832,13 @@ static int32_t StartPeerConnectionSession( DemoContext_t * pDemoContext,
             LogWarn( ( "PeerConnection_SetOnLocalCandidateReady fail, result: %d", peerConnectionResult ) );
             ret = -1;
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_PC_SET_LOCAL_CANDIDATE_READY );
     }
 
     /* Add video transceiver */
     if( ret == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_PC_ADD_VIDEO_TRANSCEIVER );
         pTransceiver = &pDemoSession->transceivers[ DEMO_TRANSCEIVER_MEDIA_INDEX_VIDEO ];
         ret = AppMediaSource_InitVideoTransceiver( &pDemoContext->appMediaSourcesContext,
                                                    pTransceiver );
@@ -849,11 +856,13 @@ static int32_t StartPeerConnectionSession( DemoContext_t * pDemoContext,
                 ret = -1;
             }
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_PC_ADD_VIDEO_TRANSCEIVER );
     }
 
     /* Add audio transceiver */
     if( ret == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_PC_ADD_AUDIO_TRANSCEIVER );
         pTransceiver = &pDemoSession->transceivers[ DEMO_TRANSCEIVER_MEDIA_INDEX_AUDIO ];
         ret = AppMediaSource_InitAudioTransceiver( &pDemoContext->appMediaSourcesContext,
                                                    pTransceiver );
@@ -872,10 +881,12 @@ static int32_t StartPeerConnectionSession( DemoContext_t * pDemoContext,
                 ret = -1;
             }
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_PC_ADD_AUDIO_TRANSCEIVER );
     }
 
     if( ret == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_PC_START );
         pDemoSession->remoteClientIdLength = remoteClientIdLength;
         memcpy( pDemoSession->remoteClientId,
                 pRemoteClientId,
@@ -886,6 +897,7 @@ static int32_t StartPeerConnectionSession( DemoContext_t * pDemoContext,
             LogError( ( "Fail to start peer connection, result = %d.", peerConnectionResult ) );
             ret = -1;
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_PC_START );
     }
 
     return ret;
@@ -1034,6 +1046,7 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
 
     if( skipProcess == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_EXTRACT_SDP_OFFER );
         /* Get the SDP content in pSdpOfferMessage. */
         signalingControllerReturn = SignalingController_ExtractSdpOfferFromSignalingMessage( pSignalingMessage->pMessage,
                                                                                              pSignalingMessage->messageLength,
@@ -1050,10 +1063,12 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
                         pSignalingMessage->pMessage ) );
             skipProcess = 1;
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_EXTRACT_SDP_OFFER );
     }
 
     if( skipProcess == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_DESERIALIZE_SDP_OFFER );
         /* Translate the newline into SDP formal format. The end pattern from signaling event message is "\\n" or "\\r\\n",
          * so we replace that with "\n" by calling this function. Note that this doesn't support inplace replacement. */
         formalSdpMessageLength = PEER_CONNECTION_SDP_DESCRIPTION_BUFFER_MAX_LENGTH;
@@ -1071,10 +1086,12 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
                         pSignalingMessage->pMessage ) );
             skipProcess = 1;
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_DESERIALIZE_SDP_OFFER );
     }
 
     if( skipProcess == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_START_PEER_CONNECTION );
         pPcSession = GetCreatePeerConnectionSession( pDemoContext,
                                                      pSignalingMessage->pRemoteClientId,
                                                      pSignalingMessage->remoteClientIdLength,
@@ -1088,10 +1105,12 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
                        pSignalingMessage->pRemoteClientId ) );
             skipProcess = 1;
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_START_PEER_CONNECTION );
     }
 
     if( skipProcess == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_SET_REMOTE_DESCRIPTION );
         bufferSessionDescription.pSdpBuffer = pDemoContext->sdpBuffer;          /*  Memory to fill the actual sdp Buffer */
         bufferSessionDescription.sdpBufferLength = formalSdpMessageLength;
         bufferSessionDescription.type = SDP_CONTROLLER_MESSAGE_TYPE_OFFER;
@@ -1102,6 +1121,7 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
         {
             LogWarn( ( "PeerConnection_SetRemoteDescription fail, result: %d, dropping ICE candidate.", peerConnectionResult ) );
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_SET_REMOTE_DESCRIPTION );
     }
 
     if( skipProcess == 0 )
@@ -1131,6 +1151,7 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
 
     if( skipProcess == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_SET_LOCAL_DESCRIPTION );
         memset( &bufferSessionDescription,
                 0,
                 sizeof( PeerConnectionBufferSessionDescription_t ) );
@@ -1144,10 +1165,12 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
             LogWarn( ( "PeerConnection_SetLocalDescription fail, result: %d.", peerConnectionResult ) );
             skipProcess = 1;
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_SET_LOCAL_DESCRIPTION );
     }
 
     if( skipProcess == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_CREATE_SDP_ANSWER );
         pDemoContext->sdpConstructedBufferLength = PEER_CONNECTION_SDP_DESCRIPTION_BUFFER_MAX_LENGTH;
         peerConnectionResult = PeerConnection_CreateAnswer( &pPcSession->peerConnectionSession,
                                                             &bufferSessionDescription,
@@ -1159,10 +1182,12 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
             LogWarn( ( "PeerConnection_CreateAnswer fail, result: %d.", peerConnectionResult ) );
             skipProcess = 1;
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_CREATE_SDP_ANSWER );
     }
 
     if( skipProcess == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_SERIALIZE_SDP_ANSWER );
         /* Translate from SDP formal format into signaling event message by replacing newline with "\\n" or "\\r\\n". */
         sdpAnswerMessageLength = PEER_CONNECTION_SDP_DESCRIPTION_BUFFER_MAX_LENGTH;
         signalingControllerReturn = SignalingController_SerializeSdpContentNewline( pDemoContext->sdpConstructedBuffer,
@@ -1179,10 +1204,12 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
                         pDemoContext->sdpConstructedBuffer ) );
             skipProcess = 1;
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_SERIALIZE_SDP_ANSWER );
     }
 
     if( skipProcess == 0 )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_SEND_SDP_ANSWER );
         eventMessage.eventContent.correlationIdLength = 0U;
         memset( eventMessage.eventContent.correlationId,
                 0,
@@ -1203,6 +1230,7 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
             skipProcess = 1;
             LogError( ( "Send signaling message fail, result: %d", signalingControllerReturn ) );
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_SEND_SDP_ANSWER );
     }
 }
 
@@ -1430,8 +1458,10 @@ static int OnSignalingMessageReceived( SignalingMessage_t * pSignalingMessage,
             #if METRIC_PRINT_ENABLED
             Metric_StartEvent( METRIC_EVENT_SENDING_FIRST_FRAME );
             #endif
+            Metric_StartEvent( METRIC_EVENT_HANDLE_SDP_OFFER );
             HandleSdpOffer( &demoContext,
                             pSignalingMessage );
+            Metric_EndEvent( METRIC_EVENT_HANDLE_SDP_OFFER );
             break;
 
         case SIGNALING_TYPE_MESSAGE_SDP_ANSWER:

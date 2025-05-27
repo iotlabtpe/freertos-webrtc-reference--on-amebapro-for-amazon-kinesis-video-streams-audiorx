@@ -1141,7 +1141,9 @@ void IceControllerNet_AddLocalCandidates( IceControllerContext_t * pCtx )
                 #if METRIC_PRINT_ENABLED
                 Metric_StartEvent( METRIC_EVENT_ICE_GATHER_HOST_CANDIDATES );
                 #endif
+                Metric_StartEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_HOST_CANDIDATES );
                 AddHostCandidate( pCtx, &pCtx->localEndpoints[i] );
+                Metric_EndEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_HOST_CANDIDATES );
                 #if METRIC_PRINT_ENABLED
                 Metric_EndEvent( METRIC_EVENT_ICE_GATHER_HOST_CANDIDATES );
                 #endif
@@ -1152,7 +1154,9 @@ void IceControllerNet_AddLocalCandidates( IceControllerContext_t * pCtx )
                 #if METRIC_PRINT_ENABLED
                 Metric_StartEvent( METRIC_EVENT_ICE_GATHER_SRFLX_CANDIDATES );
                 #endif
+                Metric_StartEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_SRFLX_CANDIDATES );
                 AddSrflxCandidate( pCtx, &pCtx->localEndpoints[i] );
+                Metric_EndEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_SRFLX_CANDIDATES );
             }
         }
 
@@ -1161,7 +1165,9 @@ void IceControllerNet_AddLocalCandidates( IceControllerContext_t * pCtx )
             #if METRIC_PRINT_ENABLED
             Metric_StartEvent( METRIC_EVENT_ICE_GATHER_RELAY_CANDIDATES );
             #endif
+            Metric_StartEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_RELAY_CANDIDATES );
             AddRelayCandidates( pCtx );
+            Metric_EndEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_RELAY_CANDIDATES );
         }
     }
 }
