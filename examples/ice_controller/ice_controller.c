@@ -1454,6 +1454,7 @@ IceControllerResult_t IceController_Start( IceControllerContext_t * pCtx,
     /* Initialize ICE component. */
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_INIT_ICE );
         TransactionIdStore_Init( &pCtx->transactionIdStore,
                                  pCtx->transactionIdsBuffer,
                                  ICE_CONTROLLER_MAX_CANDIDATE_PAIR_COUNT );
@@ -1504,11 +1505,13 @@ IceControllerResult_t IceController_Start( IceControllerContext_t * pCtx,
             LogError( ( "Failed to initialize ICE context: mutex lock acquisition." ) );
             ret = ICE_CONTROLLER_RESULT_FAIL_MUTEX_TAKE;
         }
+        Metric_EndEvent( METRIC_EVENT_HANDLE_INIT_ICE );
     }
 
     /* Initialize socket contexts. */
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_FREE_SOCKET_CONTEXTS );
         for( i = 0; i < ICE_CONTROLLER_MAX_LOCAL_CANDIDATE_COUNT; i++ )
         {
             if( pCtx->socketsContexts[i].socketFd >= 0 )
@@ -1520,6 +1523,7 @@ IceControllerResult_t IceController_Start( IceControllerContext_t * pCtx,
         }
         pCtx->socketsContextsCount = 0;
         pCtx->pNominatedSocketContext = NULL;
+        Metric_EndEvent( METRIC_EVENT_HANDLE_FREE_SOCKET_CONTEXTS );
     }
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
@@ -1530,7 +1534,9 @@ IceControllerResult_t IceController_Start( IceControllerContext_t * pCtx,
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_CANDIDATES );
         IceControllerNet_AddLocalCandidates( pCtx );
+        Metric_EndEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_CANDIDATES );
     }
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
@@ -1541,12 +1547,16 @@ IceControllerResult_t IceController_Start( IceControllerContext_t * pCtx,
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_START_POLLING );
         ret = IceControllerSocketListener_StartPolling( pCtx );
+        Metric_EndEvent( METRIC_EVENT_HANDLE_START_POLLING );
     }
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
+        Metric_StartEvent( METRIC_EVENT_HANDLE_ON_TIMER_EXPIRE );
         OnTimerExpire( pCtx );
+        Metric_EndEvent( METRIC_EVENT_HANDLE_ON_TIMER_EXPIRE );
     }
 
     return ret;

@@ -1429,7 +1429,9 @@ void IceControllerNet_AddLocalCandidates( IceControllerContext_t * pCtx )
                 #if METRIC_PRINT_ENABLED
                 Metric_StartEvent( METRIC_EVENT_ICE_GATHER_HOST_CANDIDATES );
                 #endif
+                Metric_StartEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_HOST_CANDIDATES );
                 AddHostCandidate( pCtx, &localEndpoint );
+                Metric_EndEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_HOST_CANDIDATES );
                 #if METRIC_PRINT_ENABLED
                 Metric_EndEvent( METRIC_EVENT_ICE_GATHER_HOST_CANDIDATES );
                 #endif
@@ -1451,10 +1453,6 @@ void IceControllerNet_AddLocalCandidates( IceControllerContext_t * pCtx )
         //     #endif
         //     AddRelayCandidates( pCtx );
         // }
-        LogInfo( ( "Have %u Ice Servers, first URL: %.*s",
-                   pCtx->iceServersCount,
-                   pCtx->iceServers[0].urlLength,
-                   pCtx->iceServers[0].url ) );
         for( i = 0; i < pCtx->iceServersCount; i++ )
         {
             if( pCtx->iceServers[ i ].urlLength > DNS_CONTROLLER_MAX_DOMAIN_NAME_LENGTH )
@@ -1471,9 +1469,6 @@ void IceControllerNet_AddLocalCandidates( IceControllerContext_t * pCtx )
                 continue;
             }
 
-            LogInfo( ( "Querying URL %lu: %.*s", i,
-                       pCtx->iceServers[i].urlLength,
-                       pCtx->iceServers[i].url ) );
             dnsRequest.requestId = ( uint32_t ) i;
             /* domain name must be null terminated */
             memcpy( &( dnsRequest.domainName[ 0 ] ),
