@@ -171,6 +171,30 @@ static const char * ConvertEventToString( MetricEvent_t event )
         case METRIC_EVENT_HANDLE_ADD_LOCAL_RELAY_CANDIDATES:
             pRet = "Add Local Relay Canidates";
             break;
+        case METRIC_EVENT_RECEIVE_SDP_OFFER_TO_CALLBACK:
+            pRet = "Receive SDP Offer To Callback";
+            break;
+        case METRIC_EVENT_SEND_SDP_ANSWER:
+            pRet = "Send SDP Answer";
+            break;
+        case METRIC_EVENT_RECEIVE_SEND_SDP_ANSWER_INTO_QUEUE:
+            pRet = "Receive SDP Answer Into Queue";
+            break;
+        case METRIC_EVENT_RECEIVE_BASE64_ENCODE_SDP_ANSWER:
+            pRet = "Base64 Encode SDP Answer";
+            break;
+        case METRIC_EVENT_RECEIVE_CONSTRUCT_WSS_MSG_SDP_ANSWER:
+            pRet = "Construct WSS Message";
+            break;
+        case METRIC_EVENT_RECEIVE_WSS_SEND_SDP_ANSWER:
+            pRet = "WSS Send SDP Answer";
+            break;
+        case METRIC_EVENT_RECEIVE_TRIGGER_SDP_ANSWER_SIGNAL:
+            pRet = "WSS Receive SDP Answer Signal";
+            break;
+        case METRIC_EVENT_RECEIVE_SDP_OFFER_TO_WSLAY_EXIT:
+            pRet = "Receive SDP Answer To Wslay Exit";
+            break;
         default:
             pRet = "Unknown";
             break;

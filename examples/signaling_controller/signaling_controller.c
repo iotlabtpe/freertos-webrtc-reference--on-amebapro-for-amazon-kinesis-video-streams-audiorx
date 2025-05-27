@@ -105,6 +105,9 @@ static WebsocketResult_t HandleWssMessage( char * pMessage,
     {
         switch( wssRecvMessage.messageType )
         {
+            case SIGNALING_TYPE_MESSAGE_SDP_OFFER:
+                Metric_StartEvent( METRIC_EVENT_RECEIVE_SDP_OFFER_TO_WSLAY_EXIT );
+                break;
             case SIGNALING_TYPE_MESSAGE_GO_AWAY:
                 eventMessage.event = SIGNALING_CONTROLLER_EVENT_RECONNECT_WSS;
                 retMessageQueue = MessageQueue_Send( &pCtx->sendMessageQueue, &eventMessage, sizeof( SignalingControllerEventMessage_t ) );
@@ -1011,6 +1014,12 @@ static SignalingControllerResult_t HandleEvent( SignalingControllerContext_t * p
             pEventContentSend = &pEventMsg->eventContent;
             callbackEventStatus = SIGNALING_CONTROLLER_EVENT_STATUS_SENT_FAIL;
 
+            if( pEventContentSend->messageType == SIGNALING_TYPE_MESSAGE_SDP_ANSWER )
+            {
+                Metric_EndEvent( METRIC_EVENT_RECEIVE_SEND_SDP_ANSWER_INTO_QUEUE );
+                Metric_StartEvent( METRIC_EVENT_RECEIVE_BASE64_ENCODE_SDP_ANSWER );
+            }
+
             LogDebug( ( "Sending WSS message(%u): %.*s",
                         pEventContentSend->decodeMessageLength,
                         ( int ) pEventContentSend->decodeMessageLength, pEventContentSend->pDecodeMessage ) );
@@ -1022,6 +1031,12 @@ static SignalingControllerResult_t HandleEvent( SignalingControllerContext_t * p
             if( retBase64 != BASE64_RESULT_OK )
             {
                 ret = SIGNALING_CONTROLLER_RESULT_FAIL;
+            }
+
+            if( pEventContentSend->messageType == SIGNALING_TYPE_MESSAGE_SDP_ANSWER )
+            {
+                Metric_EndEvent( METRIC_EVENT_RECEIVE_BASE64_ENCODE_SDP_ANSWER );
+                Metric_StartEvent( METRIC_EVENT_RECEIVE_CONSTRUCT_WSS_MSG_SDP_ANSWER );
             }
 
             if( ret == SIGNALING_CONTROLLER_RESULT_OK )
@@ -1048,6 +1063,12 @@ static SignalingControllerResult_t HandleEvent( SignalingControllerContext_t * p
                 }
             }
 
+            if( pEventContentSend->messageType == SIGNALING_TYPE_MESSAGE_SDP_ANSWER )
+            {
+                Metric_EndEvent( METRIC_EVENT_RECEIVE_CONSTRUCT_WSS_MSG_SDP_ANSWER );
+                Metric_StartEvent( METRIC_EVENT_RECEIVE_WSS_SEND_SDP_ANSWER );
+            }
+
             if( ret == SIGNALING_CONTROLLER_RESULT_OK )
             {
                 LogVerbose( ( "Constructed WSS message length: %u, message: \n%.*s", pCtx->signalingTxMessageLength,
@@ -1065,6 +1086,12 @@ static SignalingControllerResult_t HandleEvent( SignalingControllerContext_t * p
                 {
                     callbackEventStatus = SIGNALING_CONTROLLER_EVENT_STATUS_SENT_DONE;
                 }
+            }
+
+            if( pEventContentSend->messageType == SIGNALING_TYPE_MESSAGE_SDP_ANSWER )
+            {
+                Metric_EndEvent( METRIC_EVENT_RECEIVE_WSS_SEND_SDP_ANSWER );
+                Metric_StartEvent( METRIC_EVENT_RECEIVE_TRIGGER_SDP_ANSWER_SIGNAL );
             }
             break;
 
@@ -1393,13 +1420,14 @@ SignalingControllerResult_t SignalingController_StartListening( SignalingControl
             
                     while( messageQueueRet == MESSAGE_QUEUE_RESULT_MQ_HAVE_MESSAGE )
                     {
+                        Metric_EndEvent( METRIC_EVENT_RECEIVE_TRIGGER_SDP_ANSWER_SIGNAL );
                         /* Handle event. */
                         eventMsgLength = sizeof( SignalingControllerEventMessage_t );
                         messageQueueRet = MessageQueue_Recv( &pCtx->sendMessageQueue, &eventMsg, &eventMsgLength );
                         if( messageQueueRet == MESSAGE_QUEUE_RESULT_OK )
                         {
                             /* Received message, process it. */
-                            LogDebug( ( "EventMsg: event: %d, pOnCompleteCallbackContext: %p", eventMsg.event, eventMsg.pOnCompleteCallbackContext ) );
+                            LogInfo( ( "EventMsg: event: %d, pOnCompleteCallbackContext: %p", eventMsg.event, eventMsg.pOnCompleteCallbackContext ) );
                             ret = HandleEvent( pCtx, &eventMsg );
                         }
             

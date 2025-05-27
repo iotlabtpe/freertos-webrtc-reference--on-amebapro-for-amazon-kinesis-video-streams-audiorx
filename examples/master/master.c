@@ -1221,6 +1221,8 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
                 pSignalingMessage->pRemoteClientId,
                 pSignalingMessage->remoteClientIdLength );
         eventMessage.eventContent.remoteClientIdLength = pSignalingMessage->remoteClientIdLength;
+        Metric_StartEvent( METRIC_EVENT_SEND_SDP_ANSWER );
+        Metric_StartEvent( METRIC_EVENT_RECEIVE_SEND_SDP_ANSWER_INTO_QUEUE );
 
         signalingControllerReturn = SignalingController_SendMessage( &demoContext.signalingControllerContext,
                                                                      &eventMessage );
@@ -1231,6 +1233,7 @@ static void HandleSdpOffer( DemoContext_t * pDemoContext,
             LogError( ( "Send signaling message fail, result: %d", signalingControllerReturn ) );
         }
         Metric_EndEvent( METRIC_EVENT_HANDLE_SEND_SDP_ANSWER );
+        LogInfo( ( "Sent SDP Answer" ) );
     }
 }
 
@@ -1458,6 +1461,7 @@ static int OnSignalingMessageReceived( SignalingMessage_t * pSignalingMessage,
             #if METRIC_PRINT_ENABLED
             Metric_StartEvent( METRIC_EVENT_SENDING_FIRST_FRAME );
             #endif
+            Metric_EndEvent( METRIC_EVENT_RECEIVE_SDP_OFFER_TO_CALLBACK );
             Metric_StartEvent( METRIC_EVENT_HANDLE_SDP_OFFER );
             HandleSdpOffer( &demoContext,
                             pSignalingMessage );
