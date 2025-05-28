@@ -1144,7 +1144,7 @@ void IceControllerNet_AddLocalCandidates( IceControllerContext_t * pCtx )
 
         if( ICE_CONTROLLER_IS_NAT_CONFIG_SET( pCtx, ICE_CANDIDATE_NAT_TRAVERSAL_CONFIG_SEND_RELAY ) )
         {
-            pCtx->addRelayCandidates = 1U;
+            // pCtx->addRelayCandidates = 1U;
         }
     }
 }

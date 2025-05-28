@@ -897,6 +897,11 @@ IceControllerResult_t IceController_ProcessIceCandidatesAndPairs( IceControllerC
         if( pCtx->addRelayCandidates != 0U )
         {
             pCtx->addRelayCandidates = 0U;
+
+            Metric_StartEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_CANDIDATES );
+            IceControllerNet_AddLocalCandidates( pCtx );
+            Metric_EndEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_CANDIDATES );
+
             #if METRIC_PRINT_ENABLED
             Metric_StartEvent( METRIC_EVENT_ICE_GATHER_RELAY_CANDIDATES );
             #endif
@@ -1549,9 +1554,10 @@ IceControllerResult_t IceController_Start( IceControllerContext_t * pCtx,
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
     {
-        Metric_StartEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_CANDIDATES );
-        IceControllerNet_AddLocalCandidates( pCtx );
-        Metric_EndEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_CANDIDATES );
+        // Metric_StartEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_CANDIDATES );
+        // IceControllerNet_AddLocalCandidates( pCtx );
+        // Metric_EndEvent( METRIC_EVENT_HANDLE_ADD_LOCAL_CANDIDATES );
+        pCtx->addRelayCandidates = 1U;
     }
 
     if( ret == ICE_CONTROLLER_RESULT_OK )
