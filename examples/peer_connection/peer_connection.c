@@ -400,7 +400,8 @@ static PeerConnectionResult_t HandleAddRemoteCandidateRequest( PeerConnectionSes
                                                                     &remoteCandidateInfo );
             if( iceControllerResult != ICE_CONTROLLER_RESULT_OK )
             {
-                LogError( ( "Fail to add remote candidate." ) );
+                /* Skip unsupported candidate types (e.g. IPv6 or TCP candidates) - this is expected behavior. */
+                LogDebug( ( "Fail to add remote candidate, result: %d.", iceControllerResult ) );
                 ret = PEER_CONNECTION_RESULT_FAIL_ICE_CONTROLLER_ADD_REMOTE_CANDIDATE;
             }
         }
@@ -1606,12 +1607,12 @@ PeerConnectionResult_t PeerConnection_Init( PeerConnectionSession_t * pSession,
             LogError( ( "xTaskCreate(%s) failed", tempName ) );
             ret = PEER_CONNECTION_RESULT_FAIL_CREATE_TASK_ICE_SOCK_LISTENER;
         }
+    }
 
-        if( ret == PEER_CONNECTION_RESULT_OK )
-        {
-            pSession->state = PEER_CONNECTION_SESSION_STATE_INITED;
-            pSession->pCtx = &peerConnectionContext;
-        }
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        pSession->state = PEER_CONNECTION_SESSION_STATE_INITED;
+        pSession->pCtx = &peerConnectionContext;
     }
 
     #if ENABLE_TWCC_SUPPORT
