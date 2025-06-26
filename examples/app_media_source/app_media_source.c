@@ -554,3 +554,30 @@ int32_t AppMediaSource_InitAudioTransceiver( AppMediaSourcesContext_t * pCtx,
 
     return ret;
 }
+
+int32_t AppMediaSource_RecvFrame( AppMediaSourcesContext_t * pCtx,
+                                  MediaFrame_t * pFrame )
+{
+    int32_t ret = 0;
+
+    if( ( pCtx == NULL ) || ( pFrame == NULL ) )
+    {
+        LogError( ( "Invalid input, pCtx: %p, pFrame: %p", pCtx, pFrame ) );
+        ret = -1;
+    }
+
+    if( ret == 0 )
+    {
+        #ifdef ENABLE_STREAMING_LOOPBACK
+            if( pCtx->onMediaSinkHookFunc )
+            {
+                ( void ) pCtx->onMediaSinkHookFunc( pCtx->pOnMediaSinkHookCustom,
+                                                    pFrame );
+            }
+        #else /* ifdef ENABLE_STREAMING_LOOPBACK */
+            AppMediaSourcePort_RecvFrame( pFrame );
+        #endif /* ifdef ENABLE_STREAMING_LOOPBACK */
+    }
+
+    return ret;
+}

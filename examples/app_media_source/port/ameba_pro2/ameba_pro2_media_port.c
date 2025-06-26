@@ -787,20 +787,32 @@ void AppMediaSourcePort_Stop( void )
     #endif
 }
 
-void AppMediaSourcePort_HandleReceiveFrame( MediaFrame_t * pFrame )
+void AppMediaSourcePort_RecvFrame( MediaFrame_t * pFrame )
 {
     mm_queue_item_t *output_item;
 
-    if( xQueueReceive( pWebrtcMmContext->output_recycle, &output_item, 0xFFFFFFFF) == pdTRUE )
+    if( xQueueReceive( pWebrtcMmContext->output_recycle, &output_item, 0) == pdTRUE )
     {
         memcpy( ( void * )output_item->data_addr, ( void * ) pFrame->pData, pFrame->size );
+
+        #if AUDIO_G711_MULAW
+            output_item->type = AV_CODEC_ID_PCMU;
+        #elif AUDIO_G711_ALAW
+            output_item->type = AV_CODEC_ID_PCMA;
+        #elif AUDIO_OPUS
+            output_item->type = AV_CODEC_ID_OPUS;
+        #endif
+
         output_item->size = pFrame->size;
-        output_item->type = AV_CODEC_ID_PCMU;
         output_item->timestamp = pFrame->timestampUs;
         xQueueSend( pWebrtcMmContext->output_ready, (void *)&output_item, 0xFFFFFFFF );
         if( pFrame->pData && pFrame->freeData != 0U )
         {
             free( pFrame->pData );
         }
+    }
+    else
+    {
+        LogWarn( ( "No free output queue item for frame type: %d", AV_CODEC_ID_OPUS ) );
     }
 }

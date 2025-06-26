@@ -839,77 +839,55 @@ static AppSession_t * GetCreatePeerConnectionSession( AppContext_t * pAppContext
 static PeerConnectionResult_t HandleRxVideoFrame( void * pCustomContext,
                                                   PeerConnectionFrame_t * pFrame )
 {
-    #ifdef ENABLE_STREAMING_LOOPBACK
-    MediaFrame_t frame;
+    int32_t resultMedia = 0;
     AppContext_t * pAppContext = ( AppContext_t * ) pCustomContext;
+    MediaFrame_t frame;
 
     if( pFrame != NULL )
     {
         LogDebug( ( "Received video frame with length: %u", pFrame->dataLength ) );
 
+        memset( &frame, 0, sizeof( MediaFrame_t ) );
         frame.trackKind = TRANSCEIVER_TRACK_KIND_VIDEO;
         frame.pData = pFrame->pData;
         frame.size = pFrame->dataLength;
         frame.freeData = 0U;
         frame.timestampUs = pFrame->presentationUs;
-        if( pAppContext->pAppMediaSourcesContext->onMediaSinkHookFunc )
+        resultMedia = AppMediaSource_RecvFrame( pAppContext->pAppMediaSourcesContext,
+                                                &frame );
+        if( resultMedia != 0U )
         {
-            ( void ) pAppContext->pAppMediaSourcesContext->onMediaSinkHookFunc( pAppContext->pAppMediaSourcesContext->pOnMediaSinkHookCustom,
-                                                                                &frame );
+            LogInfo( ( "Dropping Rx video data with result: %ld", resultMedia ) );
         }
     }
-    #else /* ifdef ENABLE_STREAMING_LOOPBACK */
-    ( void ) pCustomContext;
-
-    if( pFrame != NULL )
-    {
-        LogDebug( ( "Received video frame with length: %u", pFrame->dataLength ) );
-    }
-    #endif /* ifdef ENABLE_STREAMING_LOOPBACK */
 
     return PEER_CONNECTION_RESULT_OK;
 }
 
-extern void AppMediaSourcePort_HandleReceiveFrame( MediaFrame_t * pFrame );
-
 static PeerConnectionResult_t HandleRxAudioFrame( void * pCustomContext,
                                                   PeerConnectionFrame_t * pFrame )
 {
-    #ifdef ENABLE_STREAMING_LOOPBACK
-    MediaFrame_t frame;
+    int32_t resultMedia = 0;
     AppContext_t * pAppContext = ( AppContext_t * ) pCustomContext;
+    MediaFrame_t frame;
 
     if( pFrame != NULL )
     {
         LogDebug( ( "Received audio frame with length: %u", pFrame->dataLength ) );
 
+        memset( &frame, 0, sizeof( MediaFrame_t ) );
         frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
         frame.pData = pFrame->pData;
         frame.size = pFrame->dataLength;
         frame.freeData = 0U;
         frame.timestampUs = pFrame->presentationUs;
-        if( pAppContext->pAppMediaSourcesContext->onMediaSinkHookFunc )
+        resultMedia = AppMediaSource_RecvFrame( pAppContext->pAppMediaSourcesContext,
+                                                &frame );
+        if( resultMedia != 0U )
         {
-            ( void ) pAppContext->pAppMediaSourcesContext->onMediaSinkHookFunc( pAppContext->pAppMediaSourcesContext->pOnMediaSinkHookCustom,
-                                                                                &frame );
+            LogInfo( ( "Dropping Rx audio data with result: %ld", resultMedia ) );
         }
     }
-
-    #else /* ifdef ENABLE_STREAMING_LOOPBACK */
-    MediaFrame_t frame;
-    ( void ) pCustomContext;
-    if( pFrame != NULL )
-    {
-        LogDebug( ( "Received audio frame with length: %u", pFrame->dataLength ) );
-        memset( &frame, 0, sizeof( MediaFrame_t ) );
-
-        frame.pData = pFrame->pData;
-        frame.size = pFrame->dataLength;
-        frame.timestampUs = pFrame->presentationUs;
-        frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
-        AppMediaSourcePort_HandleReceiveFrame( &frame );
-    }
-    #endif /* ifdef ENABLE_STREAMING_LOOPBACK */
 
     return PEER_CONNECTION_RESULT_OK;
 }
