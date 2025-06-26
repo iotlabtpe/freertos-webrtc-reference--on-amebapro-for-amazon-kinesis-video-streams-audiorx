@@ -61,7 +61,7 @@ extern int max_skb_buf_num;
 #define VIDEO_2K    9
 
 /* Audio sending is always enabled, but audio receiving is not tested. */
-#define MEDIA_PORT_ENABLE_AUDIO_RECV ( 0 )
+#define MEDIA_PORT_ENABLE_AUDIO_RECV ( 1 )
 
 /*****************************************************************************
 * ISP channel : 0
@@ -139,7 +139,7 @@ static audio_params_t audioParams = {
     .use_mic_type = USE_AUDIO_AMIC,
     .channel = 1,
     .mix_mode = 0,
-    .enable_aec = 0
+    .enable_record = 0
 };
 #endif
 
@@ -785,4 +785,22 @@ void AppMediaSourcePort_Stop( void )
     #if METRIC_PRINT_ENABLED
     Metric_EndEvent( METRIC_EVENT_MEDIA_PORT_STOP );
     #endif
+}
+
+void AppMediaSourcePort_HandleReceiveFrame( MediaFrame_t * pFrame )
+{
+    mm_queue_item_t *output_item;
+
+    if( xQueueReceive( pWebrtcMmContext->output_recycle, &output_item, 0xFFFFFFFF) == pdTRUE )
+    {
+        memcpy( ( void * )output_item->data_addr, ( void * ) pFrame->pData, pFrame->size );
+        output_item->size = pFrame->size;
+        output_item->type = AV_CODEC_ID_PCMU;
+        output_item->timestamp = pFrame->timestampUs;
+        xQueueSend( pWebrtcMmContext->output_ready, (void *)&output_item, 0xFFFFFFFF );
+        if( pFrame->pData && pFrame->freeData != 0U )
+        {
+            free( pFrame->pData );
+        }
+    }
 }

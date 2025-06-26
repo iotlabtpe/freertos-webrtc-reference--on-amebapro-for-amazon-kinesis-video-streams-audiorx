@@ -37,9 +37,7 @@
 #include "metric.h"
 #endif
 
-#ifdef ENABLE_STREAMING_LOOPBACK
 #include "app_media_source.h"
-#endif /* ifdef ENABLE_STREAMING_LOOPBACK */
 
 #if ENABLE_SCTP_DATA_CHANNEL
 #include "peer_connection_sctp.h"
@@ -872,6 +870,8 @@ static PeerConnectionResult_t HandleRxVideoFrame( void * pCustomContext,
     return PEER_CONNECTION_RESULT_OK;
 }
 
+extern void AppMediaSourcePort_HandleReceiveFrame( MediaFrame_t * pFrame );
+
 static PeerConnectionResult_t HandleRxAudioFrame( void * pCustomContext,
                                                   PeerConnectionFrame_t * pFrame )
 {
@@ -896,10 +896,18 @@ static PeerConnectionResult_t HandleRxAudioFrame( void * pCustomContext,
     }
 
     #else /* ifdef ENABLE_STREAMING_LOOPBACK */
+    MediaFrame_t frame;
     ( void ) pCustomContext;
     if( pFrame != NULL )
     {
         LogDebug( ( "Received audio frame with length: %u", pFrame->dataLength ) );
+        memset( &frame, 0, sizeof( MediaFrame_t ) );
+
+        frame.pData = pFrame->pData;
+        frame.size = pFrame->dataLength;
+        frame.timestampUs = pFrame->presentationUs;
+        frame.trackKind = TRANSCEIVER_TRACK_KIND_AUDIO;
+        AppMediaSourcePort_HandleReceiveFrame( &frame );
     }
     #endif /* ifdef ENABLE_STREAMING_LOOPBACK */
 
