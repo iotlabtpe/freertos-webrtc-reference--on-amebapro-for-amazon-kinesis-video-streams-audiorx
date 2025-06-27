@@ -36,7 +36,6 @@
 #if METRIC_PRINT_ENABLED
 #include "metric.h"
 #endif
-
 #include "app_media_source.h"
 
 #if ENABLE_SCTP_DATA_CHANNEL

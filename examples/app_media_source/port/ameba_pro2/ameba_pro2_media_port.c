@@ -789,30 +789,51 @@ void AppMediaSourcePort_Stop( void )
 
 void AppMediaSourcePort_RecvFrame( MediaFrame_t * pFrame )
 {
+    uint8_t skipProcess = 0U;
     mm_queue_item_t *output_item;
 
-    if( xQueueReceive( pWebrtcMmContext->output_recycle, &output_item, 0) == pdTRUE )
+    if( pFrame == NULL )
     {
-        memcpy( ( void * )output_item->data_addr, ( void * ) pFrame->pData, pFrame->size );
+        LogError( ( "Invalid input, pFrame: %p", pFrame ) );
+        skipProcess = 1U;
+    }
 
-        #if AUDIO_G711_MULAW
-            output_item->type = AV_CODEC_ID_PCMU;
-        #elif AUDIO_G711_ALAW
-            output_item->type = AV_CODEC_ID_PCMA;
-        #elif AUDIO_OPUS
-            output_item->type = AV_CODEC_ID_OPUS;
-        #endif
-
-        output_item->size = pFrame->size;
-        output_item->timestamp = pFrame->timestampUs;
-        xQueueSend( pWebrtcMmContext->output_ready, (void *)&output_item, 0xFFFFFFFF );
-        if( pFrame->pData && pFrame->freeData != 0U )
+    if( skipProcess == 0U )
+    {
+        if( pFrame->trackKind != TRANSCEIVER_TRACK_KIND_AUDIO )
         {
-            free( pFrame->pData );
+            LogDebug( ( "Dropping non-audio frame, track kind: %d", pFrame->trackKind ) );
+            skipProcess = 1U;
         }
     }
-    else
+
+    if( skipProcess == 0U )
     {
-        LogWarn( ( "No free output queue item for frame type: %d", AV_CODEC_ID_OPUS ) );
+        if( xQueueReceive( pWebrtcMmContext->output_recycle, &output_item, 0) == pdTRUE )
+        {
+            memcpy( ( void * )output_item->data_addr, ( void * ) pFrame->pData, pFrame->size );
+
+            #if AUDIO_G711_MULAW
+                output_item->type = AV_CODEC_ID_PCMU;
+            #elif AUDIO_G711_ALAW
+                output_item->type = AV_CODEC_ID_PCMA;
+            #elif AUDIO_OPUS
+                output_item->type = AV_CODEC_ID_OPUS;
+            #else
+                #error "Audio codec is not configured."
+            #endif
+
+            output_item->size = pFrame->size;
+            output_item->timestamp = pFrame->timestampUs;
+            xQueueSend( pWebrtcMmContext->output_ready, (void *)&output_item, 0xFFFFFFFF );
+            if( pFrame->pData && pFrame->freeData != 0U )
+            {
+                free( pFrame->pData );
+            }
+        }
+        else
+        {
+            LogWarn( ( "No free output queue item for frame type: %d", AV_CODEC_ID_OPUS ) );
+        }
     }
 }
