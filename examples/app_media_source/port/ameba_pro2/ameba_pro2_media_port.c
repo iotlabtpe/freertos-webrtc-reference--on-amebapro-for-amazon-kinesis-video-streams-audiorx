@@ -60,9 +60,6 @@ extern int max_skb_buf_num;
 #define VIDEO_5M    8
 #define VIDEO_2K    9
 
-/* Audio sending is always enabled, but audio receiving is not tested. */
-#define MEDIA_PORT_ENABLE_AUDIO_RECV ( 1 )
-
 /*****************************************************************************
 * ISP channel : 0
 * Video type  : H264/HEVC
@@ -787,7 +784,7 @@ void AppMediaSourcePort_Stop( void )
     #endif
 }
 
-void AppMediaSourcePort_RecvFrame( MediaFrame_t * pFrame )
+void AppMediaSourcePort_PlayAudioFrame( MediaFrame_t * pFrame )
 {
     uint8_t skipProcess = 0U;
     mm_queue_item_t *output_item;
@@ -797,19 +794,21 @@ void AppMediaSourcePort_RecvFrame( MediaFrame_t * pFrame )
         LogError( ( "Invalid input, pFrame: %p", pFrame ) );
         skipProcess = 1U;
     }
-
-    if( skipProcess == 0U )
+    else if( pFrame->trackKind != TRANSCEIVER_TRACK_KIND_AUDIO )
     {
-        if( pFrame->trackKind != TRANSCEIVER_TRACK_KIND_AUDIO )
-        {
-            LogDebug( ( "Dropping non-audio frame, track kind: %d", pFrame->trackKind ) );
-            skipProcess = 1U;
-        }
+        LogError( ( "Dropping non-audio frame, track kind: %d", pFrame->trackKind ) );
+        skipProcess = 1U;
+    }
+    else
+    {
+        /* Empty else marker. */
     }
 
     if( skipProcess == 0U )
     {
-        if( xQueueReceive( pWebrtcMmContext->output_recycle, &output_item, 0) == pdTRUE )
+        LogDebug( ( "Playing audio frame with length: %lu", pFrame->size ) );
+
+        if( xQueueReceive( pWebrtcMmContext->output_recycle, &output_item, 0xFFFFFFFF) == pdTRUE )
         {
             memcpy( ( void * )output_item->data_addr, ( void * ) pFrame->pData, pFrame->size );
 
@@ -826,10 +825,6 @@ void AppMediaSourcePort_RecvFrame( MediaFrame_t * pFrame )
             output_item->size = pFrame->size;
             output_item->timestamp = pFrame->timestampUs;
             xQueueSend( pWebrtcMmContext->output_ready, (void *)&output_item, 0xFFFFFFFF );
-            if( pFrame->pData && pFrame->freeData != 0U )
-            {
-                free( pFrame->pData );
-            }
         }
         else
         {

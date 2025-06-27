@@ -856,7 +856,7 @@ static PeerConnectionResult_t HandleRxVideoFrame( void * pCustomContext,
                                                 &frame );
         if( resultMedia != 0U )
         {
-            LogInfo( ( "Dropping Rx video data with result: %ld", resultMedia ) );
+            LogDebug( ( "Dropping Rx video data with result: %ld", resultMedia ) );
         }
     }
 
@@ -884,7 +884,7 @@ static PeerConnectionResult_t HandleRxAudioFrame( void * pCustomContext,
                                                 &frame );
         if( resultMedia != 0U )
         {
-            LogInfo( ( "Dropping Rx audio data with result: %ld", resultMedia ) );
+            LogDebug( ( "Dropping Rx audio data with result: %ld", resultMedia ) );
         }
     }
 
