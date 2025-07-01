@@ -113,6 +113,19 @@ static PeerConnectionResult_t OnJitterBufferFrameDrop( void * pCustomContext,
 {
     PeerConnectionResult_t ret = PEER_CONNECTION_RESULT_OK;
 
+    if( pCustomContext == NULL )
+    {
+        LogError( ( "Invalid input, pCustomContext: %p", pCustomContext ) );
+        ret = PEER_CONNECTION_RESULT_BAD_PARAMETER;
+    }
+
+    if( ret == PEER_CONNECTION_RESULT_OK )
+    {
+        LogDebug( ( "Dropping packets from start seq: %u to end seq: %u",
+                    startSequence,
+                    endSequence ) );
+    }
+
     return ret;
 }
 
