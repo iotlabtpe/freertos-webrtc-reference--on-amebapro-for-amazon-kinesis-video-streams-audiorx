@@ -48,6 +48,7 @@ extern int max_local_skb_num;
 extern int max_skb_buf_num;
 
 #define MEDIA_PORT_SKB_BUFFER_THRESHOLD ( 64 )
+#define MEDIA_PORT_WEBRTC_AUDIO_FRAME_SIZE ( 256 )
 
 #define VIDEO_QCIF  0
 #define VIDEO_CIF   1
@@ -357,14 +358,20 @@ static void * CreateModuleHook( void * parent )
 static void * NewModuleItemHook( void * p )
 {
     ( void ) p;
-    return NULL;
+
+    return ( void * ) pvPortMalloc( MEDIA_PORT_WEBRTC_AUDIO_FRAME_SIZE * 2 );
 }
 
 static void * DeleteModuleItemHook( void * p,
                                     void * d )
 {
     ( void ) p;
-    ( void ) d;
+
+    if( d != NULL )
+    {
+        vPortFree( d );
+    }
+
     return NULL;
 }
 
