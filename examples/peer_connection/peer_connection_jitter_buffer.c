@@ -91,8 +91,8 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
     PeerConnectionJitterBufferPacket_t * pPacket;
     uint8_t isFrameDataContinuous = 1U;
     uint8_t isStart;
-    int32_t popingPacketStartIndex = -1;
-    int32_t firstPacketIndex = -1;
+    int32_t popingPacketStartSeq = -1;
+    int32_t firstPacketSeq = -1;
 
     if( pJitterBuffer == NULL )
     {
@@ -115,9 +115,8 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
     if( ret == PEER_CONNECTION_RESULT_OK )
     {
         /* Note that newest sequence is probably less than oldest sequence due to wrapping. */
-        firstPacketIndex = PEER_CONNECTION_JITTER_BUFFER_WRAP( pJitterBuffer->oldestReceivedSequenceNumber,
-                                                               PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM );
-        prev = firstPacketIndex;
+        firstPacketSeq = pJitterBuffer->oldestReceivedSequenceNumber;
+        prev = firstPacketSeq;
         for( i = pJitterBuffer->oldestReceivedSequenceNumber; i != ( uint16_t )( pJitterBuffer->newestReceivedSequenceNumber + 1 ); i++ )
         {
             index = PEER_CONNECTION_JITTER_BUFFER_WRAP( i,
@@ -137,19 +136,19 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
             {
                 if( pPacket->rtpTimestamp != pJitterBuffer->lastPopRtpTimestamp )
                 {
-                    if( ( popingPacketStartIndex != -1 ) &&
+                    if( ( popingPacketStartSeq != -1 ) &&
                         ( isFrameDataContinuous != 0U ) )
                     {
                         /* We now have an full frame ready between start index and end index. */
                         ret = pJitterBuffer->onFrameReadyCallbackFunc( pJitterBuffer->pOnFrameReadyCallbackContext,
-                                                                       popingPacketStartIndex,
+                                                                       popingPacketStartSeq,
                                                                        prev );
                         DiscardPackets( pJitterBuffer,
-                                        popingPacketStartIndex,
+                                        popingPacketStartSeq,
                                         prev,
                                         pPacket->rtpTimestamp );
-                        popingPacketStartIndex = -1;
-                        firstPacketIndex = index;
+                        popingPacketStartSeq = -1;
+                        firstPacketSeq = i;
                         if( ret != PEER_CONNECTION_RESULT_OK )
                         {
                             LogError( ( "Terminating parsing jitter buffer by frame ready callback function, result: %d", ret ) );
@@ -160,14 +159,14 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
                     {
                         /* data is expired, drop them */
                         ret = pJitterBuffer->onFrameDropCallbackFunc( pJitterBuffer->pOnFrameReadyCallbackContext,
-                                                                      firstPacketIndex,
+                                                                      firstPacketSeq,
                                                                       prev );
                         DiscardPackets( pJitterBuffer,
-                                        firstPacketIndex,
+                                        firstPacketSeq,
                                         prev,
                                         pPacket->rtpTimestamp );
-                        popingPacketStartIndex = -1;
-                        firstPacketIndex = index;
+                        popingPacketStartSeq = -1;
+                        firstPacketSeq = index;
                         if( ret != PEER_CONNECTION_RESULT_OK )
                         {
                             LogError( ( "Terminating parsing jitter buffer by frame drop callback function, result: %d", ret ) );
@@ -188,10 +187,10 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
                     ( pJitterBuffer->getPacketPropertyFunc( pPacket,
                                                             &isStart ) == PEER_CONNECTION_RESULT_OK ) )
                 {
-                    if( ( popingPacketStartIndex == -1 ) &&
+                    if( ( popingPacketStartSeq == -1 ) &&
                         ( isStart != 0U ) )
                     {
-                        popingPacketStartIndex = index;
+                        popingPacketStartSeq = i;
                     }
                 }
                 else
@@ -214,15 +213,14 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
                 }
             }
 
-            prev = index;
+            prev = i;
         }
 
         /* Deal with last frame when closing */
         if( isClosing != 0U )
         {
-            firstPacketIndex = PEER_CONNECTION_JITTER_BUFFER_WRAP( pJitterBuffer->oldestReceivedSequenceNumber,
-                                                                   PEER_CONNECTION_JITTER_BUFFER_MAX_ENTRY_NUM );
-            prev = firstPacketIndex;
+            firstPacketSeq = pJitterBuffer->oldestReceivedSequenceNumber;
+            prev = firstPacketSeq;
             for( i = pJitterBuffer->oldestReceivedSequenceNumber; i != ( uint16_t )( pJitterBuffer->newestReceivedSequenceNumber + 1 ); i++ )
             {
                 index = PEER_CONNECTION_JITTER_BUFFER_WRAP( i,
@@ -231,13 +229,13 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
                 if( pPacket->isPushed == 0U )
                 {
                     ret = pJitterBuffer->onFrameDropCallbackFunc( pJitterBuffer->pOnFrameReadyCallbackContext,
-                                                                  firstPacketIndex,
+                                                                  firstPacketSeq,
                                                                   prev );
                     DiscardPackets( pJitterBuffer,
-                                    firstPacketIndex,
+                                    firstPacketSeq,
                                     prev,
                                     0xFFFFFFFF );
-                    firstPacketIndex = index;
+                    firstPacketSeq = index;
                     if( ret != PEER_CONNECTION_RESULT_OK )
                     {
                         LogWarn( ( "Getting error return in drop frame callback function while closing jitter buffer, result: %d", ret ) );
@@ -245,14 +243,14 @@ static PeerConnectionResult_t ParseFramesInJitterBuffer( PeerConnectionJitterBuf
                     }
                 }
 
-                prev = index;
+                prev = i;
             }
 
             ret = pJitterBuffer->onFrameDropCallbackFunc( pJitterBuffer->pOnFrameReadyCallbackContext,
-                                                          firstPacketIndex,
+                                                          firstPacketSeq,
                                                           prev );
             DiscardPackets( pJitterBuffer,
-                            firstPacketIndex,
+                            firstPacketSeq,
                             prev,
                             0xFFFFFFFF );
             if( ret != PEER_CONNECTION_RESULT_OK )

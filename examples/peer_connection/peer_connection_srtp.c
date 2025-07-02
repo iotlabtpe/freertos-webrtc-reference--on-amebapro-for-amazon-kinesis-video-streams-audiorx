@@ -50,7 +50,6 @@
  */
 #define PEER_CONNECTION_SRTP_RTX_WRITE_RESERVED_BYTES ( 2 )
 #define PEER_CONNECTION_SRTP_RTP_PAYLOAD_MAX_LENGTH      ( 1200 )
-#define PEER_CONNECTION_SRTP_JITTER_BUFFER_TOLERENCE_TIME_SECOND ( 2 )
 
 /*-----------------------------------------------------------*/
 
