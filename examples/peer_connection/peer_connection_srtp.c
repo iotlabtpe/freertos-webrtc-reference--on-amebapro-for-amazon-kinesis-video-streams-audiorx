@@ -35,22 +35,6 @@
 #include "peer_connection_h265_helper.h"
 #include "peer_connection_opus_helper.h"
 
-/* At write frame, we reserve 2 bytes at the beginning of payload buffer for re-transmission if RTX is enabled. */
-/* The format of a retransmission packet is shown below:
-    0                   1                   2                   3
-    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
- +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- |                         RTP Header                            |
- +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- |            OSN                |                               |
- +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               |
- |                  Original RTP Packet Payload                  |
- |                                                               |
- +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- */
-#define PEER_CONNECTION_SRTP_RTX_WRITE_RESERVED_BYTES ( 2 )
-#define PEER_CONNECTION_SRTP_RTP_PAYLOAD_MAX_LENGTH      ( 1200 )
-
 /*-----------------------------------------------------------*/
 
 static PeerConnectionResult_t OnJitterBufferFrameReady( void * pCustomContext,
