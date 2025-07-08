@@ -1,0 +1,60 @@
+name: "Bi Review"
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    branches: [main]
+
+env:
+  AWS_ACCOUNT_ID: "588738614703"
+  AWS_REGION: "us-east-1"
+  AWS_ROLE_TO_ASSUME: "GitHubActionOidcRole"
+  CPPCHECK_MISRA_RESULT_XML_FILE: "cppcheck-misra"
+  SCRIPTS_PATH: ".github/workflows/scripts"
+
+jobs:
+  trigger_bi_review:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Clone This Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install OS Dependencies
+        run: |
+          sudo apt-get update -y
+      - name: Install CppCheck
+        run: |
+          sudo apt-get install -y cppcheck
+      - name: CppCheck MISRA C 2012 Check
+        env:
+          PR_BASE: origin/${{ github.base_ref }}
+          PR_HEAD: HEAD
+        run: |
+          bash ${{ env.SCRIPTS_PATH }}/cppcheck_misra.sh --commit-base  ${{ env.PR_BASE }} --commit-target  ${{ env.PR_HEAD }} --output ${{ env.CPPCHECK_MISRA_RESULT_XML_FILE }}-full.xml
+          python3 ${{ env.SCRIPTS_PATH }}/filter_cppcheck_result.py --git-diff ${{ env.PR_BASE }}...${{ env.PR_HEAD }} --input ${{ env.CPPCHECK_MISRA_RESULT_XML_FILE }}-full.xml --output ${{ env.CPPCHECK_MISRA_RESULT_XML_FILE }}-filter.csv
+      - name: Install npm
+        run: |
+          sudo apt-get install -y npm
+      - name: Install UV
+        run: |
+          python3 -m pip install uv
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.AWS_ROLE_TO_ASSUME }}
+      - name: Bi review
+        env:
+          pr_url: ${{github.event.pull_request.url}}
+          GITHUB_PERSONAL_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sed -i "s/\$GH_TOKEN/${{ env.GITHUB_PERSONAL_ACCESS_TOKEN }}/g" ${{ env.SCRIPTS_PATH }}/frpr/config.yaml
+          uvx --from ${{ env.SCRIPTS_PATH }}/agent-0.1.0-py3-none-any.whl agent --config-dir ${{ env.SCRIPTS_PATH }}/frpr --query "Review this GitHub PR and submit comments, if any, at ${{ env.pr_url }}. The scan result of MISRA C 2012 from CppCheck is available in the file ${{ env.CPPCHECK_MISRA_RESULT_XML_FILE }}-filter.csv."
